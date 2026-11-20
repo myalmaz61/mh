@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { evaluate } from '../js/calculator.js';
 import { offsetMinutes, formatOffset } from '../js/world-clock.js';
 import { normaliseSettings, validateBackup } from '../js/db.js';
+import { DEFAULT_SETTINGS } from '../js/config.js';
 
 const validNote={id:'note-1',kind:'checklist',title:'Shopping',body:'',items:[{id:'item-1',text:'Milk',done:false}],pinned:true,favourite:false,createdAt:'2026-11-19T12:00:00.000Z',updatedAt:'2026-11-19T13:00:00.000Z'};
 const backup=()=>({app:'MyHub',format:1,createdAt:'2026-11-19T12:00:00.000Z',data:{notes:[structuredClone(validNote)],settings:{theme:'auto',language:'bg',favourites:['clock','calculator'],timeZones:['Europe/Sofia','Europe/London']},calcHistory:[{expression:'200+10%',result:'220',at:'2026-11-19T12:00:00.000Z'}]}});
@@ -26,7 +27,8 @@ test('time zones handle DST',()=>{
 });
 test('settings normalise corrupt data safely',()=>{
   assert.deepEqual(normaliseSettings({theme:'invalid',language:'en',favourites:['calculator','calculator','fake'],timeZones:['Europe/London','fake']}),{
-    theme:'auto',language:'en',favourites:['calculator'],timeZones:['Europe/London']});
+    theme:'auto',language:'en',favourites:['calculator'],timeZones:['Europe/London'],
+    weatherCities:structuredClone(DEFAULT_SETTINGS.weatherCities),weatherSelectedId:'newport-shropshire-uk'});
 });
 test('backup validates expected content',()=>{
   const payload=validateBackup(backup());
@@ -48,5 +50,5 @@ test('manifest and offline precache contain required files',()=>{
   assert.equal(manifest.start_url,'./');
   assert.equal(manifest.scope,'./');
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  for(const filename of ['js/app.js','js/db.js','js/notes.js','js/calculator.js','js/world-clock.js']) assert.ok(sw.includes(filename));
+  for(const filename of ['js/app.js','js/db.js','js/notes.js','js/calculator.js','js/world-clock.js','js/weather.js','weather.css']) assert.ok(sw.includes(filename));
 });
