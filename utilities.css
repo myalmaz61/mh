@@ -1,0 +1,16 @@
+/* MyHub v0.8: independent styling for Everyday Utilities. */
+.util-card{padding:18px}.util-card h2{margin:0 0 10px}.util-form{display:grid;gap:13px;margin-top:16px}
+.util-label{display:grid;gap:8px;color:var(--muted);font-size:12px;font-weight:700}
+.util-label .text-field,.util-label .input-select{color:var(--ink)}
+.util-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.util-grid>*{min-width:0}.util-grid .input-select{max-width:100%}.util-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:6px}
+.util-result{display:grid;gap:10px;padding:17px;margin-top:17px;background:var(--surface-alt);border:1px solid var(--stroke);border-radius:15px;overflow-wrap:anywhere}
+.util-result small{font-size:12px;color:var(--muted)}.util-result strong{font-size:clamp(19px,5vw,30px);font-variant-numeric:tabular-nums;line-height:1.35}
+.util-result button{justify-self:start}.util-tabs{display:flex;gap:8px;margin:16px 0 10px}.util-tabs button{min-width:0}
+.util-check{display:flex;align-items:center;gap:9px;min-height:35px;color:var(--muted);font-size:13px}
+.util-check input{width:20px;height:20px;accent-color:var(--accent)}.util-bookmark-form{border-top:1px solid var(--stroke);padding-top:12px}
+.util-bookmark-list{display:grid;gap:11px;margin-top:15px}.util-bookmark-item{border:1px solid var(--stroke);border-radius:15px;background:var(--surface-alt);padding:14px;overflow-wrap:anywhere}
+.util-bookmark-heading{display:flex;align-items:center;gap:10px;justify-content:space-between}.util-bookmark-heading strong{font-size:15px;line-height:1.35}
+.util-bookmark-item p{font-size:12px;color:var(--muted);line-height:1.5;margin:8px 0;overflow-wrap:anywhere}
+.util-bookmark-item small{font-size:11px;color:var(--accent)}.util-open{display:inline-flex;text-decoration:none;align-items:center;justify-content:center}
+@media(max-width:360px){.util-grid{grid-template-columns:1fr}.util-tabs{flex-direction:column}}
