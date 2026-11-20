@@ -10,6 +10,7 @@ import { mountTimer } from './timer.js';
 import { mountCalendar } from './calendar.js';
 import { mountTasks } from './tasks.js';
 import { mountQuickList } from './quick-list.js';
+import { mountFootball } from './football.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -110,6 +111,7 @@ async function navigate(route){
   if(route==='calendar') cleanup=await mountCalendar({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   if(route==='tasks') cleanup=await mountTasks({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   if(route==='quicklist') cleanup=await mountQuickList({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
+  if(route==='football') cleanup=await mountFootball({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   app.querySelectorAll('[data-nav]').forEach(button=>{
     const selected=button.dataset.nav===route||(route!=='home'&&route!=='tools'&&route!=='settings'&&button.dataset.nav==='tools');
     button.classList.toggle('active',selected);

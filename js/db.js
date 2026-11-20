@@ -3,6 +3,7 @@ import { safeClone } from './utils.js';
 import { emptyCalendar, validCalendarData } from './calendar-core.js';
 import { emptyTasks, validTasksData } from './tasks-core.js';
 import { emptyQuickLists, validQuickListsData } from './quick-list-core.js';
+import { emptyFootballData, validFootballData } from './football-core.js';
 import { defaultTimerData, normaliseTimerData, validTimerData, snapshotTimerForBackup } from './timer-core.js';
 const DB_NAME = 'myhub-local';
 const DB_VERSION = 1;
@@ -168,19 +169,24 @@ export function validateBackup(data) {
   if(payload.quickListsData!==undefined && !validQuickListsData(payload.quickListsData))throw Error('Невалидни бързи списъци / invalid quick lists');
   const tasksData=payload.tasksData===undefined?emptyTasks():safeClone(payload.tasksData);
   const quickListsData=payload.quickListsData===undefined?emptyQuickLists():safeClone(payload.quickListsData);
-  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData };
+  // Backups v0.1–v0.5 had no football section: restore it empty without touching others.
+  if(payload.footballData!==undefined && !validFootballData(payload.footballData))throw Error('Невалиден футболен архив / invalid football data');
+  const footballData=payload.footballData===undefined?emptyFootballData():safeClone(payload.footballData);
+  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData,footballData };
 }
 export async function createBackup() {
-  const [notes, s, h, weather, timer, calendar, tasks, quickLists] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache'), getMeta('timerData'), getMeta('calendarData'), getMeta('tasksData'), getMeta('quickListsData')]);
+  const [notes, s, h, weather, timer, calendar, tasks, quickLists, football] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache'), getMeta('timerData'), getMeta('calendarData'), getMeta('tasksData'), getMeta('quickListsData'),getMeta('footballData')]);
   if(calendar!==undefined && !validCalendarData(calendar))throw Error('Calendar data is damaged. Backup was stopped to avoid losing events.');
   if(tasks!==undefined && !validTasksData(tasks))throw Error('Task data is damaged. Backup was stopped to avoid losing tasks.');
   if(quickLists!==undefined && !validQuickListsData(quickLists))throw Error('Quick checklist data is damaged. Backup was stopped to avoid losing lists.');
+  if(football!==undefined && !validFootballData(football))throw Error('Football data is damaged. Backup was stopped to avoid losing favourites.');
   const cleanSettings=normaliseSettings(s);
   const cleanCache={};
   for(const city of cleanSettings.weatherCities){if(validWeatherCacheEntry(weather?.[city.id]))cleanCache[city.id]=weather[city.id];}
   return { app:'MyHub', format:1, createdAt:new Date().toISOString(), version:VERSION,
     data:{ notes, settings:cleanSettings, calcHistory:Array.isArray(h) ? h.slice(0, 30) : [], weatherCache:cleanCache, timerData:snapshotTimerForBackup(normaliseTimerData(timer)), calendarData:calendar===undefined?emptyCalendar():safeClone(calendar),
-      tasksData:tasks===undefined?emptyTasks():safeClone(tasks), quickListsData:quickLists===undefined?emptyQuickLists():safeClone(quickLists) } };
+      tasksData:tasks===undefined?emptyTasks():safeClone(tasks), quickListsData:quickLists===undefined?emptyQuickLists():safeClone(quickLists),
+      footballData:football===undefined?emptyFootballData():safeClone(football) } };
 }
 export async function replaceFromBackup(payload) {
   const data = validateBackup(payload);
@@ -197,6 +203,7 @@ export async function replaceFromBackup(payload) {
     tx.objectStore('meta').put({ key:'calendarData', value:data.calendarData });
     tx.objectStore('meta').put({ key:'tasksData', value:data.tasksData });
     tx.objectStore('meta').put({ key:'quickListsData', value:data.quickListsData });
+    tx.objectStore('meta').put({ key:'footballData', value:data.footballData });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error || Error('Backup restore failed'));
     tx.onabort = () => reject(tx.error || Error('Backup restore aborted'));
