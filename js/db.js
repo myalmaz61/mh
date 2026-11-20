@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES } from './config.js';
+import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
 import { safeClone } from './utils.js';
 const DB_NAME = 'myhub-local';
 const DB_VERSION = 1;
@@ -41,17 +41,69 @@ export async function getMeta(key) {
 export async function setMeta(key, value) {
   return request('meta','readwrite',store => store.put({ key, value:safeClone(value) }));
 }
+function validCity(city) {
+  if (!city || typeof city !== 'object' || Array.isArray(city) ||
+    typeof city.id !== 'string' || !/^[A-Za-z0-9-]{1,90}$/.test(city.id) ||
+    typeof city.name !== 'string' || city.name.length<1 || city.name.length>80 ||
+    typeof city.region !== 'string' || city.region.length>80 ||
+    typeof city.country !== 'string' || city.country.length>80 ||
+    typeof city.latitude !== 'number' || !Number.isFinite(city.latitude) || Math.abs(city.latitude)>90 ||
+    typeof city.longitude !== 'number' || !Number.isFinite(city.longitude) || Math.abs(city.longitude)>180) return false;
+  return true;
+}
+export function normaliseWeatherCities(value) {
+  if (!Array.isArray(value)) return safeClone(DEFAULT_SETTINGS.weatherCities);
+  const seen=new Set(); const cities=[];
+  for (const city of value) {
+    if (!validCity(city) || seen.has(city.id)) continue;
+    cities.push({id:city.id,name:city.name,region:city.region,country:city.country,
+      latitude:city.latitude,longitude:city.longitude});
+    seen.add(city.id);
+    if (cities.length>=MAX_WEATHER_CITIES) break;
+  }
+  return cities;
+}
+const goodNumber=(value,lo,hi)=>typeof value==='number' && Number.isFinite(value) && value>=lo && value<=hi;
+const maybeNumber=(value,lo,hi)=>value===null || goodNumber(value,lo,hi);
+const goodTime=value=>typeof value==='string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value);
+const goodDay=value=>typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+'T12:00:00Z'));
+function validWeatherCacheEntry(entry) {
+  if (!entry || !Number.isFinite(Date.parse(entry.fetchedAt)) || typeof entry.fetchedAt!=='string')return false;
+  const c=entry.current;
+  if(!c || !goodTime(c.time) || !goodNumber(c.temp,-100,80) || !goodNumber(c.feels,-120,90) ||
+    !goodNumber(c.humidity,0,100)||!goodNumber(c.wind,0,500)||!goodNumber(c.rain,0,10000)||
+    !goodNumber(c.code,0,100)||typeof c.isDay!=='boolean')return false;
+  if(!Array.isArray(entry.daily)||entry.daily.length<1||entry.daily.length>7||!Array.isArray(entry.hours)||entry.hours.length>12)return false;
+  if(entry.daily.some(d=>!d || !goodDay(d.date)||!goodNumber(d.min,-100,80)||!goodNumber(d.max,-100,80)||
+    !maybeNumber(d.rain,0,10000)||!maybeNumber(d.prob,0,100)||!maybeNumber(d.wind,0,500)||!goodNumber(d.code,0,100)))return false;
+  if(entry.hours.some(h=>!h || !goodTime(h.time)||!maybeNumber(h.temp,-100,80)||!maybeNumber(h.prob,0,100)))return false;
+  return true;
+}
+function validateWeatherCache(value,weatherCities) {
+  if(value===undefined)return {};
+  if(!value || typeof value!=='object' || Array.isArray(value) || Object.keys(value).length>MAX_WEATHER_CITIES)throw Error('Невалиден кеш на времето / invalid weather cache');
+  const allowed=new Set(weatherCities.map(city=>city.id));
+  const clean={};
+  for(const [id,entry] of Object.entries(value)){
+    if(!allowed.has(id)||!validWeatherCacheEntry(entry))throw Error('Невалидна прогноза / invalid forecast');
+    clean[id]=safeClone(entry);
+  }
+  return clean;
+}
 export function normaliseSettings(candidate) {
   const s = candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? candidate : {};
   const validToolIds = new Set(TOOLS.map(tool => tool.id));
   const validZones = new Set(CITIES.map(city => city.zone));
   const favorites = Array.isArray(s.favourites) ? [...new Set(s.favourites.filter(id => validToolIds.has(id)))].slice(0, TOOLS.length) : [...DEFAULT_SETTINGS.favourites];
   const zones = Array.isArray(s.timeZones) ? [...new Set(s.timeZones.filter(id => validZones.has(id)))].slice(0, CITIES.length) : [...DEFAULT_SETTINGS.timeZones];
+  const weatherCities=normaliseWeatherCities(s.weatherCities);
+  const weatherSelectedId=weatherCities.some(c=>c.id===s.weatherSelectedId)?s.weatherSelectedId:(weatherCities[0]?.id||'');
   return {
     theme:['auto','light','dark'].includes(s.theme) ? s.theme : DEFAULT_SETTINGS.theme,
     language:['bg','en'].includes(s.language) ? s.language : DEFAULT_SETTINGS.language,
     favourites:favorites,
     timeZones:zones,
+    weatherCities, weatherSelectedId,
   };
 }
 export function validateBackup(data) {
@@ -86,16 +138,30 @@ export function validateBackup(data) {
     settings.favourites.some(v => typeof v !== 'string' || !TOOLS.some(t => t.id === v)) ||
     settings.timeZones.some(v => typeof v !== 'string' || !CITIES.some(c => c.zone === v)) ||
     new Set(settings.favourites).size !== settings.favourites.length || new Set(settings.timeZones).size !== settings.timeZones.length) throw Error('Невалидни предпочитания / invalid preferences');
+  // v0.1 backups have no weather properties and remain fully supported.
+  if (settings.weatherCities !== undefined) {
+    if(!Array.isArray(settings.weatherCities) || settings.weatherCities.length>MAX_WEATHER_CITIES ||
+      settings.weatherCities.some(c=>!validCity(c)) ||
+      new Set(settings.weatherCities.map(c=>c.id)).size !== settings.weatherCities.length ||
+      typeof settings.weatherSelectedId !== 'string' ||
+      (settings.weatherSelectedId !== '' && !settings.weatherCities.some(c=>c.id===settings.weatherSelectedId)) ||
+      (settings.weatherSelectedId === '' && settings.weatherCities.length>0))throw Error('Невалидни градове за време / invalid weather cities');
+  } else if (settings.weatherSelectedId !== undefined) throw Error('Invalid weather selection');
   for (const h of payload.calcHistory) {
     if (!h || typeof h.expression !== 'string' || h.expression.length > 120 ||
       typeof h.result !== 'string' || h.result.length > 120 || !validIso(h.at)) throw Error('Невалидно изчисление / invalid calculation');
   }
-  return { notes:safeClone(payload.notes), settings:normaliseSettings(settings), calcHistory:safeClone(payload.calcHistory) };
+  const safeSettings=normaliseSettings(settings);
+  const weatherCache=validateWeatherCache(payload.weatherCache, safeSettings.weatherCities);
+  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache };
 }
 export async function createBackup() {
-  const [notes, s, h] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory')]);
-  return { app:'MyHub', format:1, createdAt:new Date().toISOString(), version:'0.1.0',
-    data:{ notes, settings:normaliseSettings(s), calcHistory:Array.isArray(h) ? h.slice(0, 30) : [] } };
+  const [notes, s, h, weather] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache')]);
+  const cleanSettings=normaliseSettings(s);
+  const cleanCache={};
+  for(const city of cleanSettings.weatherCities){if(validWeatherCacheEntry(weather?.[city.id]))cleanCache[city.id]=weather[city.id];}
+  return { app:'MyHub', format:1, createdAt:new Date().toISOString(), version:VERSION,
+    data:{ notes, settings:cleanSettings, calcHistory:Array.isArray(h) ? h.slice(0, 30) : [], weatherCache:cleanCache } };
 }
 export async function replaceFromBackup(payload) {
   const data = validateBackup(payload);
@@ -107,6 +173,7 @@ export async function replaceFromBackup(payload) {
     for (const note of data.notes) tx.objectStore('notes').put(note);
     tx.objectStore('meta').put({ key:'settings', value:data.settings });
     tx.objectStore('meta').put({ key:'calcHistory', value:data.calcHistory });
+    tx.objectStore('meta').put({ key:'weatherCache', value:data.weatherCache });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error || Error('Backup restore failed'));
     tx.onabort = () => reject(tx.error || Error('Backup restore aborted'));

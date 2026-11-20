@@ -1,13 +1,16 @@
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 export const APP_NAME = 'MyHub';
 export const TOOLS = [
   { id: 'calculator', icon: '🧮', color: 'violet', title: 'calculator', description: 'calculatorDesc' },
   { id: 'clock', icon: '🌍', color: 'sky', title: 'clock', description: 'clockDesc' },
   { id: 'notes', icon: '📝', color: 'amber', title: 'notes', description: 'notesDesc' },
+  { id: 'weather', icon: '🌤️', color: 'sky', title: 'weather', description: 'weatherDesc' },
 ];
 export const DEFAULT_SETTINGS = Object.freeze({
   theme: 'auto', language: 'bg', favourites: ['calculator', 'clock', 'notes'],
   timeZones: ['Europe/London', 'Europe/Sofia', 'Europe/Istanbul'],
+  weatherCities: [{ id:'newport-shropshire-uk', name:'Newport', region:'Shropshire', country:'United Kingdom', latitude:52.7688, longitude:-2.3785 }],
+  weatherSelectedId: 'newport-shropshire-uk',
 });
 export const CITIES = [
   { zone: 'Europe/London', bg: 'Лондон', en: 'London' },
@@ -26,3 +29,4 @@ export const CITIES = [
   { zone: 'Australia/Sydney', bg: 'Сидни', en: 'Sydney' },
 ];
 export const MAX_NOTES = 2000;
+export const MAX_WEATHER_CITIES = 8;
