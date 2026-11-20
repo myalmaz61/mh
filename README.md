@@ -1,76 +1,58 @@
-# MyHub — Personal Tools v0.4.0
+# MyHub – Personal Tools v0.5.0
 
-A **Bulgarian / English**, mobile-first, offline-friendly PWA for personal Android use. No advertising, accounts, paid APIs or build dependencies. The app can be deployed unchanged to free GitHub Pages and may later be packaged with Capacitor.
+Безплатна, локална и модулна PWA за Android Chrome. Публикува се като статичен сайт чрез GitHub Pages. Не изисква платен API, акаунт, собствен сървър, реклами или платени зависимости.
 
-## Available tools
+## Какво има в v0.5.0
 
-- **Calculator** — expressions, percentages, copy and local calculation history.
-- **World Clock** — multiple time zones, accurate summer/winter DST changes.
-- **Notes** — text, checklists, pinned/favourite notes and autosave.
-- **Weather** — Open-Meteo, multiple cities, cached last forecast; internet for refreshing.
-- **Timer & Stopwatch** — countdown, saved durations and laps. **Not a reliable background alarm on Android**.
-- **Calendar (new v0.4.0)** — monthly calendar, daily agenda, create/edit/delete events, all-day or timed events, repeat daily/weekly/monthly/yearly, optional final repeat date. Local-only; **no notification or alarm**.
+- Начален екран: малък часовник, търсене на инструмент, ръчно избрани любими и подредба.
+- Calculator: скоби, проценти, история, копиране.
+- World Clock: градове и автоматично DST.
+- Notes: текст и checklist, любими, закрепени, локално запазване.
+- Weather: Open-Meteo, до 8 града, 7 дни, кеширана последна прогноза.
+- Timer & Stopwatch: таймер, пауза, запазени продължителности, хронометър и lap times; без гарантирани фонови аларми.
+- Calendar: месец/ден, събития, повторения, без системни известия.
+- **Tasks (ново):** добавяне, редактиране и изтриване; приоритет, крайна дата, отметка; активни, със срок днес/просрочени, всички и завършени; търсене.
+- **Quick Checklists (ново):** множество списъци, добавяне/отметка/изтриване на ред, преименуване, премахване на изпълнените редове и изтриване на списък.
+- Settings: български/английски; светла/тъмна/автоматична тема; любимите инструменти и подредбата им; JSON Backup/Restore.
 
-**Repeat policy:** Monthly repetitions are tied to their original day of month. For example, a monthly event starting on the 31st does *not* appear in a month without 31 days. A yearly 29 February event appears only in leap years. Event time is stored as local wall time; unlike external calendar services, MyHub does not synchronise, translate time zones or schedule reminders. Editing/deleting a recurring event affects **the whole series**, not individual occurrences. Each event has one date (multi-day events not yet supported).
+## Съхранение и безопасност
 
-## Technical and data safety
+- **IndexedDB `myhub-local`, версия 1** — без промяна спрямо v0.4.0. Stores: `notes`, `meta`.
+- `meta.tasksData` съхранява задачите в `{schema:1,tasks:[...]}`.
+- `meta.quickListsData` съхранява бързите списъци в `{schema:1,lists:[...]}`.
+- Няма миграция и няма изтриване на данни при публикуване или обновяване.
+- JSON Backup формат **1** продължава да приема файлове от предишните версии. Новите архиви съдържат и `tasksData` и `quickListsData`.
+- **Внимание:** Restore замества всички данни. При възстановяване на стар архив, в който няма `tasksData`/`quickListsData`, тези две колекции стават празни. Първо направи нов архив, преди да възстановяваш стар.
+- Строга проверка на размери, дати, повторни ID, типове и лимити преди Restore. Възстановяването става с една IndexedDB транзакция за двата store-а.
+- Ако съществуващите данни на Tasks/Quick Checklists са повредени, модулът отказва да ги презапише. Ако са повредени при Backup, архивирането се прекратява вместо да се запази непълен архив.
+- Лимит: 1000 задачи, 50 бързи списъка, 100 реда във всеки списък. Без автоматични известия за сроковете и без повторения на задачи в тази версия.
+- Почистването на Chrome site data или деинсталирането на PWA може да изтрие локалните данни. Прави JSON архиви редовно.
 
-- Native HTML, CSS, and JavaScript ES modules, no framework or npm dependency for deployment.
-- IndexedDB **`myhub-local` version 1**, unchanged since v0.1; `notes` and `meta` object stores. Calendar data resides at `meta.calendarData` with `{schema:1,events:[...]}`. 1000 events maximum. No migration or deletion of existing records on upgrade.
-- Local-first; Calendar and other offline tools function without internet once the PWA assets have been cached.
-- Settings > JSON Backup exports notes, favourites, settings, calculation history, weather snapshots, timer presets/state (running sessions frozen paused in backup), **and calendar events**. Backups use the existing `app:'MyHub', format:1` structure.
-- Backups from v0.1–v0.3 **remain importable**. Since those backups do not contain a Calendar, restoring an older backup *replaces* current Calendar events with an empty Calendar. Export the current backup first; restore asks for confirmation and writes all data in one IndexedDB transaction.
-- Invalid calendar backup data is rejected before import. Damaged calendar data in the live database is not silently overwritten; opening Calendar shows a warning, and export stops with a warning rather than discarding events.
-- Never add personal JSON backup files or private event contents to the **public GitHub repository**. GitHub Pages hosts app code, not the private data.
-- Service Worker cache: `myhub-shell-v0.4.0`. Both `js/calendar.js`, `js/calendar-core.js` and `calendar.css` must exist for the update to install correctly. No automatic network dependency for Calendar.
+## Структура и зависимости
 
-## Publishing with Android + GitHub
+- `index.html`, `styles.css` — общ интерфейс.
+- `js/app.js`, `js/config.js`, `js/i18n.js`, `js/db.js` — навигация, настройки, преводи и данни.
+- `js/tasks.js` + `js/tasks-core.js` + `tasks.css` — Tasks.
+- `js/quick-list.js` + `js/quick-list-core.js` + `tasks.css` — Quick Checklists.
+- Отделни модули за Calculator, World Clock, Notes, Weather, Timer и Calendar.
+- `sw.js` и `manifest.webmanifest` — PWA, кеш на приложението, офлайн поддръжка.
+- `tests/*.test.mjs` — Node.js автоматизирани тестове.
 
-- Updating v0.3.0: use `MyHub-v0.4.0-UPDATE-ONLY.zip`; overwrite **only its listed files**, preserving the other working files and existing PWA storage.
-- New installation: `MyHub-v0.4.0.zip` has the whole project.
-- In GitHub Pages, use `Settings → Pages → Deploy from a branch → main / (root)` and keep the **same repository URL** when upgrading.
-- Full phone instructions are in `START-HERE-BG.md`.
+Без външни JS библиотеки, без build стъпка, без npm инсталация за публикуване. Node.js е необходим само ако разработчик иска да изпълни тестовете (`npm test`), но **не е необходим на Android за използване и публикуване**.
 
-## Tests
+## Публикуване и обновяване
 
-From the extracted project, Node 22+ can run `node --test tests/*.test.mjs` without additional packages. The 36 automated tests cover existing modules, recurrence on month-end and DST dates, backup format compatibility, corrupt input, translations, and offline asset references. A separate mobile-emulated Chromium component test was run against Calendar using mocked local storage, covering create, weekly recurrence, edit, reload, delete and horizontal layout.
+Прочети `START-HERE-BG.md` за подробни стъпки само с Android + GitHub. За съществуваща инсталация v0.4.0 използвай архива `MyHub-v0.5.0-UPDATE-ONLY.zip` и замени само файловете в него, като запазиш същите директории. За чиста инсталация използвай `MyHub-v0.5.0.zip`.
 
-Full on-device verification on Android Chrome after GitHub Pages deployment is still required. There are no guaranteed background notifications.
+**Не качвай ZIP файла сам по себе си като GitHub Pages уебсайт.** Разархивирай го и качи файловете в съответните папки. Не променяй адреса на Pages и не изтривай данните на браузъра.
 
-## File layout
+## Ограничения
 
-```text
-.nojekyll
-index.html
-styles.css
-weather.css
-timer.css
-calendar.css                 NEW — module-only stylesheet
-manifest.webmanifest
-sw.js                        UPDATED offline assets / version
-package.json                UPDATED version
-js/
-  app.js                    UPDATED navigation
-  config.js                 UPDATED version + tool registry
-  db.js                     UPDATED backup / restore for calendar
-  i18n.js                   UPDATED Bulgarian / English UI
-  calendar.js               NEW calendar interface
-  calendar-core.js          NEW independent recurrence / validation
-  calculator.js             UNCHANGED
-  world-clock.js            UNCHANGED
-  notes.js                  UNCHANGED
-  weather.js                UNCHANGED
-  timer.js                  UNCHANGED
-  timer-core.js             UNCHANGED
-  utils.js                  UNCHANGED
-tests/
-  calendar.test.mjs         NEW calendar / backup / integrity tests
-  timer.test.mjs            UPDATED expected version
-  weather.test.mjs          UPDATED expected cache version
-  smoke.test.mjs            UNCHANGED
-icons/                      UNCHANGED
-START-HERE-BG.md            UPDATED Android instructions
-README.md                   this guide
-```
+- Статичният GitHub Pages сайт не синхронизира данни между телефони или между Chrome и бъдещо APK. За прехвърляне използвай JSON Backup/Restore.
+- Weather изисква интернет за обновяване; локалните инструменти работят офлайн след успешно инсталиране и кеширане на PWA.
+- Не са обещани надеждни таймерни аларми или календарни/задачни системни известия, когато Android е заключен.
+- Бъдещи модулни версии: Football Scores (само с реално разрешен източник), RSS Reader (CORS ограниченията), Converter и др.
 
-The PWA/Capacitor conversion path still relies on exporting a JSON backup in the PWA, then importing it into the future APK. The Android APK has a separate storage origin, and does **not** automatically share Chrome's IndexedDB.
+## Тестове
+
+`npm test` стартира тестовете в `tests/` в среда с Node.js >=20. Проверени са и отделните интерактивни модули Tasks и Quick Checklists в мобилен Chromium (create/edit/delete, search/toggle, remount). Тест на публикуваната PWA върху конкретния Android телефон остава необходим.
