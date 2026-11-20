@@ -1,4 +1,4 @@
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
 export const APP_NAME = 'MyHub';
 export const TOOLS = [
   { id: 'calculator', icon: '🧮', color: 'violet', title: 'calculator', description: 'calculatorDesc' },
@@ -6,6 +6,7 @@ export const TOOLS = [
   { id: 'notes', icon: '📝', color: 'amber', title: 'notes', description: 'notesDesc' },
   { id: 'weather', icon: '🌤️', color: 'sky', title: 'weather', description: 'weatherDesc' },
   { id: 'timer', icon: '⏱️', color: 'amber', title: 'timer', description: 'timerDesc' },
+  { id: 'calendar', icon: '📅', color: 'violet', title: 'calendar', description: 'calendarDesc' },
 ];
 export const DEFAULT_SETTINGS = Object.freeze({
   theme: 'auto', language: 'bg', favourites: ['calculator', 'clock', 'notes'],

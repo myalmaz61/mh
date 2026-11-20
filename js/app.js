@@ -7,6 +7,7 @@ import { mountWorldClock } from './world-clock.js';
 import { mountNotes } from './notes.js';
 import { mountWeather } from './weather.js';
 import { mountTimer } from './timer.js';
+import { mountCalendar } from './calendar.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -104,6 +105,7 @@ async function navigate(route){
     weatherCities:settings.weatherCities,weatherSelectedId:settings.weatherSelectedId,
     saveWeather:change=>updateSettings(change),notify:toast});
   if(route==='timer') cleanup=await mountTimer({element:main,t,lang:settings.language,notify:toast});
+  if(route==='calendar') cleanup=await mountCalendar({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   app.querySelectorAll('[data-nav]').forEach(button=>{
     const selected=button.dataset.nav===route||(route!=='home'&&route!=='tools'&&route!=='settings'&&button.dataset.nav==='tools');
     button.classList.toggle('active',selected);

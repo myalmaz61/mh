@@ -1,5 +1,6 @@
 import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
 import { safeClone } from './utils.js';
+import { emptyCalendar, validCalendarData } from './calendar-core.js';
 import { defaultTimerData, normaliseTimerData, validTimerData, snapshotTimerForBackup } from './timer-core.js';
 const DB_NAME = 'myhub-local';
 const DB_VERSION = 1;
@@ -157,15 +158,19 @@ export function validateBackup(data) {
   // Older v0.1 / v0.2 archives do not contain timerData.
   if(payload.timerData!==undefined && !validTimerData(payload.timerData))throw Error('Невалиден таймер / invalid timer data');
   const timerData=payload.timerData===undefined ? defaultTimerData() : structuredClone(payload.timerData);
-  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData };
+  // v0.1–v0.3 archives have no calendarData and remain compatible.
+  if(payload.calendarData!==undefined && !validCalendarData(payload.calendarData))throw Error('Невалиден календар / invalid calendar');
+  const calendarData=payload.calendarData===undefined?emptyCalendar():safeClone(payload.calendarData);
+  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData };
 }
 export async function createBackup() {
-  const [notes, s, h, weather, timer] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache'), getMeta('timerData')]);
+  const [notes, s, h, weather, timer, calendar] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache'), getMeta('timerData'), getMeta('calendarData')]);
+  if(calendar!==undefined && !validCalendarData(calendar))throw Error('Calendar data is damaged. Backup was stopped to avoid losing events.');
   const cleanSettings=normaliseSettings(s);
   const cleanCache={};
   for(const city of cleanSettings.weatherCities){if(validWeatherCacheEntry(weather?.[city.id]))cleanCache[city.id]=weather[city.id];}
   return { app:'MyHub', format:1, createdAt:new Date().toISOString(), version:VERSION,
-    data:{ notes, settings:cleanSettings, calcHistory:Array.isArray(h) ? h.slice(0, 30) : [], weatherCache:cleanCache, timerData:snapshotTimerForBackup(normaliseTimerData(timer)) } };
+    data:{ notes, settings:cleanSettings, calcHistory:Array.isArray(h) ? h.slice(0, 30) : [], weatherCache:cleanCache, timerData:snapshotTimerForBackup(normaliseTimerData(timer)), calendarData:calendar===undefined?emptyCalendar():safeClone(calendar) } };
 }
 export async function replaceFromBackup(payload) {
   const data = validateBackup(payload);
@@ -179,6 +184,7 @@ export async function replaceFromBackup(payload) {
     tx.objectStore('meta').put({ key:'calcHistory', value:data.calcHistory });
     tx.objectStore('meta').put({ key:'weatherCache', value:data.weatherCache });
     tx.objectStore('meta').put({ key:'timerData', value:data.timerData });
+    tx.objectStore('meta').put({ key:'calendarData', value:data.calendarData });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error || Error('Backup restore failed'));
     tx.onabort = () => reject(tx.error || Error('Backup restore aborted'));
