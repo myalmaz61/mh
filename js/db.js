@@ -1,6 +1,8 @@
 import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
 import { safeClone } from './utils.js';
 import { emptyCalendar, validCalendarData } from './calendar-core.js';
+import { emptyTasks, validTasksData } from './tasks-core.js';
+import { emptyQuickLists, validQuickListsData } from './quick-list-core.js';
 import { defaultTimerData, normaliseTimerData, validTimerData, snapshotTimerForBackup } from './timer-core.js';
 const DB_NAME = 'myhub-local';
 const DB_VERSION = 1;
@@ -161,16 +163,24 @@ export function validateBackup(data) {
   // v0.1–v0.3 archives have no calendarData and remain compatible.
   if(payload.calendarData!==undefined && !validCalendarData(payload.calendarData))throw Error('Невалиден календар / invalid calendar');
   const calendarData=payload.calendarData===undefined?emptyCalendar():safeClone(payload.calendarData);
-  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData };
+  // Backups created before v0.5 have neither Tasks nor Quick Checklists.
+  if(payload.tasksData!==undefined && !validTasksData(payload.tasksData))throw Error('Невалидни задачи / invalid tasks');
+  if(payload.quickListsData!==undefined && !validQuickListsData(payload.quickListsData))throw Error('Невалидни бързи списъци / invalid quick lists');
+  const tasksData=payload.tasksData===undefined?emptyTasks():safeClone(payload.tasksData);
+  const quickListsData=payload.quickListsData===undefined?emptyQuickLists():safeClone(payload.quickListsData);
+  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData };
 }
 export async function createBackup() {
-  const [notes, s, h, weather, timer, calendar] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache'), getMeta('timerData'), getMeta('calendarData')]);
+  const [notes, s, h, weather, timer, calendar, tasks, quickLists] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache'), getMeta('timerData'), getMeta('calendarData'), getMeta('tasksData'), getMeta('quickListsData')]);
   if(calendar!==undefined && !validCalendarData(calendar))throw Error('Calendar data is damaged. Backup was stopped to avoid losing events.');
+  if(tasks!==undefined && !validTasksData(tasks))throw Error('Task data is damaged. Backup was stopped to avoid losing tasks.');
+  if(quickLists!==undefined && !validQuickListsData(quickLists))throw Error('Quick checklist data is damaged. Backup was stopped to avoid losing lists.');
   const cleanSettings=normaliseSettings(s);
   const cleanCache={};
   for(const city of cleanSettings.weatherCities){if(validWeatherCacheEntry(weather?.[city.id]))cleanCache[city.id]=weather[city.id];}
   return { app:'MyHub', format:1, createdAt:new Date().toISOString(), version:VERSION,
-    data:{ notes, settings:cleanSettings, calcHistory:Array.isArray(h) ? h.slice(0, 30) : [], weatherCache:cleanCache, timerData:snapshotTimerForBackup(normaliseTimerData(timer)), calendarData:calendar===undefined?emptyCalendar():safeClone(calendar) } };
+    data:{ notes, settings:cleanSettings, calcHistory:Array.isArray(h) ? h.slice(0, 30) : [], weatherCache:cleanCache, timerData:snapshotTimerForBackup(normaliseTimerData(timer)), calendarData:calendar===undefined?emptyCalendar():safeClone(calendar),
+      tasksData:tasks===undefined?emptyTasks():safeClone(tasks), quickListsData:quickLists===undefined?emptyQuickLists():safeClone(quickLists) } };
 }
 export async function replaceFromBackup(payload) {
   const data = validateBackup(payload);
@@ -185,6 +195,8 @@ export async function replaceFromBackup(payload) {
     tx.objectStore('meta').put({ key:'weatherCache', value:data.weatherCache });
     tx.objectStore('meta').put({ key:'timerData', value:data.timerData });
     tx.objectStore('meta').put({ key:'calendarData', value:data.calendarData });
+    tx.objectStore('meta').put({ key:'tasksData', value:data.tasksData });
+    tx.objectStore('meta').put({ key:'quickListsData', value:data.quickListsData });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error || Error('Backup restore failed'));
     tx.onabort = () => reject(tx.error || Error('Backup restore aborted'));
