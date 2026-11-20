@@ -12,6 +12,8 @@ import { mountTasks } from './tasks.js';
 import { mountQuickList } from './quick-list.js';
 import { mountFootball } from './football.js';
 import { mountRss } from './rss.js';
+import { mountUnitConverter, mountDateCalculator, mountPercentageCalculator } from './utilities.js';
+import { mountBookmarks } from './bookmarks.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -114,6 +116,10 @@ async function navigate(route){
   if(route==='quicklist') cleanup=await mountQuickList({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   if(route==='football') cleanup=await mountFootball({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   if(route==='rss') cleanup=await mountRss({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
+  if(route==='unit') cleanup=mountUnitConverter({element:main,lang:settings.language,notify:toast});
+  if(route==='datecalc') cleanup=mountDateCalculator({element:main,lang:settings.language});
+  if(route==='percentage') cleanup=mountPercentageCalculator({element:main,lang:settings.language,notify:toast});
+  if(route==='bookmarks') cleanup=await mountBookmarks({element:main,lang:settings.language,notify:toast,confirmAction:window.confirm});
   app.querySelectorAll('[data-nav]').forEach(button=>{
     const selected=button.dataset.nav===route||(route!=='home'&&route!=='tools'&&route!=='settings'&&button.dataset.nav==='tools');
     button.classList.toggle('active',selected);

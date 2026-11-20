@@ -1,4 +1,4 @@
-export const VERSION = '0.7.0';
+export const VERSION = '0.8.0';
 export const APP_NAME = 'MyHub';
 export const TOOLS = [
   { id: 'calculator', icon: '🧮', color: 'violet', title: 'calculator', description: 'calculatorDesc' },
@@ -11,6 +11,10 @@ export const TOOLS = [
   { id: 'quicklist', icon: '☑️', color: 'amber', title: 'quickList', description: 'quickListDesc' },
   { id: 'football', icon: '⚽', color: 'sky', title: 'football', description: 'footballDesc' },
   { id: 'rss', icon: '📰', color: 'violet', title: 'rss', description: 'rssDesc' },
+  { id: 'unit', icon: '📏', color: 'sky', title: 'unitConverter', description: 'unitConverterDesc' },
+  { id: 'datecalc', icon: '📆', color: 'violet', title: 'dateCalculator', description: 'dateCalculatorDesc' },
+  { id: 'percentage', icon: '％', color: 'amber', title: 'percentageCalculator', description: 'percentageCalculatorDesc' },
+  { id: 'bookmarks', icon: '🔖', color: 'sky', title: 'bookmarks', description: 'bookmarksDesc' },
 ];
 export const DEFAULT_SETTINGS = Object.freeze({
   theme: 'auto', language: 'bg', favourites: ['calculator', 'clock', 'notes'],
