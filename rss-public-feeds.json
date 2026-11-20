@@ -1,0 +1,4 @@
+{
+  "comment": "OPTIONAL public RSS subscriptions for GitHub Actions. Do NOT put private feeds, tokens or credentials here. Uses an empty list until you opt in.",
+  "feeds": []
+}

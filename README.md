@@ -1,44 +1,55 @@
-# MyHub – Personal Tools v0.6.0
+# MyHub — Personal Tools v0.7.0
 
-**Free, local-first Android PWA hosted on GitHub Pages.** No private API keys, servers, ads, trackers, sign-in, Node build, Android Studio or paid services.
+Free, local-first Android PWA for personal use. No paid APIs, servers, ads, accounts, trackers or mandatory cloud storage. Designed for Android Chrome and GitHub Pages.
 
-## Tools
+## Included tools
 
-Calculator, World Clock, Notes, Weather (Open-Meteo), Timer / Stopwatch, Calendar, Tasks, Quick Checklists, **Football Scores**.
+Calculator, World Clock, Notes, Weather (Open-Meteo), Timer / Stopwatch, Calendar, Tasks, Quick Checklists, Football Scores (OpenLigaDB) and **RSS Reader**.
 
-## Football Scores v0.6.0
+## RSS Reader in v0.7.0
 
-- Uses `https://api.openligadb.de` with no authentication or API key.
-- Starts with German Bundesliga 2026/27. Use **+ Добави първенство** to select other leagues actually listed by the provider for the current or adjacent seasons. Data coverage varies and is not guaranteed, particularly for Premier League and other leagues maintained by community volunteers.
-- See scheduled matches, completed matches and results if published, plus a separate **★ Любими** view of cached matches involving starred teams.
-- The ★ button beside a team adds/removes it from favourites.
-- Times display in the phone's current local timezone; no permissions needed.
-- If a match is not officially marked finished, the app **never asserts LIVE**: it may indicate "possibly playing, unconfirmed" based on kick-off time. Scores are never fabricated.
-- Refreshes politely: up to every two hours while the screen is open outside possible matches, plus manual refresh no more than once every 30 minutes (or 90 seconds if a match may be playing). During an ongoing match, it can poll the provider's cheap `getlastchangedate` endpoint about every 90 seconds, fetching the season again only if a change is detected. This depends on provider coverage and is not a guaranteed real-time live service.
-- Cached matches remain visible offline; there are no offline updates.
-- No third-party team crests: their image rights are not guaranteed under the source data licence.
-- Attribution: Data from [OpenLigaDB](https://www.openligadb.de/), licensed under [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). See their [API terms](https://www.openligadb.de/en/terms-of-use) and [data licence](https://www.openligadb.de/en/license).
+- Subscribe to up to 40 **public HTTPS RSS 2.0 / Atom sources**. Categories are stored per feed.
+- Fetch directly where the provider allows browser cross-origin requests (CORS). MyHub cannot bypass CORS and does not depend on a public proxy.
+- Browse the latest saved articles; mark read/unread, star, save to Read Later, filter by source/category, and search.
+- Open original article in the browser with `noopener noreferrer` and no referrer header. The reader displays escaped plaintext summaries, not remote HTML or embedded widgets.
+- **OPML export/import** for sources and categories. OPML does not contain articles or reading history.
+- **XML import** of a previously downloaded RSS or Atom file into one selected feed: useful when the browser is blocked by CORS. This is manual, not an automatic refresh.
+- **Optional public GitHub Actions cache** (see below) for public feed subscriptions. This is a separate opt-in setup, not necessary to use MyHub. Nothing from your device is uploaded to GitHub automatically.
+- The last successful articles and read/starred/read-later flags stay in IndexedDB and remain visible offline. Offline cannot fetch new articles.
+- RSS has a cap of 100 articles per feed fetch, 1,600 cached articles overall, 2 MB XML per feed, and 40 subscriptions. Saved/starred items have pruning priority; the 1,600-entry limit still applies.
 
-## Storage / backup
+## Important CORS details
 
-`myhub-local`, IndexedDB version **1** (unchanged). Football match caches and starred teams are in the existing `meta` store under `footballData`. League catalogue cache is a separate, rebuildable `footballCatalog` entry. v0.6 JSON backups include `footballData` with strict validation. v0.1–v0.5 backups continue to import: the Football section defaults to its initial state. **Restore overwrites all current MyHub data**, so export a fresh backup first.
+A static site on GitHub Pages cannot read arbitrary RSS websites that disallow cross-origin fetches. `mode:'no-cors'` does **not** fix this because it returns an unreadable response. For those sites use the manual XML import, or enable the optional public GitHub Actions cache. No free third-party proxy is required.
 
-## File layout
+### Optional public GitHub Actions cache — not enabled by default
 
-- `index.html`, `styles.css`, `weather.css`, `timer.css`, `calendar.css`, `tasks.css`, **`football.css`** — layout.
-- `js/app.js`, `js/config.js`, `js/db.js`, `js/i18n.js`, `js/utils.js` — app shell and local data.
-- Existing tool modules remain independent.
-- **`js/football-core.js`** — source data parsing, validation and filters.
-- **`js/football.js`** — Football UI, caching, network requests and favourites.
-- `manifest.webmanifest`, `sw.js`, `icons/` — PWA installation and offline shell.
-- `tests/*.test.mjs` — Node built-in test runner; `npm test` is optional and not needed on Android.
+The file `rss-public-feeds.json` starts with `"feeds": []`. If you explicitly list **public HTTPS RSS addresses** in this file, `scripts/rss-public-cache.py` can fetch them on a GitHub-hosted runner (Python standard library only) and write `rss-public-cache.json` for the static site. The RSS screen has a button **Public GitHub cache** to merge only URLs that match feeds you've already added locally.
 
-## Publish / upgrade
+The example workflow lives at `_optional/rss-pages.yml`. It is **not active** until copied to `.github/workflows/rss-pages.yml`, and GitHub Pages is changed to **GitHub Actions** as publishing source. This workflow publishes the site and refreshes the public cache at scheduled times and on `main` pushes. This changes the Pages deployment method; do it only if you are comfortable with the optional setup. Scheduled jobs are best effort, may be delayed, and can be disabled after 60 days of public-repo inactivity. An empty or failed public feed fetch doesn't erase local RSS articles.
 
-1. Back up your current v0.5.0 data via Settings → JSON Backup.
-2. Extract `MyHub-v0.6.0-UPDATE-ONLY.zip` and upload the **complete changed files** to their matching GitHub folders, preserving exact filenames.
-3. Keep the same GitHub Pages origin/URL. Do not uninstall the PWA or clear site data.
-4. Wait for GitHub Pages deployment, open MyHub, accept the service-worker update if offered, verify `v0.6.0` in Settings.
-5. See `START-HERE-BG.md` for complete Bulgarian Android instructions and a verification checklist.
+**Privacy:** The feed URLs in `rss-public-feeds.json` and cached article metadata on GitHub Pages are public. **Do not put private subscriptions, credentials, tokens, passwords or personal feed addresses into public configuration files.** All local read/starred/read-later state stays on your phone; it is never included in the public cache.
 
-**Caution:** This version passes automated tests of JavaScript logic and previous module regressions, but the test environment does not permit a complete browser/PWA launch. Verify on your Android Chrome after publication. Network availability and football data completeness depend on the independent API provider.
+## Storage and backup
+
+- Existing IndexedDB `myhub-local`, version **1** (no schema upgrade or data deletion).
+- New `meta` key: `rssData` (validated before accepting restore; preserved by v0.7 backup).
+- Existing Notes, Weather, Timer, Calendar, Tasks, Quick Checklists, Football, settings and Calculator History still use their existing data stores/keys.
+- **JSON Backup/Restore** includes RSS articles and reading flags, as well as everything from previous versions. v0.1–v0.6 backups remain importable and give RSS an empty default. Restore **replaces every current tool's data**: export a new JSON backup first.
+- **OPML** is deliberately different from JSON Backup: it exports only public source URLs, categories and titles.
+
+## Structure and how to deploy
+
+- Root: `index.html`, stylesheets (including `rss.css`), `manifest.webmanifest`, `sw.js`, `rss-public-feeds.json`.
+- `js/rss-core.js`: RSS/Atom/OPML parsing, model validation and merge helpers.
+- `js/rss.js`: independent RSS interface, direct fetch, manual XML import and optional public cache.
+- `js/config.js`, `js/db.js`, `js/app.js`, `js/i18n.js`: minimal integration changes.
+- `_optional/rss-pages.yml` and `scripts/rss-public-cache.py`: OPTIONAL public-cache workflow (inactive by default).
+- `tests/rss.test.mjs`: unit tests with the Node built-in runner; Node not required on Android.
+- `icons/`, other JS modules and CSS: all unchanged from v0.6.0.
+
+To update from v0.6.0, use `MyHub-v0.7.0-UPDATE-ONLY.zip`. Upload the complete changed files to the same paths in the same GitHub repository, preserving the existing Pages URL and app installation. Do not clear Android Chrome/PWA storage. See `START-HERE-BG.md` for Android-first instructions.
+
+## Tests and limitations
+
+The Node test suite checks previous module regressions, new RSS data/backup validation, and optional shell integration. XML RSS/Atom/OPML parsing and RSS UI interactions were separately checked in a Chromium DOM with synthetic content and simulated local storage. **A full Android Chrome PWA integration and real external RSS API/CORS test could not be performed in the test environment.** Validate publication on your own device, ideally with a known CORS-enabled source or downloaded XML sample.
