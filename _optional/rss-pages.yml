@@ -1,0 +1,36 @@
+# OPTIONAL! Do not copy until you choose GitHub Pages source: GitHub Actions.
+# All feeds in rss-public-feeds.json and their cached articles are PUBLIC.
+name: MyHub pages with public RSS cache
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 6,18 * * *' # twice daily, UTC; no SLA
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Prepare site and fetch public RSS feeds
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' --exclude='_optional' --exclude='tests' --exclude='README.md' --exclude='START-HERE-BG.md' . _site/
+          python3 scripts/rss-public-cache.py rss-public-feeds.json _site/rss-public-cache.json
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
