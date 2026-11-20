@@ -1,0 +1,31 @@
+/* MyHub v0.3.0: Timer and stopwatch, scoped to the tool. */
+.tm-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:5px;background:var(--surface-alt);border:1px solid var(--stroke);border-radius:17px;margin:0 0 16px}
+.tm-tabs button{border:0;border-radius:12px;background:transparent;min-height:48px;font-weight:750;font-size:14px}
+.tm-tabs button.selected{background:var(--surface);box-shadow:0 3px 12px rgba(35,48,90,.08);color:var(--accent)}
+.tm-face{text-align:center;padding:24px 19px 20px}
+.tm-kicker{font-size:12px;font-weight:750;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.tm-big-time{font-size:clamp(36px,9.2vw,64px);font-weight:790;letter-spacing:-1.7px;margin:23px 0 17px;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.2}
+.tm-track{height:7px;border-radius:12px;background:var(--surface-alt);overflow:hidden;margin-bottom:10px}
+.tm-track span{display:block;height:100%;background:var(--accent);border-radius:12px;transition:width .08s linear}
+.tm-status{font-size:12px;color:var(--muted);margin:10px 0 23px}
+.tm-number-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.tm-number-wrap{display:flex;flex-direction:column;gap:7px;text-align:left;font-size:12px;font-weight:700;color:var(--muted)}
+.tm-number{display:block;min-width:0;width:100%;border:1px solid var(--stroke);background:var(--surface-alt);border-radius:14px;height:55px;font-weight:750;font-size:22px;text-align:center;font-variant-numeric:tabular-nums}
+.tm-number:disabled{opacity:.65}
+.tm-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.tm-actions>button{min-height:49px;flex:1;max-width:230px}
+.tm-presets{display:flex;flex-wrap:wrap;gap:9px;margin:17px 0}
+.tm-preset{display:flex;border:1px solid var(--stroke);border-radius:13px;background:var(--surface-alt);min-height:51px;overflow:hidden;max-width:100%}
+.tm-preset button{background:transparent;border:0;padding:9px 12px;font-weight:730;font-size:12px}
+.tm-preset button:first-child{display:flex;flex-direction:column;gap:4px;text-align:left;min-width:0;overflow-wrap:anywhere}
+.tm-preset button small{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.tm-preset .tm-remove{border-left:1px solid var(--stroke);font-size:19px;padding:8px 12px;color:var(--rose)}
+.tm-new-preset{display:flex;gap:8px;flex-wrap:wrap}
+.tm-new-preset .text-field{flex:1 1 150px;min-width:0}
+.tm-new-preset .secondary-btn{min-height:49px}
+.tm-lap-list{margin-top:16px;max-height:440px;overflow:auto}
+.tm-lap{display:grid;grid-template-columns:44px 1fr 1fr;gap:7px;align-items:center;padding:13px 0;border-bottom:1px solid var(--stroke);font-variant-numeric:tabular-nums;font-size:13px}
+.tm-lap>span{color:var(--muted)}.tm-lap strong{text-align:center}.tm-lap small{text-align:right;color:var(--muted);font-size:12px}
+.tm-count{float:right;font-size:12px;color:var(--muted);font-weight:500}
+.tm-warning{margin:12px 4px 30px;font-size:12px}
+@media(max-width:360px){.tm-face{padding:20px 12px}.tm-big-time{font-size:clamp(30px,9.4vw,38px)}.tm-number-grid{gap:7px}.tm-number{font-size:18px}}
