@@ -1,58 +1,76 @@
-# MyHub — Personal Tools v0.3.0
+# MyHub — Personal Tools v0.4.0
 
-A mobile-first **Bulgarian / English**, local-first PWA for Android Chrome, with no accounts, no advertising, no paid dependencies and no build tools required for deployment.
+A **Bulgarian / English**, mobile-first, offline-friendly PWA for personal Android use. No advertising, accounts, paid APIs or build dependencies. The app can be deployed unchanged to free GitHub Pages and may later be packaged with Capacitor.
 
-## Included tools
+## Available tools
 
-- **Calculator**: basic maths, contextual percentages, calculation history, copy results.
-- **World Clock**: selected time zones and daylight-saving transitions.
-- **Notes**: text notes, checklists, favourites, pinned notes and local autosave.
-- **Weather**: Open-Meteo (network required for refreshing; last forecast is cached for offline use).
-- **Timer & Stopwatch** (new in 0.3.0): countdown, pause/resume, 12 saved durations maximum, stopwatch with up to 80 laps, persistent timestamps for correct elapsed time after reopening.
+- **Calculator** — expressions, percentages, copy and local calculation history.
+- **World Clock** — multiple time zones, accurate summer/winter DST changes.
+- **Notes** — text, checklists, pinned/favourite notes and autosave.
+- **Weather** — Open-Meteo, multiple cities, cached last forecast; internet for refreshing.
+- **Timer & Stopwatch** — countdown, saved durations and laps. **Not a reliable background alarm on Android**.
+- **Calendar (new v0.4.0)** — monthly calendar, daily agenda, create/edit/delete events, all-day or timed events, repeat daily/weekly/monthly/yearly, optional final repeat date. Local-only; **no notification or alarm**.
 
-The Timer is **not a reliable Android background alarm**. Sound/vibration may occur only while the timer screen is visible and the browser allows it. Chrome may throttle or stop execution in the background. On reopening, remaining time is recalculated from the saved deadline. For critical reminders use the Android Clock app.
+**Repeat policy:** Monthly repetitions are tied to their original day of month. For example, a monthly event starting on the 31st does *not* appear in a month without 31 days. A yearly 29 February event appears only in leap years. Event time is stored as local wall time; unlike external calendar services, MyHub does not synchronise, translate time zones or schedule reminders. Editing/deleting a recurring event affects **the whole series**, not individual occurrences. Each event has one date (multi-day events not yet supported).
 
-## Technology and privacy
+## Technical and data safety
 
-- HTML/CSS/native JavaScript modules; no framework, npm dependency or server.
-- IndexedDB `myhub-local` **version 1**, stores: `notes` and `meta`. Retained unchanged from v0.1/v0.2.
-- The new timer/stopwatch data lives in the `meta` store as `timerData`. No database migration or clearing.
-- PWA assets cached by `sw.js` under `myhub-shell-v0.3.0`. Open-Meteo requests are **not** stored by the Service Worker; weather snapshots use IndexedDB instead.
-- JSON Backup format remains `format: 1` and backwards compatible with v0.1/v0.2 backups. New backups include timer data and presets. When exported, running sessions are frozen into a **paused** state in the backup, so restoring an old archive cannot trigger an unexpected delayed timer. The actual active timer is not modified during export.
-- Restoring performs strict validation, then replaces notes/settings/history/weather cache/timers in one IndexedDB transaction. Make a backup before restoring.
-- Works on a free public GitHub Pages repository. Pages publishes the code publicly, so never commit personal notes or backup files to GitHub.
+- Native HTML, CSS, and JavaScript ES modules, no framework or npm dependency for deployment.
+- IndexedDB **`myhub-local` version 1**, unchanged since v0.1; `notes` and `meta` object stores. Calendar data resides at `meta.calendarData` with `{schema:1,events:[...]}`. 1000 events maximum. No migration or deletion of existing records on upgrade.
+- Local-first; Calendar and other offline tools function without internet once the PWA assets have been cached.
+- Settings > JSON Backup exports notes, favourites, settings, calculation history, weather snapshots, timer presets/state (running sessions frozen paused in backup), **and calendar events**. Backups use the existing `app:'MyHub', format:1` structure.
+- Backups from v0.1–v0.3 **remain importable**. Since those backups do not contain a Calendar, restoring an older backup *replaces* current Calendar events with an empty Calendar. Export the current backup first; restore asks for confirmation and writes all data in one IndexedDB transaction.
+- Invalid calendar backup data is rejected before import. Damaged calendar data in the live database is not silently overwritten; opening Calendar shows a warning, and export stops with a warning rather than discarding events.
+- Never add personal JSON backup files or private event contents to the **public GitHub repository**. GitHub Pages hosts app code, not the private data.
+- Service Worker cache: `myhub-shell-v0.4.0`. Both `js/calendar.js`, `js/calendar-core.js` and `calendar.css` must exist for the update to install correctly. No automatic network dependency for Calendar.
 
-## Publishing
+## Publishing with Android + GitHub
 
-Create or open an existing **public** repository, e.g. `myhub`. Copy all files from the extracted ZIP into the repository with the same folder structure. Set GitHub **Settings → Pages → Deploy from a branch → main / (root)**. The site will be `https://YOUR-USERNAME.github.io/myhub/`.
-
-For upgrading from v0.2.0, use `MyHub-v0.3.0-UPDATE-ONLY.zip`. Replace only its files in the existing repository; do **not** delete the old files or browser data. See `START-HERE-BG.md` for complete Android instructions.
+- Updating v0.3.0: use `MyHub-v0.4.0-UPDATE-ONLY.zip`; overwrite **only its listed files**, preserving the other working files and existing PWA storage.
+- New installation: `MyHub-v0.4.0.zip` has the whole project.
+- In GitHub Pages, use `Settings → Pages → Deploy from a branch → main / (root)` and keep the **same repository URL** when upgrading.
+- Full phone instructions are in `START-HERE-BG.md`.
 
 ## Tests
 
-`node --test tests/*.test.mjs` (or `npm test`, if Node is available) runs pure-module tests with Node, with **no installation** required. Interactive component tests were also conducted in Chromium with mocked storage. A full GitHub Pages / Android Chrome integration test must be conducted after deployment on your phone.
+From the extracted project, Node 22+ can run `node --test tests/*.test.mjs` without additional packages. The 36 automated tests cover existing modules, recurrence on month-end and DST dates, backup format compatibility, corrupt input, translations, and offline asset references. A separate mobile-emulated Chromium component test was run against Calendar using mocked local storage, covering create, weekly recurrence, edit, reload, delete and horizontal layout.
 
-## Project structure
+Full on-device verification on Android Chrome after GitHub Pages deployment is still required. There are no guaranteed background notifications.
+
+## File layout
 
 ```text
-index.html                    index + module entry
-styles.css                    shared interface styles
-weather.css                   isolated Weather styles
-timer.css                     isolated Timer styles
-manifest.webmanifest          PWA metadata
-sw.js                         versioned offline app-shell
-js/app.js                     navigation, Settings, backup UI
-js/config.js                  version + tool metadata
-js/db.js                      IndexedDB + JSON backups
-js/i18n.js                    BG/EN translations
-js/utils.js                   shared helpers
-js/calculator.js              Calculator module
-js/world-clock.js             World Clock module
-js/notes.js                   Notes module
-js/weather.js                 Open-Meteo Weather module
-js/timer-core.js              pure timer arithmetic + validation
-js/timer.js                   Timer / Stopwatch interface
-tests/*.test.mjs              local checks
-icons/                        app icons
-START-HERE-BG.md              beginner-friendly setup guide
+.nojekyll
+index.html
+styles.css
+weather.css
+timer.css
+calendar.css                 NEW — module-only stylesheet
+manifest.webmanifest
+sw.js                        UPDATED offline assets / version
+package.json                UPDATED version
+js/
+  app.js                    UPDATED navigation
+  config.js                 UPDATED version + tool registry
+  db.js                     UPDATED backup / restore for calendar
+  i18n.js                   UPDATED Bulgarian / English UI
+  calendar.js               NEW calendar interface
+  calendar-core.js          NEW independent recurrence / validation
+  calculator.js             UNCHANGED
+  world-clock.js            UNCHANGED
+  notes.js                  UNCHANGED
+  weather.js                UNCHANGED
+  timer.js                  UNCHANGED
+  timer-core.js             UNCHANGED
+  utils.js                  UNCHANGED
+tests/
+  calendar.test.mjs         NEW calendar / backup / integrity tests
+  timer.test.mjs            UPDATED expected version
+  weather.test.mjs          UPDATED expected cache version
+  smoke.test.mjs            UNCHANGED
+icons/                      UNCHANGED
+START-HERE-BG.md            UPDATED Android instructions
+README.md                   this guide
 ```
+
+The PWA/Capacitor conversion path still relies on exporting a JSON backup in the PWA, then importing it into the future APK. The Android APK has a separate storage origin, and does **not** automatically share Chrome's IndexedDB.

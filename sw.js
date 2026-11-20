@@ -1,11 +1,11 @@
-const CACHE = 'myhub-shell-v0.3.0';
+const CACHE = 'myhub-shell-v0.4.0';
 const PREFIX = 'myhub-shell-';
 const ASSETS = [
-  './', './index.html', './styles.css', './weather.css', './timer.css', './manifest.webmanifest',
+  './', './index.html', './styles.css', './weather.css', './timer.css', './calendar.css', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
   './js/app.js', './js/config.js', './js/i18n.js', './js/utils.js', './js/db.js',
   './js/calculator.js', './js/world-clock.js', './js/notes.js', './js/weather.js',
-  './js/timer.js', './js/timer-core.js'
+  './js/timer.js', './js/timer-core.js', './js/calendar.js', './js/calendar-core.js'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(url=>new URL(url,self.registration.scope).href))));
