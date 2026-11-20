@@ -1,0 +1,41 @@
+/* Weather module only. Other MyHub tools do not depend on these styles. */
+.weather-main{margin-bottom:15px}
+.weather-picker{display:block;width:100%;margin:15px 0 10px;min-height:49px;max-width:100%;font-size:14px}
+.weather-empty{min-height:170px;display:grid;place-items:center;text-align:center;color:var(--muted);padding:28px 12px;line-height:1.5}
+.weather-condition{display:flex;align-items:center;justify-content:space-between;gap:13px;flex-wrap:wrap;margin:23px 0 9px}
+.weather-condition-row{display:flex;gap:15px;align-items:center;min-width:0}
+.weather-emblem{font-size:48px;line-height:1}
+.weather-temp{font-size:clamp(42px,9vw,62px);font-weight:800;letter-spacing:-2px;line-height:1}
+.weather-description{font-size:14px;color:var(--muted);margin-top:5px;font-weight:600}
+.weather-status{font-size:11px;color:var(--accent);border-radius:20px;background:color-mix(in srgb,var(--accent) 10%,var(--surface));padding:9px 11px}
+.weather-status.stale{background:var(--surface-alt);border:1px solid var(--stroke);color:var(--muted)}
+.weather-updated{font-size:11px;color:var(--muted);line-height:1.5;margin:10px 0 16px}
+.weather-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.weather-stat-grid>div{border:1px solid var(--stroke);background:var(--surface-alt);padding:13px;border-radius:14px;display:flex;flex-direction:column;gap:7px}
+.weather-stat-grid small{font-size:11px;color:var(--muted)}
+.weather-stat-grid strong{font-size:18px;font-variant-numeric:tabular-nums}
+.weather-subtitle{font-size:15px;margin:26px 0 11px;letter-spacing:-.3px}
+.weather-week{display:grid;gap:7px}
+.weather-day{display:grid;grid-template-columns:minmax(100px,1.3fr) 36px minmax(74px,.75fr) minmax(96px,1.1fr);align-items:center;gap:6px;border-radius:12px;background:var(--surface-alt);padding:10px}
+.weather-day-title{font-size:12px;font-weight:700}
+.weather-day-icon{font-size:22px;text-align:center}
+.weather-day-temp{font-size:13px;font-weight:750;white-space:nowrap;font-variant-numeric:tabular-nums}
+.weather-day-temp span{font-weight:500;color:var(--muted)}
+.weather-day-rain{color:var(--accent);font-size:12px;text-align:right;white-space:nowrap}
+.weather-day-rain small{display:block;color:var(--muted);font-size:10px;margin-top:4px}
+.weather-hours{display:flex;gap:9px;overflow:auto;padding-bottom:8px;scroll-snap-type:x proximity}
+.weather-hour{scroll-snap-align:start;min-width:76px;display:flex;flex-direction:column;align-items:center;gap:9px;border-radius:12px;border:1px solid var(--stroke);padding:12px 8px;background:var(--surface-alt)}
+.weather-hour strong{font-size:12px}.weather-hour span{font-weight:750}.weather-hour small{font-size:11px;color:var(--accent)}
+.weather-disclaimer{font-size:11px;color:var(--muted);margin:20px 0 0;line-height:1.5}
+.weather-manage .form-row{margin:16px 0 5px;display:flex;gap:9px;align-items:center}
+.weather-manage .text-field{flex:1;min-width:0;min-height:48px}
+.weather-manage .primary-btn{min-height:48px;white-space:nowrap}
+.weather-hint{font-size:12px;line-height:1.5}
+.weather-search-result{display:flex;align-items:center;gap:12px;width:100%;min-height:51px;text-align:left;border:1px solid var(--stroke);background:var(--surface);border-radius:13px;margin:7px 0;padding:11px;font-size:13px}
+.weather-search-result span:first-child{font-size:21px;color:var(--accent)}
+.weather-saved-cities{margin-top:20px}
+.weather-saved-row{display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid var(--stroke);padding:9px 0;font-size:12px}
+.weather-saved-row span{overflow-wrap:anywhere}
+.weather-source{font-size:11px;color:var(--muted);text-align:center;line-height:1.7;margin-top:17px}
+.weather-source a{color:var(--accent)}
+@media(max-width:440px){.weather-day{grid-template-columns:minmax(80px,1fr) 29px minmax(68px,.7fr) minmax(75px,.85fr);padding:9px 7px;gap:4px}.weather-day-title{font-size:11px}.weather-day-rain{font-size:11px}.weather-day-icon{font-size:19px}.weather-manage .form-row{flex-wrap:wrap}.weather-manage .form-row input{flex:1 1 100%}.weather-manage .primary-btn{width:100%}}

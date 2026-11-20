@@ -1,67 +1,59 @@
-# MyHub — Personal Tools v0.1.0
+# MyHub — Personal Tools v0.2.0
 
-**Personal PWA, mobile-first, Bulgarian and English, without accounts, advertising or paid APIs.**
+A free, local-first, installable Android-friendly PWA built with static HTML, CSS and JavaScript. Main UI is Bulgarian, with an English option. No login, server, paid API, ads or trackers.
 
-## What's included
+## What is new in v0.2.0
 
-- Simple home screen with local clock, search, customisable favourites and reorder controls.
-- Calculator: arithmetic, parentheses, percentage (`200 + 10% = 220`), 30 most recent results, copy.
-- World clock: 14 cities, DST via IANA time zones, London difference, saved city list.
-- Notes: text, checklists, title, search, pin, favourites, auto-save, permanent delete.
-- Light / dark / automatic theme, Bulgarian / English, locally saved preferences.
-- IndexedDB, validated JSON backup and atomic restore.
-- Static PWA assets cached offline; versioned Service Worker; installable PNG icons.
+**Weather** is now the fourth tool, without changing the existing three:
+- Open-Meteo forecast and geocoding APIs, directly from the browser (CORS-supported, no key for non-commercial personal use).
+- Current modelled conditions: temperature, feels-like, humidity, wind and precipitation.
+- Seven-day daily forecast with high/low temperatures, rainfall amount and chance of rain, plus upcoming hours.
+- Search for places (choose the correct country/region); add or remove up to **eight** cities.
+- Starts with Newport, Shropshire, UK as the default city; no geolocation permission is requested.
+- Forecast refresh when opening Weather, revisiting it after inactivity or returning online; requests are generally limited to one per selected city per 30 minutes. Manual refresh available.
+- Saves the last valid forecast in IndexedDB, showing a timestamp and stale indicator when appropriate. No invented data when offline or if an API request fails.
+- Weather cities and cached forecasts included in validated JSON backups. **v0.1.0 format-1 JSON backups are still supported**.
+- Weather is not pinned to Home automatically; enable it in Settings > Favourite tools.
 
-## Publish only with an Android phone
+This is model-based forecast data, not official severe weather warnings. Open-Meteo is independent of MyHub and may change its terms, quota or availability.
 
-1. In the mobile browser open https://github.com/new, and create a **public** repository `myhub` with NO starter README (this archive already contains it).
-2. Extract `MyHub-v0.1.0.zip` on your phone.
-3. Open your repository, use **Add file → Upload files** (enable Chrome **Desktop site** if necessary), upload the contents of the `MyHub-v0.1.0` folder **to the repository root**, preserving the `js`, `icons` and `tests` folders. If the upload interface flattens folders, use GitHub's web editor to create each file by its exact path (e.g. `js/app.js`). You can also use a free GitHub-capable Android Git client to upload a directory tree.
-4. Commit the files. Check that `index.html` and `sw.js` are at the repository root.
-5. Repository **Settings → Pages → Build and deployment → Deploy from a branch → main → /(root) → Save**.
-6. Open `https://YOUR-USERNAME.github.io/myhub/` in Android Chrome. Use Chrome menu **⋮ → Add to Home screen → Install** if available.
-7. Test a note, calculation, clock and backup. Download a JSON backup regularly.
+## Install or update from Android + GitHub Pages
 
-No npm install, API key, server or Android Studio needed. The `package.json` is only for optional automated developer tests using `npm test` on another device or GitHub Actions.
+**Already using v0.1.0?** Do not uninstall the PWA or clear Chrome storage. First export a JSON backup from Settings. Open [`START-HERE-BG.md`](START-HERE-BG.md) for precise Android-only update instructions and the file list.
 
-## Local storage and privacy
+**New installation?** Create a public GitHub repository (for instance `myhub`) and upload **the contents** of the full ZIP to the repository root, preserving paths. Enable Settings > Pages > Deploy from a branch > `main` > `/(root)`. Open `https://YOUR-USERNAME.github.io/myhub/` in Chrome and choose menu ⋮ > Add to Home screen > Install.
 
-Storage is **browser-origin-specific** (IndexedDB `myhub-local` version 1, stores `notes` and `meta`). Data is not written to GitHub. Clearing site data or uninstalling your PWA can remove it. Request browser persistent storage in Settings, but the browser may deny this. Keep JSON exports somewhere safe.
+GitHub **does not unpack ZIP uploads**. Extract on your Android phone, then upload files to the repository root and corresponding folders (`js`, `icons`, `tests`). If GitHub mobile web hides file upload, use Chrome > Desktop site.
 
-A restore validates the JSON first, asks for confirmation, then **replaces** notes, settings and history in one IndexedDB transaction; a failed transaction rolls back. The restore does not merge. Copy the current data to JSON before any restore.
+### Runtime structure
 
-The PWA and a future Capacitor APK will have different storage origins. Move data between them using **Export JSON → Import JSON**. No automatic sync is promised.
+| File | Function |
+|---|---|
+| `index.html`, `styles.css` | Existing app shell and global styling |
+| `weather.css` | New Weather-only stylesheet |
+| `js/app.js`, `js/config.js`, `js/i18n.js` | Navigation, tools, preferences, translations |
+| `js/weather.js` | New Weather module, Open-Meteo queries, seven-day view, cached forecasts |
+| `js/db.js` | Existing IndexedDB database (`myhub-local`, version 1), format-1 backups and Weather storage |
+| `js/calculator.js`, `js/notes.js`, `js/world-clock.js` | Existing tools, unchanged |
+| `sw.js`, `manifest.webmanifest`, `icons/` | Offline app shell and installation |
+| `tests/` | Dependency-free Node built-in tests (optional on GitHub Actions/PC; **not needed on the phone**) |
 
-## Developer architecture
+### Data and compatibility
 
-- `index.html`, `styles.css`, `js/app.js`: UI shell and navigation.
-- `js/config.js`, `js/i18n.js`, `js/utils.js`: version, tools, translations and helpers.
-- `js/db.js`: versioned IndexedDB, JSON backup validation and atomic restore.
-- `js/calculator.js`, `js/world-clock.js`, `js/notes.js`: independent tools.
-- `manifest.webmanifest`, `sw.js`, `icons/`: PWA installation and offline app shell.
-- `tests/`: automated pure-function tests. No external dependencies.
+Keep the **same GitHub Pages URL** to preserve existing origin-based data. Updating source files or replacing the Service Worker cache **does not clear IndexedDB**. The database version stays at 1, with `notes` and `meta` stores. Weather preferences use the existing `settings` entry and cached forecasts use `meta.weatherCache`.
 
-**Caveats:** Service Workers only run over HTTPS (GitHub Pages is HTTPS), or localhost for development. Notifications and reliable background timer alarms are not implemented. Weather, football and RSS are deliberately deferred so no external or unreliable API dependencies are present in v0.1.
+Backup `format:1` is unchanged. A restore first validates the complete JSON and asks for confirmation. It **replaces**, rather than merges, existing notes, settings, calculator history, and weather cache in an atomic IndexedDB transaction. v0.1 files without the Weather properties restore correctly and get the default Weather location.
 
-Future deployments: update version references in `js/config.js`, `package.json`, and `sw.js` cache name, then deploy complete changed files; keep the same IndexedDB name and migrate schema instead of clearing data. Clear caches in the service worker only; NEVER clear IndexedDB or all browser storage on update.
+Clearing site storage, changing GitHub Pages host, or deleting the PWA may remove browser data. Keep a JSON backup separately. A future Capacitor APK will not automatically share PWA browser storage: transfer using JSON Export > Import.
 
-## Manual check on Android after publishing
+Weather only needs internet for *fresh* forecasts and place searches. All other v0.1 tools and already fetched weather snapshots work offline. Service Worker deliberately only caches same-origin static files; external weather responses are stored selectively after successful validation in IndexedDB.
 
-1. Open **Calculator**: enter `200 + 10%`, tap `=` and check for `220`. Leave the calculator and come back: the history should still be present.
-2. Open **Notes**: add a title and text, wait until "Запазено локално", close/reopen the PWA and check the note. Make a checklist and tick one item.
-3. Open **World clock**: add Tokyo and remove a city. Reopen and check that your selection remains.
-4. Open **Settings**: select Dark and English, change the order of favourites, reopen and check they persist.
-5. Download a JSON backup. Make a temporary note, then restore the downloaded archive **only if replacing current data is what you intend**. Check the notes, theme, cities and calculator history after restore.
-6. Once the PWA has fully opened online, switch Android to airplane mode and reopen the installed PWA: calculator, notes and clock should load offline. Note that initial installation needs an internet connection.
+### Open-Meteo attribution and terms
 
-Browser storage is **not a second backup**. Consider storing the exported JSON in a safe personal location.
+Weather data: [Open-Meteo](https://open-meteo.com/), CC BY 4.0. Free public endpoints are for non-commercial use, subject to terms, fair-use limits and no uptime guarantee. Docs: https://open-meteo.com/en/docs and https://open-meteo.com/en/docs/geocoding-api . Forecast and location queries send selected city names/coordinates to Open-Meteo; no location access or account is necessary.
 
-## Mobile GitHub upload tips
+## Checks
 
-GitHub does not automatically unpack a ZIP uploaded to a repository. Extract it with Android's Files app first. The simplest browser-only route is:
-
-- Upload the root files (`index.html`, `styles.css`, `sw.js`, `manifest.webmanifest`, `README.md`, `package.json`, `.nojekyll` if visible) through **Add file → Upload files** at repository root.
-- To create each subfolder if absent, choose **Add file → Create new file**, name it e.g. `js/.gitkeep`, commit; open the new **js** folder and upload all `.js` files there. Repeat for **icons** (the PNG images) and **tests** (the `.mjs` file).
-- If your browser does not show **Add file**, in Chrome use **⋮ → Desktop site**. Check paths on GitHub after each commit. A PWA with wrong file paths cannot start.
-
-These instructions use GitHub only and do not require Android Studio, an API account, npm installation or a computer.
+- `npm test` (only where Node is available): 15 unit tests, zero npm dependencies.
+- Manually on Android: app startup, original modules and data, adding a Weather city, refresh, offline cached forecast, backup/restore, and Settings version **v0.2.0**.
+- An isolated Weather UI test in Chromium passed with mocked API data, including adding a city and displaying offline cached weather. A full interactive Android PWA check is still required after deployment; the authoring browser blocks local test-site navigation.
