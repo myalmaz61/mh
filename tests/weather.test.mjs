@@ -73,7 +73,7 @@ test('All Weather UI strings are translated into Bulgarian and English',async()=
 test('The offline cache remains versioned and only caches app origin assets',async()=>{
   const { readFileSync }=await import('node:fs');
   const worker=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  assert.ok(worker.includes('myhub-shell-v0.7.0'));
+  assert.ok(worker.includes('myhub-shell-v0.8.0'));
   assert.ok(worker.includes("url.origin!==self.location.origin"));
   assert.ok(!worker.includes('api.open-meteo.com'));
 });

@@ -50,5 +50,5 @@ test('manifest and offline precache contain required files',()=>{
   assert.equal(manifest.start_url,'./');
   assert.equal(manifest.scope,'./');
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  for(const filename of ['js/app.js','js/db.js','js/notes.js','js/calculator.js','js/world-clock.js','js/weather.js','weather.css','js/timer.js','js/timer-core.js','timer.css']) assert.ok(sw.includes(filename));
+  for(const filename of ['js/app.js','js/db.js','js/notes.js','js/calculator.js','js/world-clock.js','js/weather.js','weather.css','js/timer.js','js/timer-core.js','timer.css','js/unit-core.js','js/date-core.js','js/percent-core.js','js/bookmarks.js','js/bookmarks-core.js','js/utilities.js','utilities.css']) assert.ok(sw.includes(filename));
 });
