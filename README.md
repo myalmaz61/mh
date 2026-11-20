@@ -1,58 +1,44 @@
-# MyHub – Personal Tools v0.5.0
+# MyHub – Personal Tools v0.6.0
 
-Безплатна, локална и модулна PWA за Android Chrome. Публикува се като статичен сайт чрез GitHub Pages. Не изисква платен API, акаунт, собствен сървър, реклами или платени зависимости.
+**Free, local-first Android PWA hosted on GitHub Pages.** No private API keys, servers, ads, trackers, sign-in, Node build, Android Studio or paid services.
 
-## Какво има в v0.5.0
+## Tools
 
-- Начален екран: малък часовник, търсене на инструмент, ръчно избрани любими и подредба.
-- Calculator: скоби, проценти, история, копиране.
-- World Clock: градове и автоматично DST.
-- Notes: текст и checklist, любими, закрепени, локално запазване.
-- Weather: Open-Meteo, до 8 града, 7 дни, кеширана последна прогноза.
-- Timer & Stopwatch: таймер, пауза, запазени продължителности, хронометър и lap times; без гарантирани фонови аларми.
-- Calendar: месец/ден, събития, повторения, без системни известия.
-- **Tasks (ново):** добавяне, редактиране и изтриване; приоритет, крайна дата, отметка; активни, със срок днес/просрочени, всички и завършени; търсене.
-- **Quick Checklists (ново):** множество списъци, добавяне/отметка/изтриване на ред, преименуване, премахване на изпълнените редове и изтриване на списък.
-- Settings: български/английски; светла/тъмна/автоматична тема; любимите инструменти и подредбата им; JSON Backup/Restore.
+Calculator, World Clock, Notes, Weather (Open-Meteo), Timer / Stopwatch, Calendar, Tasks, Quick Checklists, **Football Scores**.
 
-## Съхранение и безопасност
+## Football Scores v0.6.0
 
-- **IndexedDB `myhub-local`, версия 1** — без промяна спрямо v0.4.0. Stores: `notes`, `meta`.
-- `meta.tasksData` съхранява задачите в `{schema:1,tasks:[...]}`.
-- `meta.quickListsData` съхранява бързите списъци в `{schema:1,lists:[...]}`.
-- Няма миграция и няма изтриване на данни при публикуване или обновяване.
-- JSON Backup формат **1** продължава да приема файлове от предишните версии. Новите архиви съдържат и `tasksData` и `quickListsData`.
-- **Внимание:** Restore замества всички данни. При възстановяване на стар архив, в който няма `tasksData`/`quickListsData`, тези две колекции стават празни. Първо направи нов архив, преди да възстановяваш стар.
-- Строга проверка на размери, дати, повторни ID, типове и лимити преди Restore. Възстановяването става с една IndexedDB транзакция за двата store-а.
-- Ако съществуващите данни на Tasks/Quick Checklists са повредени, модулът отказва да ги презапише. Ако са повредени при Backup, архивирането се прекратява вместо да се запази непълен архив.
-- Лимит: 1000 задачи, 50 бързи списъка, 100 реда във всеки списък. Без автоматични известия за сроковете и без повторения на задачи в тази версия.
-- Почистването на Chrome site data или деинсталирането на PWA може да изтрие локалните данни. Прави JSON архиви редовно.
+- Uses `https://api.openligadb.de` with no authentication or API key.
+- Starts with German Bundesliga 2026/27. Use **+ Добави първенство** to select other leagues actually listed by the provider for the current or adjacent seasons. Data coverage varies and is not guaranteed, particularly for Premier League and other leagues maintained by community volunteers.
+- See scheduled matches, completed matches and results if published, plus a separate **★ Любими** view of cached matches involving starred teams.
+- The ★ button beside a team adds/removes it from favourites.
+- Times display in the phone's current local timezone; no permissions needed.
+- If a match is not officially marked finished, the app **never asserts LIVE**: it may indicate "possibly playing, unconfirmed" based on kick-off time. Scores are never fabricated.
+- Refreshes politely: up to every two hours while the screen is open outside possible matches, plus manual refresh no more than once every 30 minutes (or 90 seconds if a match may be playing). During an ongoing match, it can poll the provider's cheap `getlastchangedate` endpoint about every 90 seconds, fetching the season again only if a change is detected. This depends on provider coverage and is not a guaranteed real-time live service.
+- Cached matches remain visible offline; there are no offline updates.
+- No third-party team crests: their image rights are not guaranteed under the source data licence.
+- Attribution: Data from [OpenLigaDB](https://www.openligadb.de/), licensed under [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). See their [API terms](https://www.openligadb.de/en/terms-of-use) and [data licence](https://www.openligadb.de/en/license).
 
-## Структура и зависимости
+## Storage / backup
 
-- `index.html`, `styles.css` — общ интерфейс.
-- `js/app.js`, `js/config.js`, `js/i18n.js`, `js/db.js` — навигация, настройки, преводи и данни.
-- `js/tasks.js` + `js/tasks-core.js` + `tasks.css` — Tasks.
-- `js/quick-list.js` + `js/quick-list-core.js` + `tasks.css` — Quick Checklists.
-- Отделни модули за Calculator, World Clock, Notes, Weather, Timer и Calendar.
-- `sw.js` и `manifest.webmanifest` — PWA, кеш на приложението, офлайн поддръжка.
-- `tests/*.test.mjs` — Node.js автоматизирани тестове.
+`myhub-local`, IndexedDB version **1** (unchanged). Football match caches and starred teams are in the existing `meta` store under `footballData`. League catalogue cache is a separate, rebuildable `footballCatalog` entry. v0.6 JSON backups include `footballData` with strict validation. v0.1–v0.5 backups continue to import: the Football section defaults to its initial state. **Restore overwrites all current MyHub data**, so export a fresh backup first.
 
-Без външни JS библиотеки, без build стъпка, без npm инсталация за публикуване. Node.js е необходим само ако разработчик иска да изпълни тестовете (`npm test`), но **не е необходим на Android за използване и публикуване**.
+## File layout
 
-## Публикуване и обновяване
+- `index.html`, `styles.css`, `weather.css`, `timer.css`, `calendar.css`, `tasks.css`, **`football.css`** — layout.
+- `js/app.js`, `js/config.js`, `js/db.js`, `js/i18n.js`, `js/utils.js` — app shell and local data.
+- Existing tool modules remain independent.
+- **`js/football-core.js`** — source data parsing, validation and filters.
+- **`js/football.js`** — Football UI, caching, network requests and favourites.
+- `manifest.webmanifest`, `sw.js`, `icons/` — PWA installation and offline shell.
+- `tests/*.test.mjs` — Node built-in test runner; `npm test` is optional and not needed on Android.
 
-Прочети `START-HERE-BG.md` за подробни стъпки само с Android + GitHub. За съществуваща инсталация v0.4.0 използвай архива `MyHub-v0.5.0-UPDATE-ONLY.zip` и замени само файловете в него, като запазиш същите директории. За чиста инсталация използвай `MyHub-v0.5.0.zip`.
+## Publish / upgrade
 
-**Не качвай ZIP файла сам по себе си като GitHub Pages уебсайт.** Разархивирай го и качи файловете в съответните папки. Не променяй адреса на Pages и не изтривай данните на браузъра.
+1. Back up your current v0.5.0 data via Settings → JSON Backup.
+2. Extract `MyHub-v0.6.0-UPDATE-ONLY.zip` and upload the **complete changed files** to their matching GitHub folders, preserving exact filenames.
+3. Keep the same GitHub Pages origin/URL. Do not uninstall the PWA or clear site data.
+4. Wait for GitHub Pages deployment, open MyHub, accept the service-worker update if offered, verify `v0.6.0` in Settings.
+5. See `START-HERE-BG.md` for complete Bulgarian Android instructions and a verification checklist.
 
-## Ограничения
-
-- Статичният GitHub Pages сайт не синхронизира данни между телефони или между Chrome и бъдещо APK. За прехвърляне използвай JSON Backup/Restore.
-- Weather изисква интернет за обновяване; локалните инструменти работят офлайн след успешно инсталиране и кеширане на PWA.
-- Не са обещани надеждни таймерни аларми или календарни/задачни системни известия, когато Android е заключен.
-- Бъдещи модулни версии: Football Scores (само с реално разрешен източник), RSS Reader (CORS ограниченията), Converter и др.
-
-## Тестове
-
-`npm test` стартира тестовете в `tests/` в среда с Node.js >=20. Проверени са и отделните интерактивни модули Tasks и Quick Checklists в мобилен Chromium (create/edit/delete, search/toggle, remount). Тест на публикуваната PWA върху конкретния Android телефон остава необходим.
+**Caution:** This version passes automated tests of JavaScript logic and previous module regressions, but the test environment does not permit a complete browser/PWA launch. Verify on your Android Chrome after publication. Network availability and football data completeness depend on the independent API provider.
