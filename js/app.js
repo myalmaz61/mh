@@ -17,6 +17,7 @@ import { mountBookmarks } from './bookmarks.js';
 import { mountToday } from './today.js';
 import { mountDiagnostics } from './diagnostics.js';
 import { mountSearch } from './search.js';
+import { mountQuickAdd } from './quick-add.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -29,6 +30,7 @@ let settingsQueue=Promise.resolve();
 let waitingWorker=null;
 let applyingUpdate=false;
 let toastTimer=null;
+let quickAdd=null;
 const t=key=>translate(settings.language)(key);
 const languageCode=()=>settings.language==='en'?'en-GB':'bg-BG';
 const media=matchMedia('(prefers-color-scheme: dark)');
@@ -64,6 +66,7 @@ async function copyText(value){
   }catch{toast(t('copyFailed'));}
 }
 function shell(){
+  quickAdd?.dispose();
   app.innerHTML=`<div class="app-frame">
     <header class="app-header"><button class="brand-link" id="brand-home" type="button" aria-label="${t('home')}"><span class="brand-mark">M<span>·</span></span><span class="brand-text"><strong>MyHub</strong><small>${t('subtitle')}</small></span></button>
       <button class="icon-btn header-settings" id="quick-settings" type="button" aria-label="${t('settings')}">⚙</button></header>
@@ -81,6 +84,7 @@ function shell(){
     if(!waitingWorker)return;
     try {await cleanup(); applyingUpdate=true; waitingWorker.postMessage({type:'SKIP_WAITING'});}catch(err){handleError(err);}
   });
+  quickAdd=mountQuickAdd({element:app,t,notify:toast,openRecord:go});
   updateIndicators();
 }
 function updateIndicators(){
@@ -130,6 +134,7 @@ async function navigate(route,selection=null){
     button.classList.toggle('active',selected);
     if(selected)button.setAttribute('aria-current','page');
   });
+  quickAdd?.setVisible(route);
   window.scrollTo(0,0);
 }
 function tile(tool){

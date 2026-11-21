@@ -1,7 +1,7 @@
 import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
 import { safeClone } from './utils.js';
 import { emptyCalendar, validCalendarData } from './calendar-core.js';
-import { emptyTasks, validTasksData } from './tasks-core.js';
+import { emptyTasks, validTasksData, validTask, MAX_TASKS } from './tasks-core.js';
 import { emptyQuickLists, validQuickListsData } from './quick-list-core.js';
 import { emptyFootballData, validFootballData } from './football-core.js';
 import { emptyRssData, validRssData } from './rss-core.js';
@@ -47,6 +47,27 @@ export async function getMeta(key) {
 }
 export async function setMeta(key, value) {
   return request('meta','readwrite',store => store.put({ key, value:safeClone(value) }));
+}
+/** Atomically append one valid task without overwriting a concurrently changed list. */
+export async function appendQuickTask(task) {
+  if(!validTask(task))throw Error('Invalid quick task');
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite');
+    const store=tx.objectStore('meta');
+    let reason=null;
+    const req=store.get('tasksData');
+    req.onsuccess=()=>{
+      const existing=req.result ? req.result.value : emptyTasks();
+      if(!validTasksData(existing)){reason=Error('corrupt');tx.abort();return;}
+      if(existing.tasks.length>=MAX_TASKS){reason=Error('limit');tx.abort();return;}
+      if(existing.tasks.some(item=>item.id===task.id)){reason=Error('duplicate');tx.abort();return;}
+      store.put({key:'tasksData',value:{schema:1,tasks:[...existing.tasks,safeClone(task)]}});
+    };
+    tx.oncomplete=()=>resolve(task.id);
+    tx.onerror=()=>reject(reason||tx.error||Error('Save failed'));
+    tx.onabort=()=>reject(reason||tx.error||Error('Save aborted'));
+  });
 }
 function validCity(city) {
   if (!city || typeof city !== 'object' || Array.isArray(city) ||
