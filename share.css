@@ -1,0 +1,7 @@
+.share-page{min-height:100dvh;padding:24px 18px calc(32px + env(safe-area-inset-bottom));max-width:540px;margin:0 auto}
+.share-brand{display:flex;align-items:center;gap:12px;margin:5px 0 28px}.share-brand>div{display:flex;flex-direction:column;gap:4px}.share-brand strong{font-size:19px}.share-brand small{font-size:12px;color:var(--muted)}
+.share-card{padding:23px 21px}.share-card h1{font-size:26px;margin:12px 0 6px;letter-spacing:-.7px}.share-card .muted{margin:0 0 19px}.share-form{display:grid;gap:17px}.share-form>label:not(.share-checkbox){font-weight:680;font-size:13px;display:grid;gap:7px}.share-form input{font-weight:400}
+.share-checkbox{display:flex;align-items:center;gap:10px;min-height:42px;font-size:13px}.share-checkbox input{width:20px;height:20px;accent-color:var(--accent)}
+.share-actions{display:flex;gap:10px;flex-wrap:wrap}.share-actions button{min-width:112px;flex:1}.share-message{font-size:13px;line-height:1.5;margin:0 0 10px}.share-message:empty{display:none}.share-message[data-kind="error"]{color:var(--rose)}.share-message[data-kind="success"]{color:var(--accent)}.share-link-button{display:inline-flex;justify-content:center;align-items:center;text-align:center;text-decoration:none;margin:4px 6px 7px 0}
+.share-privacy{text-align:center;color:var(--muted);font-size:11px;line-height:1.6;margin:24px auto}
+@media(max-width:350px){.share-page{padding-left:11px;padding-right:11px}.share-card{padding:17px}}

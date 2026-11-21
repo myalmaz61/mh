@@ -1,50 +1,87 @@
-const CACHE = 'myhub-shell-v1.1.0';
-const PREFIX = 'myhub-shell-';
-const ASSETS = [
-  './', './index.html', './styles.css', './weather.css', './timer.css', './calendar.css', './tasks.css', './football.css', './rss.css', './utilities.css', './today.css', './search.css', './quick-add.css', './manifest.webmanifest',
-  './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
-  './js/app.js', './js/config.js', './js/i18n.js', './js/utils.js', './js/db.js',
-  './js/calculator.js', './js/world-clock.js', './js/notes.js', './js/weather.js',
-  './js/timer.js', './js/timer-core.js', './js/calendar.js', './js/calendar-core.js',
-  './js/tasks.js', './js/tasks-core.js', './js/quick-list.js', './js/quick-list-core.js',
-  './js/football.js', './js/football-core.js', './js/rss.js', './js/rss-core.js',
-  './js/unit-core.js', './js/date-core.js', './js/percent-core.js', './js/bookmarks-core.js',
-  './js/utilities.js', './js/bookmarks.js', './js/today-core.js', './js/today.js', './js/diagnostics-core.js', './js/diagnostics.js', './js/search-core.js', './js/search.js', './js/quick-add-core.js', './js/quick-add.js'
+const CACHE='myhub-shell-v1.2.0';
+const PREFIX='myhub-shell-';
+// Separate from shell cache: incoming shares are private, temporary, and never deployed.
+const SHARE_INBOX='myhub-share-inbox-v1';
+const ASSETS=[
+  './','./index.html','./share.html','./share.css','./styles.css','./weather.css','./timer.css','./calendar.css','./tasks.css','./football.css','./rss.css','./utilities.css','./today.css','./search.css','./quick-add.css','./manifest.webmanifest',
+  './icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png',
+  './js/app.js','./js/config.js','./js/i18n.js','./js/utils.js','./js/db.js',
+  './js/calculator.js','./js/world-clock.js','./js/notes.js','./js/weather.js',
+  './js/timer.js','./js/timer-core.js','./js/calendar.js','./js/calendar-core.js',
+  './js/tasks.js','./js/tasks-core.js','./js/quick-list.js','./js/quick-list-core.js',
+  './js/football.js','./js/football-core.js','./js/rss.js','./js/rss-core.js',
+  './js/unit-core.js','./js/date-core.js','./js/percent-core.js','./js/bookmarks-core.js',
+  './js/utilities.js','./js/bookmarks.js','./js/today-core.js','./js/today.js','./js/diagnostics-core.js','./js/diagnostics.js','./js/search-core.js','./js/search.js','./js/quick-add-core.js','./js/quick-add.js',
+  './js/share-core.js','./js/share-target.js'
 ];
-self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(url=>new URL(url,self.registration.scope).href))));
+self.addEventListener('install',event=>{
+  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(asset=>new URL(asset,self.registration.scope).href))));
 });
-self.addEventListener('activate', event => {
+self.addEventListener('activate',event=>{
   event.waitUntil((async()=>{
     const names=await caches.keys();
     await Promise.all(names.filter(name=>name.startsWith(PREFIX)&&name!==CACHE).map(name=>caches.delete(name)));
     await self.clients.claim();
   })());
 });
-self.addEventListener('message', event => {
-  if(event.data?.type==='SKIP_WAITING') self.skipWaiting();
+self.addEventListener('message',event=>{
+  if(event.data?.type==='SKIP_WAITING')self.skipWaiting();
 });
 self.addEventListener('fetch',event=>{
   const request=event.request;
-  if(request.method!=='GET') return;
   const url=new URL(request.url);
-  if(url.origin!==self.location.origin || !url.pathname.startsWith(new URL(self.registration.scope).pathname)) return;
-  if(request.mode==='navigate') {
+  const scope=new URL(self.registration.scope);
+  if(url.origin!==scope.origin||!url.pathname.startsWith(scope.pathname))return;
+  const sharePage=new URL('./share.html',scope);
+  // POST is handled entirely by the service worker; the shared address is
+  // never sent to GitHub Pages as a GET query parameter or server POST.
+  if(request.method==='POST'&&url.pathname===sharePage.pathname){
     event.respondWith((async()=>{
-      try {
+      try{
+        const form=await request.formData();
+        const limited=name=>{
+          const value=form.get(name);
+          return typeof value==='string'?value.slice(0,12000):'';
+        };
+        const data={title:limited('title'),text:limited('text'),url:limited('url')};
+        const token=crypto.randomUUID();
+        const dest=new URL('./share.html',scope);
+        dest.searchParams.set('shareId',token);
+        const inbox=await caches.open(SHARE_INBOX);
+        await inbox.put(dest.href,new Response(JSON.stringify(data),{
+          headers:{'Content-Type':'application/json;charset=utf-8','Cache-Control':'no-store'}
+        }));
+        return Response.redirect(dest.href,303);
+      }catch(err){
+        console.error('Share reception failed',err);
+        return Response.redirect(new URL('./share.html?shareError=storage',scope).href,303);
+      }
+    })());
+    return;
+  }
+  if(request.method!=='GET')return;
+  if(request.mode==='navigate'){
+    event.respondWith((async()=>{
+      // Share landing has its own offline fallback: do NOT replace cached index
+      // with share.html (a bug in generic navigation caches).
+      const isShare=url.pathname===sharePage.pathname;
+      const base=new URL(isShare?'./share.html':'./index.html',scope);
+      try{
         const response=await fetch(request);
-        if(response.ok){const cache=await caches.open(CACHE);cache.put(new URL('./index.html',self.registration.scope),response.clone());}
+        if(response.ok&&url.pathname===base.pathname){
+          const cache=await caches.open(CACHE);
+          await cache.put(base.href,response.clone());
+        }
         return response;
       }catch{
-        return await caches.match(new URL('./index.html',self.registration.scope)) || Response.error();
+        return await caches.match(base.href)||Response.error();
       }
     })());
     return;
   }
   event.respondWith((async()=>{
     const cached=await caches.match(request);
-    if(cached) return cached;
-    try { return await fetch(request); }
-    catch { return Response.error(); }
+    if(cached)return cached;
+    try{return await fetch(request);}catch{return Response.error();}
   })());
 });
