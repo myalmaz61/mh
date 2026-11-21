@@ -284,7 +284,16 @@ async function boot(){
     history=history.filter(item=>item && typeof item.expression==='string' &&
       typeof item.result==='string' && typeof item.at==='string').slice(0,30);
     setTheme();
-    await navigate('home');
+    // Only a local record id may be passed in the URL. Shared content never goes here.
+    const params=new URL(location.href).searchParams;
+    const requested=params.get('myhubOpen');
+    const recordId=params.get('id');
+    if(requested==='bookmarks' && recordId && /^[A-Za-z0-9-]{1,100}$/.test(recordId)){
+      window.history.replaceState(null,'',location.pathname);
+      await navigate('bookmarks',{id:recordId});
+    }else{
+      await navigate('home');
+    }
     registerWorker();
   }catch(err){
     console.error(err);

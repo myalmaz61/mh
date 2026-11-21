@@ -69,6 +69,34 @@ export async function appendQuickTask(task) {
     tx.onabort=()=>reject(reason||tx.error||Error('Save aborted'));
   });
 }
+/** Append a shared bookmark atomically, protecting existing Bookmarks from stale writes. */
+export async function appendSharedBookmark(item) {
+  if (!validBookmarks({schema:1,items:[item]})) {
+    const error=Error('Invalid bookmark');error.code='invalid';throw error;
+  }
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite');
+    const store=tx.objectStore('meta');
+    let reason=null;
+    const req=store.get('bookmarksData');
+    req.onsuccess=()=>{
+      const existing=req.result ? req.result.value : emptyBookmarks();
+      if(!validBookmarks(existing)){
+        reason=Error('Invalid existing bookmarks');reason.code='corrupt';tx.abort();return;
+      }
+      const found=existing.items.find(x=>x.url===item.url);
+      if(found){
+        reason=Error('Duplicate URL');reason.code='duplicate';reason.existingId=found.id;tx.abort();return;
+      }
+      if(existing.items.length>=500){reason=Error('Bookmark limit');reason.code='limit';tx.abort();return;}
+      store.put({key:'bookmarksData',value:{schema:1,items:[...existing.items,safeClone(item)]}});
+    };
+    tx.oncomplete=()=>resolve(item.id);
+    tx.onerror=()=>reject(reason||tx.error||Error('Bookmark save failed'));
+    tx.onabort=()=>reject(reason||tx.error||Error('Bookmark save aborted'));
+  });
+}
 function validCity(city) {
   if (!city || typeof city !== 'object' || Array.isArray(city) ||
     typeof city.id !== 'string' || !/^[A-Za-z0-9-]{1,90}$/.test(city.id) ||
