@@ -1,6 +1,7 @@
 const labels = {
   bg: {
     quickAdd:'Бързо добавяне',quickAddHint:'Запази задача или бележка, без да отваряш друг екран.',quickAddTask:'Задача',quickAddNote:'Бележка',quickAddTitle:'Заглавие',quickAddBody:'Допълнителен текст (незадължително)',quickAddDue:'Краен срок (незадължително)',quickAddHigh:'Важна задача',quickAddSave:'Запази',quickAddDiscard:'Да затворя ли без запазване?',quickAddInvalid:'Попълни валидно заглавие.',quickAddCorrupt:'Данните за задачите са повредени. Нищо не е презаписано.',quickAddLimit:'Достигнат е лимитът. Изтрий стар запис, преди да добавиш нов.',quickAddFailed:'Неуспешен запис. Данните не са променени.',
+    textCounter:'Брояч на текст',textCounterDesc:'Думи, символи и редове',randomGenerator:'Случаен избор',randomGeneratorDesc:'Числа и избор от списък',
     subtitle:'Моите ежедневни инструменти', home:'Начало', tools:'Инструменти', settings:'Настройки',
     welcome:'Всичко важно, на едно място.', welcomeSub:'Лесно, лично и винаги подръка.',
     myFavourites:'Моите любими', allTools:'Всички инструменти', noFavourites:'Избери любими инструменти от Настройки.',
@@ -153,6 +154,7 @@ const labels = {
   },
   en: {
     quickAdd:'Quick Add',quickAddHint:'Create a task or note without opening another screen.',quickAddTask:'Task',quickAddNote:'Note',quickAddTitle:'Title',quickAddBody:'Extra text (optional)',quickAddDue:'Due date (optional)',quickAddHigh:'Important task',quickAddSave:'Save',quickAddDiscard:'Close without saving?',quickAddInvalid:'Enter a valid title.',quickAddCorrupt:'Task data is damaged. Nothing was overwritten.',quickAddLimit:'Limit reached. Remove an older entry first.',quickAddFailed:'Save failed. Your existing data was not changed.',
+    textCounter:'Text Counter',textCounterDesc:'Words, characters and lines',randomGenerator:'Random Generator',randomGeneratorDesc:'Numbers and choices',
     subtitle:'Your everyday tools', home:'Home', tools:'Tools', settings:'Settings',
     welcome:'Everything you need, in one place.', welcomeSub:'Simple, private and always close.',
     myFavourites:'My favourites', allTools:'All tools', noFavourites:'Choose favourites in Settings.',

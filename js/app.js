@@ -18,6 +18,8 @@ import { mountToday } from './today.js';
 import { mountDiagnostics } from './diagnostics.js';
 import { mountSearch } from './search.js';
 import { mountQuickAdd } from './quick-add.js';
+import { mountTextCounter } from './text-counter.js';
+import { mountRandomGenerator } from './random-generator.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -129,6 +131,8 @@ async function navigate(route,selection=null){
   if(route==='datecalc') cleanup=mountDateCalculator({element:main,lang:settings.language});
   if(route==='percentage') cleanup=mountPercentageCalculator({element:main,lang:settings.language,notify:toast});
   if(route==='bookmarks') cleanup=await mountBookmarks({element:main,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
+  if(route==='textcounter') cleanup=mountTextCounter({element:main,lang:settings.language,notify:toast,copyText,confirmAction:window.confirm});
+  if(route==='random') cleanup=mountRandomGenerator({element:main,lang:settings.language,notify:toast,copyText});
   app.querySelectorAll('[data-nav]').forEach(button=>{
     const selected=button.dataset.nav===route||(route!=='home'&&route!=='tools'&&route!=='settings'&&button.dataset.nav==='tools');
     button.classList.toggle('active',selected);
