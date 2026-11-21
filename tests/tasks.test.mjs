@@ -75,14 +75,14 @@ test('invalid archived tasks and checklists abort validation before replacing da
   assert.throws(()=>validateBackup(backup),/quick lists|списъци/i);
 });
 test('tools are searchable and new modules are in service worker',()=>{
-  assert.equal(VERSION,'1.2.0');
+  assert.equal(VERSION,'1.3.0');
   assert.ok(TOOLS.some(x=>x.id==='tasks'));
   assert.ok(TOOLS.some(x=>x.id==='quicklist'));
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
   const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
   const app=readFileSync(new URL('../js/app.js',import.meta.url),'utf8');
   for(const asset of ['tasks.css','js/tasks.js','js/tasks-core.js','js/quick-list.js','js/quick-list-core.js'])assert.ok(sw.includes(asset),asset);
-  assert.ok(sw.includes('myhub-shell-v1.2.0'));
+  assert.ok(sw.includes('myhub-shell-v1.3.0'));
   assert.ok(html.includes('tasks.css'));
   assert.ok(app.includes("route==='tasks'"));assert.ok(app.includes("route==='quicklist'"));
 });
