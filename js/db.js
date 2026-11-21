@@ -6,6 +6,8 @@ import { emptyQuickLists, validQuickListsData } from './quick-list-core.js';
 import { emptyFootballData, validFootballData } from './football-core.js';
 import { emptyRssData, validRssData } from './rss-core.js';
 import { emptyBookmarks, validBookmarks } from './bookmarks-core.js';
+import { emptyUnitFavourites, validUnitFavourites } from './unit-favourites-core.js';
+import { validRecentTools } from './recent-core.js';
 import { defaultTimerData, normaliseTimerData, validTimerData, snapshotTimerForBackup } from './timer-core.js';
 const DB_NAME = 'myhub-local';
 const DB_VERSION = 1;
@@ -229,16 +231,23 @@ export function validateBackup(data) {
   // All pre-v0.8 archives restore with an empty bookmarks collection.
   if(payload.bookmarksData!==undefined && !validBookmarks(payload.bookmarksData))throw Error('Невалидни запазени връзки / invalid bookmarks');
   const bookmarksData=payload.bookmarksData===undefined?emptyBookmarks():safeClone(payload.bookmarksData);
-  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData,footballData,rssData,bookmarksData };
+  // Older backups pre-date v1.4: an absent list is not an error.
+  if(payload.unitFavouritesData!==undefined && !validUnitFavourites(payload.unitFavouritesData))throw Error('Невалидни любими преобразувания / invalid unit favourites');
+  if(payload.recentTools!==undefined && !validRecentTools(payload.recentTools))throw Error('Невалидни последни инструменти / invalid recent tools');
+  const unitFavouritesData=payload.unitFavouritesData===undefined?emptyUnitFavourites():safeClone(payload.unitFavouritesData);
+  const recentTools=payload.recentTools===undefined?[]:safeClone(payload.recentTools);
+  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData,footballData,rssData,bookmarksData,unitFavouritesData,recentTools };
 }
 export async function createBackup() {
-  const [notes, s, h, weather, timer, calendar, tasks, quickLists, football, rss, bookmarks] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache'), getMeta('timerData'), getMeta('calendarData'), getMeta('tasksData'), getMeta('quickListsData'),getMeta('footballData'),getMeta('rssData'),getMeta('bookmarksData')]);
+  const [notes, s, h, weather, timer, calendar, tasks, quickLists, football, rss, bookmarks,unitFavs,recent] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache'), getMeta('timerData'), getMeta('calendarData'), getMeta('tasksData'), getMeta('quickListsData'),getMeta('footballData'),getMeta('rssData'),getMeta('bookmarksData'),getMeta('unitFavouritesData'),getMeta('recentTools')]);
   if(calendar!==undefined && !validCalendarData(calendar))throw Error('Calendar data is damaged. Backup was stopped to avoid losing events.');
   if(tasks!==undefined && !validTasksData(tasks))throw Error('Task data is damaged. Backup was stopped to avoid losing tasks.');
   if(quickLists!==undefined && !validQuickListsData(quickLists))throw Error('Quick checklist data is damaged. Backup was stopped to avoid losing lists.');
   if(football!==undefined && !validFootballData(football))throw Error('Football data is damaged. Backup was stopped to avoid losing favourites.');
   if(rss!==undefined && !validRssData(rss))throw Error('RSS data is damaged. Backup stopped to avoid losing reading history.');
   if(bookmarks!==undefined && !validBookmarks(bookmarks))throw Error('Bookmarks data is damaged. Backup stopped to avoid losing links.');
+  if(unitFavs!==undefined && !validUnitFavourites(unitFavs))throw Error('Unit favourites are damaged. Backup stopped.');
+  if(recent!==undefined && !validRecentTools(recent))throw Error('Recent tools are damaged. Backup stopped.');
   const cleanSettings=normaliseSettings(s);
   const cleanCache={};
   for(const city of cleanSettings.weatherCities){if(validWeatherCacheEntry(weather?.[city.id]))cleanCache[city.id]=weather[city.id];}
@@ -247,7 +256,9 @@ export async function createBackup() {
       tasksData:tasks===undefined?emptyTasks():safeClone(tasks), quickListsData:quickLists===undefined?emptyQuickLists():safeClone(quickLists),
       footballData:football===undefined?emptyFootballData():safeClone(football),
       rssData:rss===undefined?emptyRssData():safeClone(rss),
-      bookmarksData:bookmarks===undefined?emptyBookmarks():safeClone(bookmarks) } };
+      bookmarksData:bookmarks===undefined?emptyBookmarks():safeClone(bookmarks),
+      unitFavouritesData:unitFavs===undefined?emptyUnitFavourites():safeClone(unitFavs),
+      recentTools:recent===undefined?[]:safeClone(recent) } };
 }
 export async function replaceFromBackup(payload) {
   const data = validateBackup(payload);
@@ -267,6 +278,8 @@ export async function replaceFromBackup(payload) {
     tx.objectStore('meta').put({ key:'footballData', value:data.footballData });
     tx.objectStore('meta').put({ key:'rssData', value:data.rssData });
     tx.objectStore('meta').put({ key:'bookmarksData', value:data.bookmarksData });
+    tx.objectStore('meta').put({ key:'unitFavouritesData', value:data.unitFavouritesData });
+    tx.objectStore('meta').put({ key:'recentTools', value:data.recentTools });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error || Error('Backup restore failed'));
     tx.onabort = () => reject(tx.error || Error('Backup restore aborted'));

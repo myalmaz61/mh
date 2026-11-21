@@ -20,6 +20,7 @@ import { mountSearch } from './search.js';
 import { mountQuickAdd } from './quick-add.js';
 import { mountTextCounter } from './text-counter.js';
 import { mountRandomGenerator } from './random-generator.js';
+import { advanceRecentTools, validRecentTools } from './recent-core.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -33,6 +34,16 @@ let waitingWorker=null;
 let applyingUpdate=false;
 let toastTimer=null;
 let quickAdd=null;
+let recentTools=[];
+let recentReadOnly=false;
+let recentQueue=Promise.resolve();
+async function rememberTool(route){
+  if(recentReadOnly || !TOOLS.some(tool=>tool.id===route))return;
+  recentTools=advanceRecentTools(recentTools,route);
+  const snapshot=[...recentTools];
+  recentQueue=recentQueue.catch(()=>{}).then(()=>setMeta('recentTools',snapshot));
+  try{await recentQueue;}catch(err){console.warn('Recent tools could not be stored',err);}
+}
 const t=key=>translate(settings.language)(key);
 const languageCode=()=>settings.language==='en'?'en-GB':'bg-BG';
 const media=matchMedia('(prefers-color-scheme: dark)');
@@ -127,7 +138,7 @@ async function navigate(route,selection=null){
   if(route==='quicklist') cleanup=await mountQuickList({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
   if(route==='football') cleanup=await mountFootball({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   if(route==='rss') cleanup=await mountRss({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
-  if(route==='unit') cleanup=mountUnitConverter({element:main,lang:settings.language,notify:toast});
+  if(route==='unit') cleanup=await mountUnitConverter({element:main,lang:settings.language,notify:toast});
   if(route==='datecalc') cleanup=mountDateCalculator({element:main,lang:settings.language});
   if(route==='percentage') cleanup=mountPercentageCalculator({element:main,lang:settings.language,notify:toast});
   if(route==='bookmarks') cleanup=await mountBookmarks({element:main,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
@@ -138,6 +149,7 @@ async function navigate(route,selection=null){
     button.classList.toggle('active',selected);
     if(selected)button.setAttribute('aria-current','page');
   });
+  await rememberTool(route);
   quickAdd?.setVisible(route);
   window.scrollTo(0,0);
 }
@@ -174,7 +186,10 @@ function renderHome(main){
   main.querySelector('#home-universal-search').addEventListener('click',()=>go('search'));
 }
 function renderTools(main){
-  main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('allTools')}</h1><p>${t('availableOffline')}</p></section><button type="button" class="hub-search-launch hub-tools-search" id="tools-universal-search"><span aria-hidden="true">⌕</span><span>${t('universalSearch')}</span><span aria-hidden="true">›</span></button><div class="tiles-grid">${TOOLS.map(tile).join('')}</div>`;
+  const recent=recentTools.map(id=>TOOLS.find(tool=>tool.id===id)).filter(Boolean);
+  main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('allTools')}</h1><p>${t('availableOffline')}</p></section><button type="button" class="hub-search-launch hub-tools-search" id="tools-universal-search"><span aria-hidden="true">⌕</span><span>${t('universalSearch')}</span><span aria-hidden="true">›</span></button>
+    ${recent.length?`<section class="recent-tools"><h2>${t('recentTools')}</h2><div class="recent-tool-row">${recent.map(tool=>`<button type="button" class="recent-tool" data-open="${tool.id}"><span aria-hidden="true">${tool.icon}</span>${t(tool.title)}</button>`).join('')}</div></section>`:''}
+    <div class="tiles-grid">${TOOLS.map(tile).join('')}</div>`;
   bindToolButtons(main);
   main.querySelector('#tools-universal-search').addEventListener('click',()=>go('search'));
 }
@@ -198,6 +213,9 @@ function renderSettings(main){
       <button type="button" class="choice-btn ${settings.language==='en'?'selected':''}" data-lang-choice="en" aria-pressed="${settings.language==='en'}">English</button></div></section>
     <section class="surface setting-section"><h2>${t('customise')}</h2><p class="muted">${t('customiseHint')}</p>
       <div class="settings-tools">${order.map(settingsToolRow).join('')}</div></section>
+    <section class="surface setting-section"><h2>${t('recentTools')}</h2>
+      <p class="muted">${recentReadOnly?t('recentCorrupt'):recentTools.map(id=>t(TOOLS.find(tool=>tool.id===id)?.title||'')).join(' · ')||t('none')}</p>
+      <button type="button" class="secondary-btn" id="clear-recent">${t('clearRecent')}</button></section>
     <section class="surface setting-section"><h2>${t('dataBackup')}</h2><p class="muted">${t('backupHint')}</p>
       <div class="backup-actions"><button type="button" class="primary-btn" id="export-backup">↓ ${t('exportBackup')}</button>
       <button type="button" class="secondary-btn" id="import-backup">↑ ${t('importBackup')}</button>
@@ -230,6 +248,9 @@ function renderSettings(main){
     [fav[index],fav[target]]=[fav[target],fav[index]];
     try{await updateSettings({favourites:fav});renderSettings(main);}catch(err){handleError(err);}
   }));
+  main.querySelector('#clear-recent').addEventListener('click',async()=>{
+    try{await recentQueue.catch(()=>{});await setMeta('recentTools',[]);recentTools=[];recentReadOnly=false;toast(t('recentCleared'));renderSettings(main);}catch(err){handleError(err);}
+  });
   main.querySelector('#export-backup').addEventListener('click',async()=>{
     try{
       const data=await createBackup();
@@ -283,6 +304,9 @@ async function boot(){
   try{
     await openDatabase();
     settings=normaliseSettings(await getMeta('settings'));
+    const storedRecent=await getMeta('recentTools');
+    recentReadOnly=storedRecent!==undefined&&!validRecentTools(storedRecent);
+    recentTools=recentReadOnly?[]:storedRecent===undefined?[]:storedRecent;
     history=await getMeta('calcHistory') || [];
     if(!Array.isArray(history))history=[];
     history=history.filter(item=>item && typeof item.expression==='string' &&
