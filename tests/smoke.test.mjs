@@ -27,7 +27,7 @@ test('time zones handle DST',()=>{
 });
 test('settings normalise corrupt data safely',()=>{
   assert.deepEqual(normaliseSettings({theme:'invalid',language:'en',favourites:['calculator','calculator','fake'],timeZones:['Europe/London','fake']}),{
-    theme:'auto',language:'en',favourites:['calculator'],timeZones:['Europe/London'],
+    theme:'auto',language:'en',favourites:['calculator'],hiddenTools:[],timeZones:['Europe/London'],
     weatherCities:structuredClone(DEFAULT_SETTINGS.weatherCities),weatherSelectedId:'newport-shropshire-uk'});
 });
 test('backup validates expected content',()=>{

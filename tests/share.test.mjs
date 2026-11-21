@@ -51,7 +51,7 @@ test('PWA manifest registers an installed POST target scoped to the app',()=>{
   const manifest=JSON.parse(file('manifest.webmanifest'));
   assert.equal(manifest.id,'./');assert.equal(manifest.scope,'./');
   assert.deepEqual(manifest.share_target,{action:'./share.html',method:'POST',enctype:'multipart/form-data',params:{title:'title',text:'text',url:'url'}});
-  assert.equal(VERSION,'1.4.0');
+  assert.equal(VERSION,'1.5.0');
 });
 test('Landing page and CSS use semantic labels and no external SDK',()=>{
   const html=file('share.html');const js=file('js/share-target.js');
@@ -79,7 +79,7 @@ test('Existing app accepts id-only routing without passing URLs in query',()=>{
 });
 test('Service worker caches all new offline resources and separates share page',()=>{
   const sw=file('sw.js');
-  for(const name of ['myhub-shell-v1.4.0','./share.html','./share.css','./js/share-target.js','./js/share-core.js','request.formData()','SHARE_INBOX'])assert.ok(sw.includes(name),name);
+  for(const name of ['myhub-shell-v1.5.0','./share.html','./share.css','./js/share-target.js','./js/share-core.js','request.formData()','SHARE_INBOX'])assert.ok(sw.includes(name),name);
   assert.match(sw,/const isShare=url\.pathname===sharePage\.pathname/);
   assert.match(sw,/Response\.redirect\(dest\.href,303\)/);
 });
