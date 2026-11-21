@@ -93,7 +93,7 @@ test('v0.3 backup restores valid timer and refuses corrupt timer atomically',()=
   assert.throws(()=>validateBackup(b),/timer|таймер/i);
 });
 test('new module and offline files are present in app and service worker',()=>{
-  assert.equal(VERSION,'1.3.0');
+  assert.equal(VERSION,'1.4.0');
   assert.ok(TOOLS.some(x=>x.id==='timer'));
   const app=readFileSync(new URL('../js/app.js',import.meta.url),'utf8');
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
@@ -101,7 +101,7 @@ test('new module and offline files are present in app and service worker',()=>{
   for(const v of ['mountTimer','route===\'timer\''])assert.ok(app.includes(v));
   for(const f of ['js/timer.js','js/timer-core.js','timer.css'])assert.ok(sw.includes(f));
   assert.ok(html.includes('timer.css'));
-  assert.ok(sw.includes('myhub-shell-v1.3.0'));
+  assert.ok(sw.includes('myhub-shell-v1.4.0'));
 });
 test('all timer UI translation keys exist in BG and EN',()=>{
   const js=readFileSync(new URL('../js/timer.js',import.meta.url),'utf8');
