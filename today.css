@@ -1,0 +1,13 @@
+.hub-today{padding:14px 16px;margin:0 0 18px;border-radius:16px;}
+.hub-today-top{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.hub-today-counts{display:flex;flex-wrap:wrap;gap:7px;font-size:.82rem;color:var(--muted,inherit)}
+.hub-today-counts span{border-radius:999px;border:1px solid var(--stroke,#ddd);padding:3px 7px}
+.hub-today-overdue{font-weight:700}
+.hub-today-detail{margin-top:9px;font-size:.9rem;}
+.hub-today-detail summary{cursor:pointer;min-height:36px;display:flex;align-items:center}
+.hub-today-detail p{margin:8px 0;overflow-wrap:anywhere}
+.hub-today-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;justify-content:space-between}
+.hub-health-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.hub-health-stats span{padding:8px;border:1px solid var(--stroke,#ddd);border-radius:10px}
+#health-status p{margin:9px 0;overflow-wrap:anywhere}
+@media(max-width:360px){.hub-health-stats{grid-template-columns:1fr}}

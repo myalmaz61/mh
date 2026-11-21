@@ -1,45 +1,38 @@
-# MyHub — Personal Tools v0.8.0
+# MyHub — Personal Tools v0.9.0
 
-A free, local-first, mobile-first personal toolkit. Designed for Android Chrome and GitHub Pages, with no build step, subscription, paid API, server, account, advertisements or trackers. The interface supports Bulgarian and English, light/dark/automatic themes, configurable favourites and offline use where possible.
+Local-first Android-friendly PWA hosted on GitHub Pages. No account, server, subscription, API key or build step required for PWA installation. Primary language: Bulgarian, optional English.
 
-## New in v0.8.0 — Everyday Utilities
+## What's new in v0.9.0
 
-1. **Unit Converter:** length, mass, volume, area, speed, temperature and data size. Supports the decimal comma, UK gallons/pints (clearly labelled), metric/imperial units, swap, and copy result. Data units distinguish 1000-base MB from 1024-base MiB. No network and no saved history.
-2. **Date Calculator:** calculate calendar days and weekdays (Monday–Friday), optionally including the end date; add or subtract calendar days from 1900 to 2100. Uses UTC-midnight internally to avoid DST arithmetic errors. Weekday counts **do not exclude public holidays**. No saved history.
-3. **Percentage Calculator:** A% of B, A as a percent of B, percent change, increase/decrease and add/remove a user-selectable VAT rate (default 20% for those operations). It is a mathematical tool, not an accounting or tax-classification service. No saved history.
-4. **Bookmarks:** up to 500 saved links with categories, search, favourites, editing and deletion. Only HTTP(S) links without embedded usernames/passwords are allowed; links open in a new browser tab. The list works offline but opening a website needs internet. All bookmark data is local and included in JSON backup.
+- **Today**: compact, collapsible read-only summary on Home of pending Tasks due today or overdue and Calendar events for the current day. Includes daily/weekly/monthly/yearly recurring events. Hidden when no items exist. Buttons open Tasks and Calendar.
+- **Local data health**: Settings section showing numbers of Notes, Tasks, Calendar events and Bookmarks; browser-reported origin-wide storage usage/quota and whether persistent storage is confirmed.
+- **Export timestamp**: after a JSON backup export is initiated, MyHub records the last *prepared export* timestamp in local metadata. This does **not** confirm a file was saved by Android; check Downloads yourself. The timestamp is not required by JSON Backup/Restore.
+- Updated data backup descriptions so they mention Football, RSS and Bookmarks.
+- Existing IndexedDB `myhub-local` schema version **1**, stored keys, favourite tiles and modules are not migrated or cleared.
 
-These four tools appear in **All tools**. You can add any of them to the home screen using **Settings → Favourites**, without adding clutter by default.
+## Important design limits
 
-## Existing tools preserved
+- The Today summary is **not** a notification system, background alarm or new calendar. Due-date items remain controlled by Tasks and recurring events remain controlled by Calendar.
+- Local data health is read-only. It validates Tasks, Calendar and Bookmarks before reporting counts. It never repairs or deletes records silently. Quota/usage are browser estimates for the **web origin**, not exact MyHub-only data. On a shared `github.io` origin, the estimate may include other sites/apps.
+- An OS/browser can still remove unprotected local data. Use JSON Backup and check the downloaded file.
+- The PWA and any future Capacitor APK have distinct local storage; transfer is through explicit JSON Export/Import. Do not install an APK expecting data to appear automatically.
+- All external services from earlier releases keep their old behavior and limitations.
 
-Calculator, World Clock, Notes, Weather, Timer/Stopwatch, Calendar, Tasks, Quick Checklists, Football Scores and RSS Reader are left intact. Existing files not mentioned in the update list are byte-for-byte unchanged from v0.7.0. The RSS public cache workflow remains optional and is not enabled by this upgrade.
+## Installation and upgrading
 
-## Data and updates
+See `START-HERE-BG.md` for full Android-only GitHub instructions. Update from v0.8.0 using the update-only ZIP, without uninstalling the PWA or clearing site data. Make a JSON backup **before** updating.
 
-- IndexedDB name remains `myhub-local`, schema version **1**. No database reset, deletion, or schema migration.
-- The new `bookmarksData` value uses the existing `meta` object store, validated on read and before backup/restore. Corrupt bookmark records are **not silently reset**.
-- `JSON Backup` now includes `bookmarksData` as well as every existing module's data. Backups created in v0.1 through v0.7 remain importable. **Any restore replaces all current module data**, and an older backup with no bookmarks will replace the current bookmarks with an empty list. Export a fresh v0.8 backup first.
-- Other three new calculators are stateless and contain no private data to back up.
-- PWA service-worker cache is bumped to `myhub-shell-v0.8.0`. It caches all module code and styles for offline use, without adding the external weather/football/RSS API responses to the shell cache.
+## Developer checks
 
-## GitHub Pages layout
+- `npm test` (Node built-in test runner, no `npm install`) — **92/92 tests passed**.
+- JavaScript syntax verified with `node --check`.
+- Today and Diagnostics panels tested in an isolated mobile Chromium page with simulated local data, including button navigation and HTML escaping.
+- Full PWA navigation test in the container's Chromium is blocked for local HTTP URLs by its environment. Real Android Chrome PWA needs verification after GitHub Pages deployment. Direct external API access is not part of the v0.9.0 changes.
 
-All files are directly publishable (no `npm install`, no compilation, no Android Studio):
+## Suggested future development (not included)
 
-- `index.html`, `utilities.css`, `styles.css` and other tool CSS at repository root.
-- `js/utilities.js` — mobile UI for converter, dates and percentages.
-- `js/unit-core.js`, `js/date-core.js`, `js/percent-core.js` — separate tested arithmetic logic.
-- `js/bookmarks.js` and `js/bookmarks-core.js` — local bookmarks UI and validation.
-- `js/config.js`, `js/app.js`, `js/i18n.js`, `js/db.js` — minimal navigation, labels and backup integration.
-- `sw.js` and `manifest.webmanifest` — offline installation.
-- `tests/*.test.mjs` — local Node.js built-in tests (optional, useful through GitHub Actions in future). No Node installation needed on the phone.
-
-See `START-HERE-BG.md` for Android/GitHub instructions. Use the UPDATE-ONLY archive for an existing v0.7.0 repository; use the full ZIP for a new repository. Do not upload the ZIP itself as a website file.
-
-## Verification and limitations
-
-- **82 automated tests** passed in Node.js, including existing-module regression tests, new unit/date/percentage calculations, invalid URLs and backward-compatible JSON backup parsing. Source syntax and files were also checked before packaging.
-- Chromium in the current environment blocked navigation to the locally served PWA (`ERR_BLOCKED_BY_ADMINISTRATOR`), so **full PWA/Android navigation, actual IndexedDB UI persistence and service worker installation have not been verified here**. Test these on the Android phone after deployment.
-- Converter calculations use standard conversion constants and floating-point arithmetic; for financial totals, round to the appropriate number of decimal places.
-- No background notifications are introduced by these utilities.
+- Universal search covering tools and personal content, with explicit privacy-safe results.
+- Quick Add for Notes, Tasks and Bookmarks.
+- Share to MyHub from Android (test PWA share target separately and maintain a browser fallback).
+- Shortcuts for favourite unit conversions, Text Counter, small Random Generator.
+- Optional Capacitor Android builds in GitHub Actions **after** PWA reliability review; no Android Studio required on the phone, but build/test checks are still necessary.
