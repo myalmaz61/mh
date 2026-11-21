@@ -14,3 +14,17 @@
 .util-bookmark-item p{font-size:12px;color:var(--muted);line-height:1.5;margin:8px 0;overflow-wrap:anywhere}
 .util-bookmark-item small{font-size:11px;color:var(--accent)}.util-open{display:inline-flex;text-decoration:none;align-items:center;justify-content:center}
 @media(max-width:360px){.util-grid{grid-template-columns:1fr}.util-tabs{flex-direction:column}}
+
+/* v1.4: compact favourite conversions, only inside Unit Converter */
+.unit-favourite-head{display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap;margin-bottom:10px}
+.unit-favourite-head h2{font-size:15px;margin:0}.unit-favourite-head small{color:var(--muted);font-size:11px}
+.unit-favourite-empty{margin:4px 0 15px;font-size:12px}
+.unit-favourite-list{display:grid;gap:7px;margin-bottom:16px}
+.unit-favourite-entry{display:flex;align-items:stretch;gap:7px}
+.unit-preset{flex:1;text-align:left;min-width:0;min-height:44px;border:1px solid var(--stroke);border-radius:11px;background:var(--surface-alt);color:var(--ink);padding:9px 12px;font-size:12px;overflow-wrap:anywhere}
+.unit-preset:focus-visible,.recent-tool:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.unit-favourite-entry .icon-btn{min-width:44px;min-height:44px}
+.recent-tools{margin-bottom:18px}.recent-tools h2{font-size:14px;margin:0 0 8px}
+.recent-tool-row{display:flex;gap:8px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:thin}
+.recent-tool{border:1px solid var(--stroke);border-radius:12px;background:var(--surface);color:var(--ink);padding:9px 12px;min-height:44px;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:650}
+.recent-tool span{font-size:17px}
