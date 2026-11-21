@@ -16,3 +16,13 @@
 @media(min-width:650px){.app-frame{padding-left:32px;padding-right:32px}.tiles-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.calc-layout{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:18px}.clock-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.notes-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:360px){.app-frame{padding-left:13px;padding-right:13px}.tool-tile{padding:14px 12px}.form-row{flex-wrap:wrap}.form-row .primary-btn{flex:1}.setting-tool{gap:6px}.surface{padding:15px}.city-bottom{font-size:10px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* v1.5 — compact, accessible tool visibility controls, only in Settings */
+.tool-visibility summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;padding:3px 0;min-height:44px;list-style-position:inside}
+.tool-visibility summary strong{font-size:16px}
+.tool-visibility summary .muted{font-size:12px}
+.tool-visibility summary:focus-visible{outline:3px solid var(--ring);outline-offset:3px;border-radius:8px}
+.tool-visibility[open] summary{border-bottom:1px solid var(--stroke);padding-bottom:14px;margin-bottom:14px}
+.tool-visibility .setting-tool{min-height:53px}
+.visibility-footer{display:flex;justify-content:flex-end;margin-top:15px}
+.tools-empty{grid-column:1/-1;text-align:center}
