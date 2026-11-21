@@ -21,6 +21,7 @@ import { mountQuickAdd } from './quick-add.js';
 import { mountTextCounter } from './text-counter.js';
 import { mountRandomGenerator } from './random-generator.js';
 import { advanceRecentTools, validRecentTools } from './recent-core.js';
+import { visibleTools, toggleToolHidden } from './visibility-core.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -121,7 +122,7 @@ async function navigate(route,selection=null){
   if(route==='home') renderHome(main);
   if(route==='tools') renderTools(main);
   if(route==='settings') renderSettings(main);
-  if(route==='search') cleanup=await mountSearch({element:main,lang:settings.language,t,tools:TOOLS,openResult:go});
+  if(route==='search') cleanup=await mountSearch({element:main,lang:settings.language,t,tools:visibleTools(TOOLS,settings.hiddenTools),openResult:go});
   if(route==='calculator') cleanup=mountCalculator({element:main,t,history,
     saveHistory:async list=>{history=list;await setMeta('calcHistory',list);},
     copyText,confirmAction:window.confirm,lang:settings.language});
@@ -161,7 +162,7 @@ function bindToolButtons(container){
   container.querySelectorAll('[data-open]').forEach(button=>button.addEventListener('click',()=>go(button.dataset.open)));
 }
 function renderHome(main){
-  const favorites=settings.favourites.map(id=>TOOLS.find(tool=>tool.id===id)).filter(Boolean);
+  const favorites=settings.favourites.map(id=>TOOLS.find(tool=>tool.id===id)).filter(tool=>tool&&!settings.hiddenTools.includes(tool.id));
   main.innerHTML=`<section class="home-hero"><div class="eyebrow">PERSONAL TOOLS · ${VERSION}</div>
     <h1>${t('welcome')}</h1><p>${t('welcomeSub')}</p>
     <div class="today-widget"><span class="today-symbol">☼</span><div><small>${t('dateCard')}</small><strong id="home-date"></strong></div><strong class="today-time" id="home-time"></strong></div></section>
@@ -186,12 +187,14 @@ function renderHome(main){
   main.querySelector('#home-universal-search').addEventListener('click',()=>go('search'));
 }
 function renderTools(main){
-  const recent=recentTools.map(id=>TOOLS.find(tool=>tool.id===id)).filter(Boolean);
+  const shown=visibleTools(TOOLS,settings.hiddenTools);
+  const recent=recentTools.map(id=>shown.find(tool=>tool.id===id)).filter(Boolean);
   main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('allTools')}</h1><p>${t('availableOffline')}</p></section><button type="button" class="hub-search-launch hub-tools-search" id="tools-universal-search"><span aria-hidden="true">⌕</span><span>${t('universalSearch')}</span><span aria-hidden="true">›</span></button>
     ${recent.length?`<section class="recent-tools"><h2>${t('recentTools')}</h2><div class="recent-tool-row">${recent.map(tool=>`<button type="button" class="recent-tool" data-open="${tool.id}"><span aria-hidden="true">${tool.icon}</span>${t(tool.title)}</button>`).join('')}</div></section>`:''}
-    <div class="tiles-grid">${TOOLS.map(tile).join('')}</div>`;
+    <div class="tiles-grid">${shown.map(tile).join('')||`<div class="surface tools-empty"><p class="muted">${t('allToolsHidden')}</p><button type="button" class="secondary-btn" id="manage-visible">${t('manageTools')}</button></div>`}</div>`;
   bindToolButtons(main);
   main.querySelector('#tools-universal-search').addEventListener('click',()=>go('search'));
+  main.querySelector('#manage-visible')?.addEventListener('click',()=>go('settings'));
 }
 function settingsToolRow(id, idx){
   const tool=TOOLS.find(item=>item.id===id);
@@ -202,7 +205,7 @@ function settingsToolRow(id, idx){
     <button type="button" class="icon-btn small" data-reorder="${id}:up" title="${t('moveUp')}" aria-label="${t('moveUp')} ${t(tool.title)}" ${position<=0?'disabled':''}>↑</button>
     <button type="button" class="icon-btn small" data-reorder="${id}:down" title="${t('moveDown')}" aria-label="${t('moveDown')} ${t(tool.title)}" ${position<0||position===settings.favourites.length-1?'disabled':''}>↓</button></div>`;
 }
-function renderSettings(main){
+function renderSettings(main,openHidden=false){
   stopDiagnostics();
   const order=[...settings.favourites,...TOOLS.map(tool=>tool.id).filter(id=>!settings.favourites.includes(id))];
   main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('settings')}</h1><p>${t('introSettings')}</p></section>
@@ -213,6 +216,13 @@ function renderSettings(main){
       <button type="button" class="choice-btn ${settings.language==='en'?'selected':''}" data-lang-choice="en" aria-pressed="${settings.language==='en'}">English</button></div></section>
     <section class="surface setting-section"><h2>${t('customise')}</h2><p class="muted">${t('customiseHint')}</p>
       <div class="settings-tools">${order.map(settingsToolRow).join('')}</div></section>
+    <section class="surface setting-section"><details class="tool-visibility" id="tool-visibility" ${openHidden?'open':''}>
+      <summary><strong>${t('manageTools')}</strong><span class="muted">${t('hiddenCount')}: ${settings.hiddenTools.length} · ${t('tapToManage')}</span></summary>
+      <p class="muted">${t('hiddenToolsHint')}</p>
+      <div class="settings-tools">${TOOLS.map(tool=>`<div class="setting-tool"><span class="tool-icon mini ${tool.color}" aria-hidden="true">${tool.icon}</span><label for="shown-${tool.id}" class="setting-tool-name">${t(tool.title)}</label>
+        <label class="switch"><input id="shown-${tool.id}" type="checkbox" data-tool-visible="${tool.id}" ${settings.hiddenTools.includes(tool.id)?'':'checked'} aria-label="${t('visible')} ${t(tool.title)}"><span></span></label></div>`).join('')}</div>
+      <div class="visibility-footer"><button type="button" id="show-all-tools" class="secondary-btn" ${settings.hiddenTools.length?'':'disabled'}>${t('showAllTools')}</button></div>
+      </details></section>
     <section class="surface setting-section"><h2>${t('recentTools')}</h2>
       <p class="muted">${recentReadOnly?t('recentCorrupt'):recentTools.map(id=>t(TOOLS.find(tool=>tool.id===id)?.title||'')).join(' · ')||t('none')}</p>
       <button type="button" class="secondary-btn" id="clear-recent">${t('clearRecent')}</button></section>
@@ -248,6 +258,14 @@ function renderSettings(main){
     [fav[index],fav[target]]=[fav[target],fav[index]];
     try{await updateSettings({favourites:fav});renderSettings(main);}catch(err){handleError(err);}
   }));
+  main.querySelectorAll('[data-tool-visible]').forEach(input=>input.addEventListener('change',async()=>{
+    const id=input.dataset.toolVisible;
+    try{await updateSettings({hiddenTools:toggleToolHidden(settings.hiddenTools,id)});renderSettings(main,true);}
+    catch(err){input.checked=!input.checked;handleError(err);}
+  }));
+  main.querySelector('#show-all-tools').addEventListener('click',async()=>{
+    try{await updateSettings({hiddenTools:[]});renderSettings(main,true);}catch(err){handleError(err);}
+  });
   main.querySelector('#clear-recent').addEventListener('click',async()=>{
     try{await recentQueue.catch(()=>{});await setMeta('recentTools',[]);recentTools=[];recentReadOnly=false;toast(t('recentCleared'));renderSettings(main);}catch(err){handleError(err);}
   });

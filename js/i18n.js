@@ -1,5 +1,6 @@
 const labels = {
   bg: {
+    manageTools:'Скриване на инструменти',hiddenCount:'Скрити',tapToManage:'Натисни за управление',hiddenToolsHint:'Изключи инструмент, за да го скриеш от Начало, Всички инструменти и Последно използвани. Любимите и личните данни се запазват. Инструментът може да се отвори от търсене в личните записи.',showAllTools:'Покажи всички',allToolsHidden:'Всички инструменти са скрити. Можеш да ги върнеш от Настройки.',
     recentTools:'Последно използвани',clearRecent:'Изчисти историята на инструментите',recentCleared:'Историята на инструментите е изчистена.',recentCorrupt:'Историята е повредена. Няма да бъде презаписана автоматично.',
     quickAdd:'Бързо добавяне',quickAddHint:'Запази задача или бележка, без да отваряш друг екран.',quickAddTask:'Задача',quickAddNote:'Бележка',quickAddTitle:'Заглавие',quickAddBody:'Допълнителен текст (незадължително)',quickAddDue:'Краен срок (незадължително)',quickAddHigh:'Важна задача',quickAddSave:'Запази',quickAddDiscard:'Да затворя ли без запазване?',quickAddInvalid:'Попълни валидно заглавие.',quickAddCorrupt:'Данните за задачите са повредени. Нищо не е презаписано.',quickAddLimit:'Достигнат е лимитът. Изтрий стар запис, преди да добавиш нов.',quickAddFailed:'Неуспешен запис. Данните не са променени.',
     textCounter:'Брояч на текст',textCounterDesc:'Думи, символи и редове',randomGenerator:'Случаен избор',randomGeneratorDesc:'Числа и избор от списък',
@@ -154,6 +155,7 @@ const labels = {
     noMoreCities:'Всички налични градове вече са добавени.',
   },
   en: {
+    manageTools:'Hide tools',hiddenCount:'Hidden',tapToManage:'Tap to manage',hiddenToolsHint:'Turn off a tool to hide it from Home, All tools and Recently used. Your favourites and personal records are kept. Records remain accessible through search.',showAllTools:'Show all tools',allToolsHidden:'All tools are hidden. You can restore them in Settings.',
     recentTools:'Recently used',clearRecent:'Clear tool history',recentCleared:'Tool history cleared.',recentCorrupt:'Tool history is damaged and will not be automatically overwritten.',
     quickAdd:'Quick Add',quickAddHint:'Create a task or note without opening another screen.',quickAddTask:'Task',quickAddNote:'Note',quickAddTitle:'Title',quickAddBody:'Extra text (optional)',quickAddDue:'Due date (optional)',quickAddHigh:'Important task',quickAddSave:'Save',quickAddDiscard:'Close without saving?',quickAddInvalid:'Enter a valid title.',quickAddCorrupt:'Task data is damaged. Nothing was overwritten.',quickAddLimit:'Limit reached. Remove an older entry first.',quickAddFailed:'Save failed. Your existing data was not changed.',
     textCounter:'Text Counter',textCounterDesc:'Words, characters and lines',randomGenerator:'Random Generator',randomGeneratorDesc:'Numbers and choices',

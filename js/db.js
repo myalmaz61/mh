@@ -8,6 +8,7 @@ import { emptyRssData, validRssData } from './rss-core.js';
 import { emptyBookmarks, validBookmarks } from './bookmarks-core.js';
 import { emptyUnitFavourites, validUnitFavourites } from './unit-favourites-core.js';
 import { validRecentTools } from './recent-core.js';
+import { validHiddenTools, normaliseHiddenTools } from './visibility-core.js';
 import { defaultTimerData, normaliseTimerData, validTimerData, snapshotTimerForBackup } from './timer-core.js';
 const DB_NAME = 'myhub-local';
 const DB_VERSION = 1;
@@ -160,6 +161,7 @@ export function normaliseSettings(candidate) {
     theme:['auto','light','dark'].includes(s.theme) ? s.theme : DEFAULT_SETTINGS.theme,
     language:['bg','en'].includes(s.language) ? s.language : DEFAULT_SETTINGS.language,
     favourites:favorites,
+    hiddenTools:normaliseHiddenTools(s.hiddenTools),
     timeZones:zones,
     weatherCities, weatherSelectedId,
   };
@@ -196,6 +198,8 @@ export function validateBackup(data) {
     settings.favourites.some(v => typeof v !== 'string' || !TOOLS.some(t => t.id === v)) ||
     settings.timeZones.some(v => typeof v !== 'string' || !CITIES.some(c => c.zone === v)) ||
     new Set(settings.favourites).size !== settings.favourites.length || new Set(settings.timeZones).size !== settings.timeZones.length) throw Error('Невалидни предпочитания / invalid preferences');
+  // v1.4 and older archives have no hiddenTools setting.
+  if(settings.hiddenTools!==undefined && !validHiddenTools(settings.hiddenTools))throw Error('Невалидни скрити инструменти / invalid hidden tools');
   // v0.1 backups have no weather properties and remain fully supported.
   if (settings.weatherCities !== undefined) {
     if(!Array.isArray(settings.weatherCities) || settings.weatherCities.length>MAX_WEATHER_CITIES ||

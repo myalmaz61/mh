@@ -1,4 +1,4 @@
-export const VERSION = '1.4.0';
+export const VERSION = '1.5.0';
 export const APP_NAME = 'MyHub';
 export const TOOLS = [
   { id: 'calculator', icon: '🧮', color: 'violet', title: 'calculator', description: 'calculatorDesc' },
@@ -19,7 +19,7 @@ export const TOOLS = [
   { id: 'random', icon: '🎲', color: 'amber', title: 'randomGenerator', description: 'randomGeneratorDesc' },
 ];
 export const DEFAULT_SETTINGS = Object.freeze({
-  theme: 'auto', language: 'bg', favourites: ['calculator', 'clock', 'notes'],
+  theme: 'auto', language: 'bg', favourites: ['calculator', 'clock', 'notes'], hiddenTools: [],
   timeZones: ['Europe/London', 'Europe/Sofia', 'Europe/Istanbul'],
   weatherCities: [{ id:'newport-shropshire-uk', name:'Newport', region:'Shropshire', country:'United Kingdom', latitude:52.7688, longitude:-2.3785 }],
   weatherSelectedId: 'newport-shropshire-uk',
