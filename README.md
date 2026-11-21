@@ -1,38 +1,47 @@
-# MyHub — Personal Tools v0.9.0
+# MyHub — Personal Tools v1.0.0
 
-Local-first Android-friendly PWA hosted on GitHub Pages. No account, server, subscription, API key or build step required for PWA installation. Primary language: Bulgarian, optional English.
+Безплатно локално приложение (PWA) за Android Chrome, публикувано през GitHub Pages. Основен език: български; наличен английски. Не изисква акаунт, сървър, API ключ или build стъпка.
 
-## What's new in v0.9.0
+## Ново във v1.0.0 — Universal Search
 
-- **Today**: compact, collapsible read-only summary on Home of pending Tasks due today or overdue and Calendar events for the current day. Includes daily/weekly/monthly/yearly recurring events. Hidden when no items exist. Buttons open Tasks and Calendar.
-- **Local data health**: Settings section showing numbers of Notes, Tasks, Calendar events and Bookmarks; browser-reported origin-wide storage usage/quota and whether persistent storage is confirmed.
-- **Export timestamp**: after a JSON backup export is initiated, MyHub records the last *prepared export* timestamp in local metadata. This does **not** confirm a file was saved by Android; check Downloads yourself. The timestamp is not required by JSON Backup/Restore.
-- Updated data backup descriptions so they mention Football, RSS and Bookmarks.
-- Existing IndexedDB `myhub-local` schema version **1**, stored keys, favourite tiles and modules are not migrated or cleared.
+От **Начало → „Търси навсякъде…“** или **Инструменти → „Търси навсякъде…“** можеш да търсиш в:
 
-## Important design limits
+- Notes (заглавия, текст и checklist редове)
+- Tasks (заглавия, детайли и дата на срока; включително приключили задачи)
+- Calendar (заглавия, детайли и начална дата; при повторения се търси оригиналният запис, не всяка отделна поява)
+- Quick Checklists (имена и редове)
+- Bookmarks (имена, категории и адреси)
+- Имена/описания на инструментите
 
-- The Today summary is **not** a notification system, background alarm or new calendar. Due-date items remain controlled by Tasks and recurring events remain controlled by Calendar.
-- Local data health is read-only. It validates Tasks, Calendar and Bookmarks before reporting counts. It never repairs or deletes records silently. Quota/usage are browser estimates for the **web origin**, not exact MyHub-only data. On a shared `github.io` origin, the estimate may include other sites/apps.
-- An OS/browser can still remove unprotected local data. Use JSON Backup and check the downloaded file.
-- The PWA and any future Capacitor APK have distinct local storage; transfer is through explicit JSON Export/Import. Do not install an APK expecting data to appear automatically.
-- All external services from earlier releases keep their old behavior and limitations.
+Въведи една или повече думи. Думите могат да са в различни полета. Използвай чиповете за филтриране на вида резултати. Показват се до 50 резултата едновременно и общият брой на съвпаденията; категорията може да се промени по всяко време. Натискането на резултат отваря съответния запис в неговия инструмент (без дублиране).
 
-## Installation and upgrading
+Търсачката само чете локални данни от IndexedDB при отваряне на екрана. Тя не изпраща съдържанието по интернет, не записва история на търсенията и не добавя допълнителни хранилища.
 
-See `START-HERE-BG.md` for full Android-only GitHub instructions. Update from v0.8.0 using the update-only ZIP, without uninstalling the PWA or clearing site data. Make a JSON backup **before** updating.
+## Непроменени функции
 
-## Developer checks
+Calculator, World Clock, Notes, Weather, Timer/Stopwatch, Calendar, Tasks, Quick Checklists, Football, RSS Reader, Unit Converter, Date Calculator, Percentage Calculator, Bookmarks. Съществуващите JSON Backup/Restore, Themes, Language, Favourites, Today и Data Diagnostics се запазват.
 
-- `npm test` (Node built-in test runner, no `npm install`) — **92/92 tests passed**.
-- JavaScript syntax verified with `node --check`.
-- Today and Diagnostics panels tested in an isolated mobile Chromium page with simulated local data, including button navigation and HTML escaping.
-- Full PWA navigation test in the container's Chromium is blocked for local HTTP URLs by its environment. Real Android Chrome PWA needs verification after GitHub Pages deployment. Direct external API access is not part of the v0.9.0 changes.
+## Съвместимост и ограничения
 
-## Suggested future development (not included)
+- IndexedDB продължава да е `myhub-local`, **версия 1**. Няма автоматична миграция и нищо не се изтрива.
+- JSON форматът на Backup остава **1**; търсенето не добавя нови данни за архивиране. Не възстановявай стар архив върху текущите данни без предварително нов Backup.
+- При проблем с отделен източник на данни търсенето показва предупреждение и пропуска непроверените записи, без да ги променя.
+- За много дълги бележки визуалното описание може да е от началото на текста, въпреки че съвпадението се намира по-надолу.
+- Модулите Weather, Football и RSS продължават да зависят от свои външни източници; новото търсене е изцяло офлайн и **не** търси в кешираните им публикации/резултати.
+- Когато избираш повтарящо се събитие от търсенето, се отваря редакцията на цялата поредица.
+- PWA и бъдещ Capacitor APK няма автоматично да споделят хранилище: Export JSON → Import JSON.
 
-- Universal search covering tools and personal content, with explicit privacy-safe results.
-- Quick Add for Notes, Tasks and Bookmarks.
-- Share to MyHub from Android (test PWA share target separately and maintain a browser fallback).
-- Shortcuts for favourite unit conversions, Text Counter, small Random Generator.
-- Optional Capacitor Android builds in GitHub Actions **after** PWA reliability review; no Android Studio required on the phone, but build/test checks are still necessary.
+## Стартиране
+
+1. Качи всички файлове и подпапки в корена на публичното GitHub Pages хранилище (`index.html` трябва да е в корена).
+2. GitHub → Settings → Pages → Deploy from a branch → `main` / `(root)`.
+3. Отвори страницата през Chrome и инсталирай PWA. За обновление от v0.9.0 използвай `MyHub-v1.0.0-UPDATE-ONLY.zip` и **не** деинсталирай старата PWA.
+4. Прочети `START-HERE-BG.md` за инструкции само от Android.
+
+## Тестове
+
+Без допълнителни npm зависимости: `npm test` (или `node --test tests/*.test.mjs`). В тази версия 105 автоматизирани Node теста са успешни. Екранът за търсене е проверен отделно в Chromium с тестови записи, но **цялото приложение не е потвърдено върху реален Android телефон**. В инструкциите има точен чеклист.
+
+## Следваща малка версия
+
+Quick Add (бързо добавяне на нова бележка/задача) без претрупване на началния екран, след потвърждение, че v1.0 работи на телефона.

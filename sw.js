@@ -1,7 +1,7 @@
-const CACHE = 'myhub-shell-v0.9.0';
+const CACHE = 'myhub-shell-v1.0.0';
 const PREFIX = 'myhub-shell-';
 const ASSETS = [
-  './', './index.html', './styles.css', './weather.css', './timer.css', './calendar.css', './tasks.css', './football.css', './rss.css', './utilities.css', './today.css', './manifest.webmanifest',
+  './', './index.html', './styles.css', './weather.css', './timer.css', './calendar.css', './tasks.css', './football.css', './rss.css', './utilities.css', './today.css', './search.css', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
   './js/app.js', './js/config.js', './js/i18n.js', './js/utils.js', './js/db.js',
   './js/calculator.js', './js/world-clock.js', './js/notes.js', './js/weather.js',
@@ -9,7 +9,7 @@ const ASSETS = [
   './js/tasks.js', './js/tasks-core.js', './js/quick-list.js', './js/quick-list-core.js',
   './js/football.js', './js/football-core.js', './js/rss.js', './js/rss-core.js',
   './js/unit-core.js', './js/date-core.js', './js/percent-core.js', './js/bookmarks-core.js',
-  './js/utilities.js', './js/bookmarks.js', './js/today-core.js', './js/today.js', './js/diagnostics-core.js', './js/diagnostics.js'
+  './js/utilities.js', './js/bookmarks.js', './js/today-core.js', './js/today.js', './js/diagnostics-core.js', './js/diagnostics.js', './js/search-core.js', './js/search.js'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(url=>new URL(url,self.registration.scope).href))));
