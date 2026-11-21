@@ -1,9 +1,9 @@
-const CACHE='myhub-shell-v1.2.0';
+const CACHE='myhub-shell-v1.3.0';
 const PREFIX='myhub-shell-';
 // Separate from shell cache: incoming shares are private, temporary, and never deployed.
 const SHARE_INBOX='myhub-share-inbox-v1';
 const ASSETS=[
-  './','./index.html','./share.html','./share.css','./styles.css','./weather.css','./timer.css','./calendar.css','./tasks.css','./football.css','./rss.css','./utilities.css','./today.css','./search.css','./quick-add.css','./manifest.webmanifest',
+  './','./index.html','./share.html','./share.css','./styles.css','./weather.css','./timer.css','./calendar.css','./tasks.css','./football.css','./rss.css','./utilities.css','./today.css','./search.css','./quick-add.css','./mini-tools.css','./manifest.webmanifest',
   './icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png',
   './js/app.js','./js/config.js','./js/i18n.js','./js/utils.js','./js/db.js',
   './js/calculator.js','./js/world-clock.js','./js/notes.js','./js/weather.js',
@@ -12,7 +12,8 @@ const ASSETS=[
   './js/football.js','./js/football-core.js','./js/rss.js','./js/rss-core.js',
   './js/unit-core.js','./js/date-core.js','./js/percent-core.js','./js/bookmarks-core.js',
   './js/utilities.js','./js/bookmarks.js','./js/today-core.js','./js/today.js','./js/diagnostics-core.js','./js/diagnostics.js','./js/search-core.js','./js/search.js','./js/quick-add-core.js','./js/quick-add.js',
-  './js/share-core.js','./js/share-target.js'
+  './js/share-core.js','./js/share-target.js',
+  './js/text-counter-core.js','./js/text-counter.js','./js/random-core.js','./js/random-generator.js'
 ];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(asset=>new URL(asset,self.registration.scope).href))));

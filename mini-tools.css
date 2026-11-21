@@ -1,0 +1,13 @@
+/* MyHub v1.3 · small independent utilities, mobile-first */
+.mini-tool-card{padding:18px}.mini-tool-label{display:grid;gap:9px;font-size:13px;font-weight:700;color:var(--muted);margin-top:14px}
+.mini-tool-label .text-field{color:var(--ink);font-weight:500}.mini-tool-textarea{resize:vertical;min-height:185px;line-height:1.6;width:100%;margin-top:10px}
+.mini-tool-hint{font-size:11px;line-height:1.5;color:var(--muted);margin:9px 0 12px}.mini-tool-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:16px 0}
+.mini-tool-stat{background:var(--surface-alt);border:1px solid var(--stroke);border-radius:14px;padding:13px 11px;min-width:0;display:grid;gap:7px}
+.mini-tool-stat small{color:var(--muted);font-size:11px;line-height:1.3}.mini-tool-stat strong{font-size:clamp(17px,4vw,24px);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.mini-tool-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}.mini-tool-actions button{flex:0 1 auto}.mini-tool-tabs{display:flex;gap:10px}.mini-tool-tabs button{min-width:0}
+.mini-tool-form{display:grid;gap:12px;margin:12px 0 17px}.mini-tool-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.mini-tool-check{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);min-height:38px}.mini-tool-check input{accent-color:var(--accent);height:21px;width:21px}
+.mini-tool-output{border:1px solid var(--stroke);border-radius:16px;background:var(--surface-alt);padding:16px;display:grid;gap:13px;overflow-wrap:anywhere}
+.mini-tool-output small{font-size:12px;color:var(--muted)}.mini-tool-output strong{font-size:clamp(19px,5vw,30px);line-height:1.4;overflow-wrap:anywhere}
+.mini-tool-output button{justify-self:start}
+@media(max-width:350px){.mini-tool-two{grid-template-columns:1fr}.mini-tool-actions button{flex:1}}
