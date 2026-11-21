@@ -14,12 +14,15 @@ import { mountFootball } from './football.js';
 import { mountRss } from './rss.js';
 import { mountUnitConverter, mountDateCalculator, mountPercentageCalculator } from './utilities.js';
 import { mountBookmarks } from './bookmarks.js';
+import { mountToday } from './today.js';
+import { mountDiagnostics } from './diagnostics.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
 let history=[];
 let active='home';
 let cleanup=()=>{};
+let stopDiagnostics=()=>{};
 let navigation=Promise.resolve();
 let settingsQueue=Promise.resolve();
 let waitingWorker=null;
@@ -139,6 +142,7 @@ function renderHome(main){
   main.innerHTML=`<section class="home-hero"><div class="eyebrow">PERSONAL TOOLS · ${VERSION}</div>
     <h1>${t('welcome')}</h1><p>${t('welcomeSub')}</p>
     <div class="today-widget"><span class="today-symbol">☼</span><div><small>${t('dateCard')}</small><strong id="home-date"></strong></div><strong class="today-time" id="home-time"></strong></div></section>
+    <div id="today-summary-slot"></div>
     <section class="section"><div class="row-between"><h2>${t('myFavourites')}</h2><button class="text-link" id="customise-home" type="button">${t('settings')} ›</button></div>
     <div id="home-favourites" class="tiles-grid">${favorites.map(tile).join('') || `<p class="muted">${t('noFavourites')}</p>`}</div></section>
     <section class="section"><div class="row-between"><h2>${t('allTools')}</h2><button class="text-link" id="all-tools-link" type="button">${t('tools')} ›</button></div>
@@ -152,7 +156,8 @@ function renderHome(main){
   };
   showDate();
   const minuteTimer=setInterval(showDate,15000);
-  cleanup=()=>clearInterval(minuteTimer);
+  const stopToday=mountToday({element:main.querySelector('#today-summary-slot'),lang:settings.language,openTool:go});
+  cleanup=()=>{clearInterval(minuteTimer);stopToday();};
   bindToolButtons(main);
   main.querySelector('#customise-home').addEventListener('click',()=>go('settings'));
   main.querySelector('#all-tools-link').addEventListener('click',()=>go('tools'));
@@ -183,6 +188,7 @@ function settingsToolRow(id, idx){
     <button type="button" class="icon-btn small" data-reorder="${id}:down" title="${t('moveDown')}" aria-label="${t('moveDown')} ${t(tool.title)}" ${position<0||position===settings.favourites.length-1?'disabled':''}>↓</button></div>`;
 }
 function renderSettings(main){
+  stopDiagnostics();
   const order=[...settings.favourites,...TOOLS.map(tool=>tool.id).filter(id=>!settings.favourites.includes(id))];
   main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('settings')}</h1><p>${t('introSettings')}</p></section>
     <section class="surface setting-section"><h2>${t('theme')}</h2><div class="choice-row" role="group" aria-label="${t('theme')}">
@@ -198,9 +204,12 @@ function renderSettings(main){
       <input type="file" id="backup-file" accept=".json,application/json" hidden></div>
       <p class="warning-text">${t('importWarning')}</p>
       <button type="button" class="text-link" id="persistent-storage">${t('storagePersist')} ›</button></section>
+    <section class="surface setting-section" id="health-section"></section>
     <section class="surface setting-section"><h2>${t('installation')}</h2><p class="muted">${t('installHint')}</p>
       <div class="row-between"><span>${t('appVersion')}</span><strong>v${VERSION}</strong></div>
       <p class="privacy-footer">🔒 ${t('privacy')}</p></section>`;
+  stopDiagnostics=mountDiagnostics({element:main.querySelector('#health-section'),lang:settings.language});
+  cleanup=()=>stopDiagnostics();
   main.querySelectorAll('[data-theme-choice]').forEach(btn=>btn.addEventListener('click',async()=>{
     try{await updateSettings({theme:btn.dataset.themeChoice}); renderSettings(main);}catch(err){handleError(err);}
   }));
@@ -230,6 +239,8 @@ function renderSettings(main){
       link.href=url;link.download=`MyHub-backup-${new Date().toISOString().slice(0,10)}.json`;
       document.body.append(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(url),5000);
+      // Records that an export was initiated, NOT that Android saved the file.
+      try{await setMeta('lastBackupExportAt',new Date().toISOString());}catch(err){console.warn('Backup date unavailable',err);}
     }catch(err){handleError(err);toast(t('exportFailed'));}
   });
   const fileInput=main.querySelector('#backup-file');
