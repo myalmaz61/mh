@@ -3,14 +3,14 @@ import {escapeHtml,uid} from './utils.js';
 import {emptyQuickLists,validQuickListsData,quickProgress,MAX_QUICK_LISTS,MAX_QUICK_ITEMS} from './quick-list-core.js';
 
 const now=()=>new Date().toISOString();
-export async function mountQuickList({element,t,notify,confirmAction}){
+export async function mountQuickList({element,t,notify,confirmAction,initialId=null}){
   let data=await getMeta('quickListsData');
   if(data===undefined)data=emptyQuickLists();
   if(!validQuickListsData(data)){
     element.innerHTML=`<section class="tool-head"><h1>${t('quickList')}</h1></section><section class="surface"><p class="warning-text">${t('quickCorrupt')}</p></section>`;
     return ()=>{};
   }
-  let selected=data.lists[0]?.id||'',renameMode=false,busy=false,disposed=false;
+  let selected=data.lists.some(list=>list.id===initialId)?initialId:(data.lists[0]?.id||''),renameMode=false,busy=false,disposed=false;
   const chosen=()=>data.lists.find(x=>x.id===selected);
   function render(){
     if(disposed)return;

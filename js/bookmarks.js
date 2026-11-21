@@ -5,7 +5,7 @@ const translations={
   bg:{heading:'Запазени връзки',intro:'Личните ти сайтове и страници на едно място, запазени на телефона.',add:'Нова връзка',edit:'Редакция',title:'Заглавие',url:'Адрес (https://...)',category:'Категория',favourite:'Любима',save:'Запази',cancel:'Отказ',search:'Търси връзки…',all:'Всички',stars:'Любими',open:'Отвори',remove:'Изтрий',empty:'Няма записани връзки.',confirm:'Да изтрия ли тази връзка?',invalid:'Въведи заглавие и валиден http/https адрес, без потребител и парола.',duplicate:'Този адрес вече е записан.',limit:'Лимитът е 500 връзки.',saved:'Връзката е запазена.',deleted:'Връзката е изтрита.',error:'Грешка при запис. Данните не са заменени.',corrupt:'Данните за връзките са повредени. Не са изтрити или презаписани. Първо запази копие на другите данни.',hint:'Отварянето на оригиналния сайт изисква интернет. Запазеният списък работи офлайн.'},
   en:{heading:'Bookmarks',intro:'Saved websites and pages, stored locally on your device.',add:'Add link',edit:'Edit link',title:'Title',url:'URL (https://...)',category:'Category',favourite:'Favourite',save:'Save',cancel:'Cancel',search:'Search bookmarks…',all:'All',stars:'Favourites',open:'Open',remove:'Delete',empty:'No saved links.',confirm:'Delete this bookmark?',invalid:'Enter a title and a valid http/https URL without credentials.',duplicate:'This URL is already saved.',limit:'Maximum 500 links.',saved:'Bookmark saved.',deleted:'Bookmark deleted.',error:'Save failed. Data was not overwritten.',corrupt:'Bookmark data appears corrupt. It has not been deleted or overwritten. Back up your other data first.',hint:'Opening sites needs internet. Your saved list works offline.'}
 };
-export async function mountBookmarks({element,lang,notify,confirmAction}){
+export async function mountBookmarks({element,lang,notify,confirmAction,initialId=null}){
   const l=translations[lang==='en'?'en':'bg'];let data=await getMeta('bookmarksData');
   if(data===undefined)data=emptyBookmarks();
   if(!validBookmarks(data)){
@@ -13,6 +13,7 @@ export async function mountBookmarks({element,lang,notify,confirmAction}){
     return()=>{};
   }
   let active='all',query='',editing='',showForm=false,busy=false,disposed=false;
+  if(initialId && data.items.some(link=>link.id===initialId)){editing=initialId;showForm=true;}
   function list(){return data.items.filter(x=>(active==='all'||x.favourite)&&`${x.title} ${x.url} ${x.category}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a,b)=>Number(b.favourite)-Number(a.favourite)||b.updatedAt.localeCompare(a.updatedAt));}
   function render(){
     if(disposed)return;

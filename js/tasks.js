@@ -11,7 +11,7 @@ const dateLabel=(ymd,lang)=>{
 };
 
 /** Mount Tasks. No migrations or extra IDB stores needed. */
-export async function mountTasks({element,t,lang,notify,confirmAction}){
+export async function mountTasks({element,t,lang,notify,confirmAction,initialId=null}){
   let data=await getMeta('tasksData');
   if(data===undefined)data=emptyTasks();
   if(!validTasksData(data)){
@@ -19,6 +19,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction}){
     return ()=>{}; // Keep damaged records intact; never save over them.
   }
   let filter='open',search='',editId=null,formOpen=false,busy=false,disposed=false;
+  if(initialId && data.tasks.some(task=>task.id===initialId)){filter='all';editId=initialId;formOpen=true;}
 
   const cards=()=>{
     const shown=filteredTasks(data.tasks,{filter,search,today:todayLocal()});
@@ -124,6 +125,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction}){
   element.addEventListener('input',handleInput);
   element.addEventListener('submit',handleSubmit);
   render();
+  if(formOpen)element.querySelector('#task-editor')?.scrollIntoView({block:'nearest'});
   return ()=>{disposed=true;element.removeEventListener('click',handleClick);
     element.removeEventListener('change',handleChange);element.removeEventListener('input',handleInput);
     element.removeEventListener('submit',handleSubmit);};

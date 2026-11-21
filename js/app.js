@@ -16,6 +16,7 @@ import { mountUnitConverter, mountDateCalculator, mountPercentageCalculator } fr
 import { mountBookmarks } from './bookmarks.js';
 import { mountToday } from './today.js';
 import { mountDiagnostics } from './diagnostics.js';
+import { mountSearch } from './search.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -90,39 +91,40 @@ function updateIndicators(){
 }
 window.addEventListener('online',updateIndicators);
 window.addEventListener('offline',updateIndicators);
-function go(route){
-  navigation=navigation.then(()=>navigate(route)).catch(handleError);
+function go(route, selection=null){
+  navigation=navigation.then(()=>navigate(route,selection)).catch(handleError);
 }
-async function navigate(route){
+async function navigate(route,selection=null){
   await cleanup();
   cleanup=()=>{};
-  if(!['home','tools','settings',...TOOLS.map(a=>a.id)].includes(route))route='home';
+  if(!['home','tools','settings','search',...TOOLS.map(a=>a.id)].includes(route))route='home';
   active=route;
   shell();
   const main=app.querySelector('#main-content');
   if(route==='home') renderHome(main);
   if(route==='tools') renderTools(main);
   if(route==='settings') renderSettings(main);
+  if(route==='search') cleanup=await mountSearch({element:main,lang:settings.language,t,tools:TOOLS,openResult:go});
   if(route==='calculator') cleanup=mountCalculator({element:main,t,history,
     saveHistory:async list=>{history=list;await setMeta('calcHistory',list);},
     copyText,confirmAction:window.confirm,lang:settings.language});
   if(route==='clock') cleanup=mountWorldClock({element:main,t,lang:settings.language,
     timeZones:settings.timeZones,saveZones:timeZones=>updateSettings({timeZones})});
   if(route==='notes') cleanup=await mountNotes({element:main,t,lang:settings.language,
-    confirmAction:window.confirm,notify:toast});
+    confirmAction:window.confirm,notify:toast,initialId:selection?.id});
   if(route==='weather') cleanup=mountWeather({element:main,t,lang:settings.language,
     weatherCities:settings.weatherCities,weatherSelectedId:settings.weatherSelectedId,
     saveWeather:change=>updateSettings(change),notify:toast});
   if(route==='timer') cleanup=await mountTimer({element:main,t,lang:settings.language,notify:toast});
-  if(route==='calendar') cleanup=await mountCalendar({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
-  if(route==='tasks') cleanup=await mountTasks({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
-  if(route==='quicklist') cleanup=await mountQuickList({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
+  if(route==='calendar') cleanup=await mountCalendar({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
+  if(route==='tasks') cleanup=await mountTasks({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
+  if(route==='quicklist') cleanup=await mountQuickList({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
   if(route==='football') cleanup=await mountFootball({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   if(route==='rss') cleanup=await mountRss({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   if(route==='unit') cleanup=mountUnitConverter({element:main,lang:settings.language,notify:toast});
   if(route==='datecalc') cleanup=mountDateCalculator({element:main,lang:settings.language});
   if(route==='percentage') cleanup=mountPercentageCalculator({element:main,lang:settings.language,notify:toast});
-  if(route==='bookmarks') cleanup=await mountBookmarks({element:main,lang:settings.language,notify:toast,confirmAction:window.confirm});
+  if(route==='bookmarks') cleanup=await mountBookmarks({element:main,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
   app.querySelectorAll('[data-nav]').forEach(button=>{
     const selected=button.dataset.nav===route||(route!=='home'&&route!=='tools'&&route!=='settings'&&button.dataset.nav==='tools');
     button.classList.toggle('active',selected);
@@ -146,8 +148,7 @@ function renderHome(main){
     <section class="section"><div class="row-between"><h2>${t('myFavourites')}</h2><button class="text-link" id="customise-home" type="button">${t('settings')} ›</button></div>
     <div id="home-favourites" class="tiles-grid">${favorites.map(tile).join('') || `<p class="muted">${t('noFavourites')}</p>`}</div></section>
     <section class="section"><div class="row-between"><h2>${t('allTools')}</h2><button class="text-link" id="all-tools-link" type="button">${t('tools')} ›</button></div>
-    <label class="sr-only" for="home-search">${t('searchTools')}</label><div class="search-wrap"><span>⌕</span><input type="search" class="text-field" id="home-search" placeholder="${t('searchTools')}" autocomplete="off"></div>
-    <div id="home-search-results" class="tiles-grid compact-grid" hidden></div></section>
+    <button type="button" id="home-universal-search" class="hub-search-launch"><span aria-hidden="true">⌕</span><span>${t('universalSearch')}</span><span aria-hidden="true">›</span></button></section>
     <p class="privacy-footer">◈ ${t('safeOffline')}</p>`;
   const showDate=()=>{
     const date=main.querySelector('#home-date');const time=main.querySelector('#home-time');
@@ -161,22 +162,12 @@ function renderHome(main){
   bindToolButtons(main);
   main.querySelector('#customise-home').addEventListener('click',()=>go('settings'));
   main.querySelector('#all-tools-link').addEventListener('click',()=>go('tools'));
-  const search=main.querySelector('#home-search');
-  const results=main.querySelector('#home-search-results');
-  search.addEventListener('input',()=>{
-    const value=search.value.trim().toLocaleLowerCase();
-    results.hidden=!value;
-    if(!value)results.innerHTML='';
-    else{
-      const found=TOOLS.filter(tool=>`${t(tool.title)} ${t(tool.description)} ${tool.id}`.toLocaleLowerCase().includes(value));
-      results.innerHTML=found.length?found.map(tile).join(''):`<p class="muted">${t('noResults')}</p>`;
-      bindToolButtons(results);
-    }
-  });
+  main.querySelector('#home-universal-search').addEventListener('click',()=>go('search'));
 }
 function renderTools(main){
-  main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('allTools')}</h1><p>${t('availableOffline')}</p></section><div class="tiles-grid">${TOOLS.map(tile).join('')}</div>`;
+  main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('allTools')}</h1><p>${t('availableOffline')}</p></section><button type="button" class="hub-search-launch hub-tools-search" id="tools-universal-search"><span aria-hidden="true">⌕</span><span>${t('universalSearch')}</span><span aria-hidden="true">›</span></button><div class="tiles-grid">${TOOLS.map(tile).join('')}</div>`;
   bindToolButtons(main);
+  main.querySelector('#tools-universal-search').addEventListener('click',()=>go('search'));
 }
 function settingsToolRow(id, idx){
   const tool=TOOLS.find(item=>item.id===id);

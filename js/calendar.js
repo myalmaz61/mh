@@ -18,7 +18,7 @@ const weekdays=(lang)=>{
 const startDraft=date=>({title:'',details:'',date,time:'',repeat:'none',repeatUntil:''});
 
 /** Mount the isolated Calendar screen. The stored value remains in the existing meta store. */
-export async function mountCalendar({element,t,lang,notify,confirmAction}){
+export async function mountCalendar({element,t,lang,notify,confirmAction,initialId=null}){
   let data=await getMeta('calendarData');
   if(data===undefined)data=emptyCalendar();
   if(!validCalendarData(data)){
@@ -27,6 +27,8 @@ export async function mountCalendar({element,t,lang,notify,confirmAction}){
   }
   const initial=todayLocal(), parsed=parseYmd(initial);
   let year=parsed.year,month=parsed.month,selected=initial,view='month',draft=null,editId=null;
+  const initialEvent=initialId?data.events.find(event=>event.id===initialId):null;
+  if(initialEvent){const date=parseYmd(initialEvent.date);if(date){year=date.year;month=date.month;selected=initialEvent.date;view='day';editId=initialEvent.id;draft={...initialEvent};}}
   let disposed=false, pending=false;
   const dayEvents=date=>eventsForDay(data.events,date);
   const displayTitle=title=>escapeHtml(title);
