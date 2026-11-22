@@ -1,12 +1,17 @@
-MyHub v1.7.0 -> v1.8.0: changed or new files (paths relative to repository root)
+MyHub v1.8.0 -> v1.9.0: new / changed files (paths relative to repository root)
+CHANGED-FILES.txt
 README.md
 START-HERE-BG.md
-js/app.js
-js/backup-preview-core.js
+calendar.css
+js/calendar-core.js
+js/calendar.js
 js/config.js
 js/db.js
+js/i18n.js
+js/quick-add-core.js
+js/quick-add.js
 package.json
-styles.css
+quick-add.css
 sw.js
 tests/backup-integrity.test.mjs
 tests/backup-safety.test.mjs
@@ -15,11 +20,11 @@ tests/favourites.test.mjs
 tests/football.test.mjs
 tests/mini-tools.test.mjs
 tests/quick-add.test.mjs
+tests/quick-calendar.test.mjs
 tests/reliability.test.mjs
 tests/rss.test.mjs
 tests/search.test.mjs
 tests/share.test.mjs
-tests/smoke.test.mjs
 tests/tasks.test.mjs
 tests/timer.test.mjs
 tests/today.test.mjs

@@ -24,3 +24,5 @@
 .cal-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px}.cal-actions .danger-btn{margin-left:auto}
 .cal-disclaimer{font-size:12px;margin:16px 4px 25px}
 @media(max-width:370px){.cal-card{padding:11px}.cal-grid{gap:3px}.cal-cell{min-height:52px;border-radius:10px}.cal-fields{grid-template-columns:1fr}.cal-event-time{width:51px}}
+
+.cal-event .cal-edit{width:40px;min-width:40px;min-height:43px;touch-action:manipulation}
