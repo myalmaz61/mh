@@ -7,7 +7,7 @@ import { previewBackup } from '../js/backup-preview-core.js';
 import { pwaAssessment } from '../js/pwa-health-core.js';
 const old=()=>({app:'MyHub',format:1,version:'0.1.0',createdAt:'2026-11-19T12:00:00.000Z',data:{notes:[],settings:{theme:'auto',language:'bg',favourites:['notes'],timeZones:['Europe/London']},calcHistory:[]}});
 test('v1.7 keeps the same database and backup schema',()=>{
-  assert.equal(VERSION,'2.1.0');
+  assert.equal(VERSION,'2.2.0');
   const db=readFileSync(new URL('../js/db.js',import.meta.url),'utf8');
   assert.match(db,/const DB_NAME = 'myhub-local'/);
   assert.match(db,/const DB_VERSION = 1/);
@@ -78,5 +78,5 @@ test('backup always validates both raw and exported payload',()=>{
 });
 test('new diagnostics assets are included in versioned shell',()=>{
   const worker=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  for(const expected of ['myhub-shell-v2.1.0','js/pwa-health.js','js/pwa-health-core.js','js/backup-preview-core.js'])assert.ok(worker.includes(expected),expected);
+  for(const expected of ['myhub-shell-v2.2.0','js/pwa-health.js','js/pwa-health-core.js','js/backup-preview-core.js'])assert.ok(worker.includes(expected),expected);
 });

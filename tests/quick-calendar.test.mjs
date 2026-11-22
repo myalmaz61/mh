@@ -106,7 +106,7 @@ test('Atomic append respects maximum 1000 calendar entries',async()=>{
 test('The new event remains part of the existing version-1 backup without migration',()=>{
   const payload={app:'MyHub',format:1,createdAt:stamp,data:{notes:[],settings:{theme:'auto',language:'bg',favourites:['calculator'],timeZones:['Europe/London']},calcHistory:[],calendarData:{schema:1,events:[mk('new')]}}};
   assert.equal(validateBackup(payload).calendarData.events[0].id,'new');
-  assert.equal(VERSION,'2.1.0');
+  assert.equal(VERSION,'2.2.0');
 });
 test('New UI fields and translations are present in the offline app',()=>{
   const mod=read('js/quick-add.js');const cal=read('js/calendar.js');const sw=read('sw.js');
@@ -118,7 +118,7 @@ test('New UI fields and translations are present in the offline app',()=>{
   assert.match(css,/#quick-add-calendar-fields\[hidden\]\{display:none!important\}/);
   assert.match(cal,/calendarDuplicateDraft\(original,selected\)/);
   assert.match(code,/!validCalendarData\(existing\)/);
-  assert.match(sw,/myhub-shell-v2\.1\.0/);
+  assert.match(sw,/myhub-shell-v2\.2\.0/);
   for(const key of ['quickAddCalendar','quickAddDate','quickAddTime','quickAddRepeat','quickAddCorruptCalendar','calendarDuplicate']){
     assert.notEqual(translate('bg')(key),key,key);
     assert.notEqual(translate('en')(key),key,key);
