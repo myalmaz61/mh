@@ -1,5 +1,6 @@
 import { getMeta, setMeta } from './db.js';
 import { escapeHtml, uid } from './utils.js';
+import { draftTaskFromEvent } from './cross-actions-core.js';
 import { CALENDAR_REPEATS, MAX_CALENDAR_EVENTS, emptyCalendar, validCalendarData,
   parseYmd, formatYmd, shiftDay, todayLocal, monthCells, monthEventCounts, eventsForDay, calendarDuplicateDraft } from './calendar-core.js';
 
@@ -18,7 +19,7 @@ const weekdays=(lang)=>{
 const startDraft=date=>({title:'',details:'',date,time:'',repeat:'none',repeatUntil:''});
 
 /** Mount the isolated Calendar screen. The stored value remains in the existing meta store. */
-export async function mountCalendar({element,t,lang,notify,confirmAction,initialId=null}){
+export async function mountCalendar({element,t,lang,notify,confirmAction,initialId=null,onQuickDraft=()=>{}}){
   let data=await getMeta('calendarData');
   if(data===undefined)data=emptyCalendar();
   if(!validCalendarData(data)){
@@ -39,6 +40,7 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
       ${entries.length?`<div class="cal-events">${entries.map(e=>`<div class="cal-event">
         <span class="cal-event-time">${e.time||t('calendarAllDay')}</span><div class="cal-event-info"><strong>${displayTitle(e.title)}</strong>
         ${e.details?`<p>${escapeHtml(e.details)}</p>`:''}${e.repeat!=='none'?`<small>↻ ${t('calendarRepeat'+e.repeat[0].toUpperCase()+e.repeat.slice(1))}</small>`:''}</div>
+        ${!draft?`<button class="secondary-btn cross-shortcut" type="button" data-cal-action="to-task" data-cal-id="${escapeHtml(e.id)}" aria-label="${t('crossToTask')} ${displayTitle(e.title)}">${t('crossToTask')}</button>`:''}
         <button class="secondary-btn cal-edit" type="button" data-cal-action="duplicate" data-cal-id="${escapeHtml(e.id)}" aria-label="${t('calendarDuplicate')} ${displayTitle(e.title)}" title="${t('calendarDuplicate')}">⧉</button>
         <button class="secondary-btn cal-edit" type="button" data-cal-action="edit" data-cal-id="${escapeHtml(e.id)}" aria-label="${t('calendarEdit')} ${displayTitle(e.title)}">✎</button>
         </div>`).join('')}</div>`:`<p class="muted cal-empty">${t('calendarNoEvents')}</p>`}`;
@@ -108,6 +110,11 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     else if(action==='new'){
       if(data.events.length>=MAX_CALENDAR_EVENTS){notify(t('calendarLimit'));return;}
       editId=null;draft=startDraft(selected);render();element.querySelector('#cal-title')?.focus();
+    }
+    else if(action==='to-task'&&!draft){
+      // The selected date is the current occurrence for a repeating event.
+      const original=data.events.find(e=>e.id===button.dataset.calId);
+      if(original)onQuickDraft(draftTaskFromEvent(original,selected));
     }
     else if(action==='duplicate'){
       if(data.events.length>=MAX_CALENDAR_EVENTS){notify(t('calendarLimit'));return;}

@@ -15,6 +15,7 @@ export function mountQuickAdd({element,t,notify,openRecord}) {
         <button type="button" data-quick-kind="note" aria-pressed="false">✎ ${t('quickAddNote')}</button>
         <button type="button" data-quick-kind="calendar" aria-pressed="false">▣ ${t('quickAddCalendar')}</button>
       </div>
+      <p id="quick-add-prefill-warning" class="quick-add-prefill-warning" hidden>${t('crossTruncated')}</p>
       <form id="quick-add-form">
         <label for="quick-add-title">${t('quickAddTitle')}</label>
         <input class="text-field" id="quick-add-title" name="title" required maxlength="140" autocomplete="off">
@@ -52,6 +53,7 @@ export function mountQuickAdd({element,t,notify,openRecord}) {
   const time=dialog.querySelector('#quick-add-time');
   const repeat=dialog.querySelector('#quick-add-repeat');
   const submit=dialog.querySelector('#quick-add-submit');
+  const warning=dialog.querySelector('#quick-add-prefill-warning');
   let kind='task', saving=false;
   const hasDraft=()=>Boolean(title.value.trim()||details.value.trim()||due.value||high.checked||
     (kind==='calendar'&&(date.value!==todayLocal()||time.value||repeat.value!=='none')));
@@ -65,7 +67,7 @@ export function mountQuickAdd({element,t,notify,openRecord}) {
     title.maxLength=kind==='task'?140:kind==='calendar'?120:200;
     details.maxLength=kind==='calendar'?3000:kind==='task'?2000:100000;
   }
-  function reset(){form.reset();date.value=todayLocal();setKind('task');}
+  function reset(){form.reset();date.value=todayLocal();warning.hidden=true;setKind('task');}
   function close(){
     if(saving)return;
     if(hasDraft()&&!window.confirm(t('quickAddDiscard')))return;
@@ -78,6 +80,22 @@ export function mountQuickAdd({element,t,notify,openRecord}) {
   function open(){
     if(dialog.open||saving)return;
     reset();dialog.showModal();title.focus();
+  }
+  /** Opens a new, editable draft; the user must explicitly press Save. */
+  function openPrefilled(payload){
+    if(dialog.open||saving||!payload||!['task','note','calendar'].includes(payload.kind))return false;
+    reset();setKind(payload.kind);
+    title.value=String(payload.title??'').slice(0,title.maxLength);
+    details.value=String(payload.details??'').slice(0,details.maxLength);
+    if(payload.kind==='task'){
+      due.value=String(payload.due??'');high.checked=payload.high===true;
+    }else if(payload.kind==='calendar'){
+      date.value=String(payload.date??todayLocal());
+      time.value=String(payload.time??'');
+      repeat.value=String(payload.repeat??'none');
+    }
+    warning.hidden=!payload.truncated;
+    dialog.showModal();title.focus();return true;
   }
   async function save(event){
     event.preventDefault();
@@ -114,6 +132,7 @@ export function mountQuickAdd({element,t,notify,openRecord}) {
   dialog.addEventListener('cancel',onCancel);
   return {
     setVisible(route){launch.hidden=!['home','tools'].includes(route);},
+    openPrefilled,
     dispose(){if(dialog.open)dialog.close();launch.remove();dialog.remove();}
   };
 }

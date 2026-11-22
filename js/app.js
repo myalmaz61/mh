@@ -1,7 +1,7 @@
 import { VERSION, TOOLS, DEFAULT_SETTINGS } from './config.js';
 import { translate } from './i18n.js';
 import { escapeHtml, humanDate } from './utils.js';
-import { openDatabase, getMeta, setMeta, getNotes, normaliseSettings, createBackup, replaceFromBackup, validateBackup } from './db.js';
+import { openDatabase, getMeta, setMeta, getNotes, normaliseSettings, createBackup, readBackupSnapshot, replaceFromBackup, validateBackup } from './db.js';
 import { mountCalculator } from './calculator.js';
 import { mountWorldClock } from './world-clock.js';
 import { mountNotes } from './notes.js';
@@ -133,13 +133,13 @@ async function navigate(route,selection=null){
   if(route==='clock') cleanup=mountWorldClock({element:main,t,lang:settings.language,
     timeZones:settings.timeZones,saveZones:timeZones=>updateSettings({timeZones})});
   if(route==='notes') cleanup=await mountNotes({element:main,t,lang:settings.language,
-    confirmAction:window.confirm,notify:toast,initialId:selection?.id});
+    confirmAction:window.confirm,notify:toast,initialId:selection?.id,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
   if(route==='weather') cleanup=mountWeather({element:main,t,lang:settings.language,
     weatherCities:settings.weatherCities,weatherSelectedId:settings.weatherSelectedId,
     saveWeather:change=>updateSettings(change),notify:toast});
   if(route==='timer') cleanup=await mountTimer({element:main,t,lang:settings.language,notify:toast});
-  if(route==='calendar') cleanup=await mountCalendar({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
-  if(route==='tasks') cleanup=await mountTasks({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
+  if(route==='calendar') cleanup=await mountCalendar({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
+  if(route==='tasks') cleanup=await mountTasks({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
   if(route==='quicklist') cleanup=await mountQuickList({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
   if(route==='football') cleanup=await mountFootball({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   if(route==='rss') cleanup=await mountRss({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
@@ -345,8 +345,9 @@ function renderSettings(main,openHidden=false,openOrder=false){
   const previewWords=settings.language==='en'
     ?{heading:'Checked archive — compare before replacing',date:'Created',version:'Archive version',legacy:'Older archive: absent sections will be restored to defaults (often empty).',counts:['Notes','Tasks','Events','Quick lists','Bookmarks','RSS articles','Football leagues'],confirm:'Replace local data',cancel:'Cancel',ready:'No local data has been changed.',working:'Restoring…',current:'Now',incoming:'After Restore',removed:'Missing from archive',changed:'Different existing records',comparisonFail:'Unable to compare existing data. Restore would still replace everything; take care.',safe:'Nothing missing among the seven compared record types. Settings and other content will still be replaced.',risk:'Some local records are missing from this archive.',ack:'I understand Restore REPLACES all local data and cannot be undone without a separate backup.',notAcknowledged:'Tick the confirmation box before restoring.'}
     :{heading:'Проверен архив — сравнение преди заместване',date:'Създаден',version:'Версия на архива',legacy:'Стар архив: липсващите раздели ще получат началните си стойности (често празни).',counts:['Бележки','Задачи','Събития','Бързи списъци','Връзки','RSS статии','Футболни първенства'],confirm:'Замени локалните данни',cancel:'Отказ',ready:'Все още нищо не е променено.',working:'Възстановяване…',current:'Сега',incoming:'След Restore',removed:'Липсват в архива',changed:'Различни съществуващи записи',comparisonFail:'Не мога да сравня текущите данни. Restore въпреки това ще ги замени изцяло — бъди внимателен.',safe:'В седемте проверявани вида записи няма липсващи ID. Настройките и съдържанието пак ще бъдат заменени.',risk:'В този архив липсват някои текущи записи.',ack:'Разбирам, че Restore ЗАМЕНЯ всички локални данни и не може да бъде отменен без отделен архив.',notAcknowledged:'Маркирай полето за потвърждение преди Restore.'};
-  function cancelPreview(){pendingBackup=null;previewElement.replaceChildren();previewElement.hidden=true;}
+  function cancelPreview(){pendingBackup=null;pendingGuard=null;previewElement.replaceChildren();previewElement.hidden=true;}
   let pendingBackup=null;
+  let pendingGuard=null;
   main.querySelector('#import-backup').addEventListener('click',()=>fileInput.click());
   fileInput.addEventListener('change',async()=>{
     const file=fileInput.files?.[0];fileInput.value='';cancelPreview();
@@ -359,11 +360,15 @@ function renderSettings(main,openHidden=false,openOrder=false){
       // Comparing cannot modify local content. If local data is corrupt, allow
       // selecting a known-good archive but display an explicit warning.
       let comparison=null;
+      // The preview and guard refer to one committed, read-only snapshot.
+      // Even when current data is damaged, Restore must not overwrite newer edits.
+      const guard=await readBackupSnapshot();
       try{
-        const current=validateBackup(await createBackup());
+        const current=validateBackup(await createBackup(guard));
         comparison=compareBackupContents(current,cleaned);
       }catch(err){console.warn('Current data comparison not available',err);}
       pendingBackup=data;
+      pendingGuard=guard;
       const created=summary.createdAt?new Intl.DateTimeFormat(languageCode(),{dateStyle:'medium',timeStyle:'short'}).format(new Date(summary.createdAt)):'—';
       const lost=comparison?.some(item=>item.removed>0);
       const changed=comparison?.some(item=>item.changed>0);
@@ -384,10 +389,18 @@ function renderSettings(main,openHidden=false,openOrder=false){
         confirmButton.disabled=true;confirmButton.textContent=previewWords.working;
         try{
           // Validate again before the atomic IndexedDB transaction.
-          await replaceFromBackup(pendingBackup);
+          await replaceFromBackup(pendingBackup,pendingGuard);
           pendingBackup=null;
           toast(t('restored'));location.reload();
-        }catch(err){console.error(err);confirmButton.disabled=false;confirmButton.textContent=previewWords.confirm;toast(t('importFailed'));}
+        }catch(err){
+          console.error(err);
+          if(err?.code==='stale-preview'){
+            cancelPreview();
+            toast(settings.language==='en'?'Local data changed. Select the backup again to review it.':'Данните са променени след прегледа. Избери архива отново.');
+          }else{
+            confirmButton.disabled=false;confirmButton.textContent=previewWords.confirm;toast(t('importFailed'));
+          }
+        }
       });
     }catch(err){console.error(err);cancelPreview();toast(t('invalidBackup')+err.message);}
   });

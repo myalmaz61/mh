@@ -2,6 +2,7 @@ import { getMeta, setMeta } from './db.js';
 import { escapeHtml, uid } from './utils.js';
 import { parseYmd, todayLocal } from './calendar-core.js';
 import { emptyTasks, validTask, validTasksData, filteredTasks, taskCounts, MAX_TASKS } from './tasks-core.js';
+import { draftEventFromTask } from './cross-actions-core.js';
 
 const isoNow=()=>new Date().toISOString();
 const dateLabel=(ymd,lang)=>{
@@ -11,7 +12,7 @@ const dateLabel=(ymd,lang)=>{
 };
 
 /** Mount Tasks. No migrations or extra IDB stores needed. */
-export async function mountTasks({element,t,lang,notify,confirmAction,initialId=null}){
+export async function mountTasks({element,t,lang,notify,confirmAction,initialId=null,onQuickDraft=()=>{}}){
   let data=await getMeta('tasksData');
   if(data===undefined)data=emptyTasks();
   if(!validTasksData(data)){
@@ -33,7 +34,8 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
           <div class="hub-chips">${task.priority==='high'?`<span class="hub-chip priority">★ ${t('taskHigh')}</span>`:''}
             ${task.due?`<span class="hub-chip ${overdue?'overdue':''}">📅 ${dateLabel(task.due,lang)}${overdue?' · '+t('taskOverdue'):''}</span>`:''}
             ${task.done?`<span class="hub-chip">✓ ${t('taskDone')}</span>`:''}</div></div>
-        <button class="hub-small-btn" type="button" data-task-edit="${task.id}" aria-label="${t('taskEdit')} ${escapeHtml(task.title)}">✎</button>
+        ${!formOpen?`<button class="secondary-btn cross-shortcut" type="button" data-task-to-calendar="${escapeHtml(task.id)}" aria-label="${t('crossToCalendar')} ${escapeHtml(task.title)}">${t('crossToCalendar')}</button>`:''}
+        <button class="hub-small-btn" type="button" data-task-edit="${escapeHtml(task.id)}" aria-label="${t('taskEdit')} ${escapeHtml(task.title)}">✎</button>
       </article>`;
     }).join('');
   };
@@ -81,6 +83,10 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     }
     if(action==='cancel'){editId=null;formOpen=false;render();return;}
     if(button.dataset.taskFilter){filter=button.dataset.taskFilter;render();return;}
+    if(button.dataset.taskToCalendar){
+      const task=data.tasks.find(item=>item.id===button.dataset.taskToCalendar);
+      if(task)onQuickDraft(draftEventFromTask(task));return;
+    }
     if(button.dataset.taskEdit){
       const found=data.tasks.find(x=>x.id===button.dataset.taskEdit);
       if(!found)return;

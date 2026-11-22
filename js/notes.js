@@ -1,8 +1,9 @@
 import { getNotes, putNote, deleteNote } from './db.js';
 import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
+import { draftTaskFromNote } from './cross-actions-core.js';
 
-export async function mountNotes({ element, t, lang, confirmAction, notify }) {
+export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
   const valid = note => note && typeof note.id === 'string' && ['text','checklist'].includes(note.kind) &&
     typeof note.title === 'string' && typeof note.body === 'string' && Array.isArray(note.items) &&
@@ -90,7 +91,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify }) {
       <article class="surface note-editor"><input class="note-title-input" id="note-title" maxlength="200" placeholder="${t('titlePlaceholder')}" value="${escapeHtml(n.title)}" aria-label="${t('titlePlaceholder')}">
       ${n.kind==='text' ? `<textarea id="note-body" maxlength="100000" rows="11" class="note-body" placeholder="${t('textPlaceholder')}" aria-label="${t('textPlaceholder')}">${escapeHtml(n.body)}</textarea>` :
       `<div id="checklist-items" class="checklist-items"></div><div class="form-row"><input class="text-field" id="new-item" maxlength="2000" placeholder="${t('checklistPlaceholder')}"><button type="button" class="primary-btn" id="add-item">+ ${t('add')}</button></div>`}
-      <div class="editor-actions"><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
+      <div class="editor-actions"><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
       <button type="button" class="secondary-btn" id="star-note">${n.favourite?'★ '+t('unfavourite'):'☆ '+t('favourite')}</button>
       <button type="button" class="danger-btn" id="delete-note">${t('delete')}</button></div></article>`;
     const update = () => {n.updatedAt=new Date().toISOString();schedule();};
@@ -132,6 +133,11 @@ export async function mountNotes({ element, t, lang, confirmAction, notify }) {
       itemInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addItem();}});
       renderItems();
     }
+    element.querySelector('#note-to-task').addEventListener('click',async()=>{
+      await flush();
+      if(dirty){notify(t('crossSaveFirst'));return;}
+      onQuickDraft(draftTaskFromNote(n));
+    });
     element.querySelector('#pin-note').addEventListener('click',event=>{
       n.pinned=!n.pinned;event.currentTarget.textContent='📌 '+t(n.pinned?'unpin':'pin');update();
     });
@@ -149,6 +155,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify }) {
   const onVisibility = () => {if(document.hidden) void flush();};
   document.addEventListener('visibilitychange',onVisibility);
   list();
+  if(initialId && notes.some(note=>note.id===initialId)) editor(initialId);
   return async () => {
     await flush();
     disposed=true;
