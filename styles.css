@@ -26,3 +26,8 @@
 .tool-visibility .setting-tool{min-height:53px}
 .visibility-footer{display:flex;justify-content:flex-end;margin-top:15px}
 .tools-empty{grid-column:1/-1;text-align:center}
+
+/* v1.6: compact tap-friendly All Tools sorting controls. */
+.tool-order-list .tool-order-row{min-height:53px}
+.tool-order-list .icon-btn.small{min-width:40px;min-height:44px;flex-shrink:0}
+.order-hidden-note{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-top:2px}
