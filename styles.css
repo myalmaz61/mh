@@ -41,3 +41,16 @@
 .backup-preview-counts span{border:1px solid var(--stroke);border-radius:9px;padding:9px}
 .pwa-health-row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--stroke);font-size:12px;overflow-wrap:anywhere}
 .pwa-health-row strong{max-width:53%;text-align:right;overflow-wrap:anywhere}
+
+/* v1.8 – compact, opt-in backup reminder and clear Restore comparison */
+.backup-reminder-control{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;margin-top:13px;font-size:12px}
+.backup-reminder-control label{font-weight:650}
+.backup-reminder-control select{background:var(--surface-alt);border:1px solid var(--stroke);border-radius:10px;padding:9px;min-height:44px;color:var(--ink)}
+.backup-reminder-status{font-size:12px;color:var(--muted);margin:11px 0;line-height:1.5}
+.backup-reminder-due{color:var(--rose)}
+.backup-compare-list{display:grid;gap:6px;margin-top:15px}
+.backup-compare-row{display:flex;justify-content:space-between;align-items:baseline;gap:7px 12px;flex-wrap:wrap;border-bottom:1px solid var(--stroke);padding:9px 0;font-size:12px}
+.backup-compare-row small{display:block;flex-basis:100%;margin:0}
+.backup-acknowledge{display:flex;gap:12px;align-items:flex-start;margin-top:17px;font-size:12px;line-height:1.5;cursor:pointer}
+.backup-acknowledge input{margin-top:3px;flex-shrink:0;width:19px;height:19px;accent-color:var(--accent)}
+.backup-preview .danger-btn:disabled{opacity:.5;cursor:not-allowed}
