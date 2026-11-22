@@ -41,7 +41,7 @@ test('Quick Add does not change IndexedDB schema or JSON backup format',()=>{
 });
 test('Quick Add UI is linked to Home and Tools only',()=>{
   const app=file('js/app.js'),mod=file('js/quick-add.js');
-  assert.equal(VERSION,'2.0.0');
+  assert.equal(VERSION,'2.1.0');
   assert.match(app,/mountQuickAdd/);
   assert.match(app,/quickAdd\?\.setVisible\(route\)/);
   assert.match(mod,/\['home','tools'\]\.includes\(route\)/);
@@ -53,7 +53,7 @@ test('Quick Add UI is linked to Home and Tools only',()=>{
 test('Translations and offline assets are complete',()=>{
   const html=file('index.html'),sw=file('sw.js');
   for(const asset of ['quick-add.css','js/quick-add.js','js/quick-add-core.js'])assert.ok(sw.includes(asset),asset);
-  assert.ok(sw.includes('myhub-shell-v2.0.0'));
+  assert.ok(sw.includes('myhub-shell-v2.1.0'));
   assert.match(html,/quick-add\.css/);
   const mod=file('js/quick-add.js');
   const keys=new Set(Array.from(mod.matchAll(/t\('([A-Za-z0-9]+)'\)/g),x=>x[1]));

@@ -81,7 +81,7 @@ test('UI uses visibility rules on home, list and search',()=>{
 });
 test('offline precache includes new visibility code, old tools and bumped version',()=>{
  const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
- assert.equal(VERSION,'2.0.0'); assert.ok(sw.includes('myhub-shell-v2.0.0'));
+ assert.equal(VERSION,'2.1.0'); assert.ok(sw.includes('myhub-shell-v2.1.0'));
  for(const asset of ['js/visibility-core.js','js/recent-core.js','js/notes.js','js/tasks.js','js/rss.js','js/share-target.js','js/quick-add.js'])assert.ok(sw.includes(asset),asset);
  assert.ok(existsSync(new URL('../js/visibility-core.js',import.meta.url)));
 });

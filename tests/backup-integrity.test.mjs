@@ -34,7 +34,7 @@ function reset(){values.clear();values.set('settings',structuredClone(DEFAULT_SE
 // Run serially; all tests share the same fake database and are deliberately read-only.
 test('actual backup creation validates valid data without modifying local records',async()=>{
   reset();const exported=await createBackup();
-  assert.equal(exported.version,'2.0.0');
+  assert.equal(exported.version,'2.1.0');
   assert.deepEqual(validateBackup(exported).notes,[]);
   assert.equal(wrote,false);
 });
