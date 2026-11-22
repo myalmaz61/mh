@@ -17,7 +17,7 @@ import { mountBookmarks } from './bookmarks.js';
 import { mountToday } from './today.js';
 import { mountDiagnostics } from './diagnostics.js';
 import { mountPwaHealth } from './pwa-health.js';
-import { previewBackup } from './backup-preview-core.js';
+import { previewBackup, compareBackupContents, backupReminderState } from './backup-preview-core.js';
 import { mountSearch } from './search.js';
 import { mountQuickAdd } from './quick-add.js';
 import { mountTextCounter } from './text-counter.js';
@@ -243,6 +243,11 @@ function renderSettings(main,openHidden=false,openOrder=false){
       <p class="muted">${recentReadOnly?t('recentCorrupt'):recentTools.map(id=>t(TOOLS.find(tool=>tool.id===id)?.title||'')).join(' · ')||t('none')}</p>
       <button type="button" class="secondary-btn" id="clear-recent">${t('clearRecent')}</button></section>
     <section class="surface setting-section"><h2>${t('dataBackup')}</h2><p class="muted">${t('backupHint')}</p>
+      <div class="backup-reminder-control"><label for="backup-reminder-days">${settings.language==='en'?'Backup reminder (only in Settings)':'Напомняне за архив (само в Настройки)'}</label>
+        <select id="backup-reminder-days" aria-label="${settings.language==='en'?'Backup reminder':'Напомняне за архив'}">
+          ${[[0,settings.language==='en'?'Off':'Изключено'],[7,settings.language==='en'?'7 days':'7 дни'],[14,settings.language==='en'?'14 days':'14 дни'],[30,settings.language==='en'?'30 days':'30 дни']].map(([value,label])=>`<option value="${value}" ${settings.backupReminderDays===value?'selected':''}>${label}</option>`).join('')}
+        </select></div>
+      <div id="backup-reminder-status" class="backup-reminder-status" role="status" aria-live="polite"></div>
       <div class="backup-actions"><button type="button" class="primary-btn" id="export-backup">↓ ${t('exportBackup')}</button>
       <button type="button" class="secondary-btn" id="import-backup">↑ ${t('importBackup')}</button>
       <input type="file" id="backup-file" accept=".json,application/json" hidden></div>
@@ -256,6 +261,28 @@ function renderSettings(main,openHidden=false,openOrder=false){
       <p class="privacy-footer">🔒 ${t('privacy')}</p></section>`;
   stopDiagnostics=mountDiagnostics({element:main.querySelector('#health-section'),lang:settings.language});
   stopPwaHealth=mountPwaHealth({element:main.querySelector('#pwa-health-section'),lang:settings.language,onWaiting:worker=>{waitingWorker=worker;updateIndicators();}});
+  const reminderText=main.querySelector('#backup-reminder-status');
+  const refreshReminder=async()=>{
+    try{
+      const timestamp=await getMeta('lastBackupExportAt');
+      if(!reminderText.isConnected)return;
+      const info=backupReminderState(timestamp,settings.backupReminderDays);
+      const lang=settings.language;
+      reminderText.classList.toggle('backup-reminder-due',info.due);
+      reminderText.textContent=!info.enabled
+        ?(lang==='en'?'Reminder disabled.':'Напомнянето е изключено.')
+        :info.daysSince===null
+          ?(lang==='en'?'No prepared backup recorded. Create a backup and check Downloads.':'Няма записан подготвен архив. Направи архив и провери Downloads.')
+          :info.due
+            ?(lang==='en'?`Last prepared ${info.daysSince} days ago — a new backup is recommended.`:`Последният подготвен архив е отпреди ${info.daysSince} дни — препоръчва се нов.`)
+            :(lang==='en'?`Last prepared ${info.daysSince} days ago.`:`Последният подготвен архив е отпреди ${info.daysSince} дни.`);
+    }catch(err){if(reminderText.isConnected)reminderText.textContent=settings.language==='en'?'Backup status unavailable.':'Състоянието на архивите не е достъпно.';}
+  };
+  void refreshReminder();
+  main.querySelector('#backup-reminder-days').addEventListener('change',async event=>{
+    try{await updateSettings({backupReminderDays:Number(event.target.value)});await refreshReminder();}
+    catch(err){handleError(err);event.target.value=String(settings.backupReminderDays);}
+  });
   cleanup=()=>{stopDiagnostics();stopPwaHealth();};
   main.querySelectorAll('[data-theme-choice]').forEach(btn=>btn.addEventListener('click',async()=>{
     try{await updateSettings({theme:btn.dataset.themeChoice}); renderSettings(main);}catch(err){handleError(err);}
@@ -310,16 +337,16 @@ function renderSettings(main,openHidden=false,openOrder=false){
       document.body.append(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(url),5000);
       // Records that an export was initiated, NOT that Android saved the file.
-      try{await setMeta('lastBackupExportAt',new Date().toISOString());}catch(err){console.warn('Backup date unavailable',err);}
+      try{await setMeta('lastBackupExportAt',new Date().toISOString());await refreshReminder();}catch(err){console.warn('Backup date unavailable',err);}
     }catch(err){handleError(err);toast(t('exportFailed'));}
   });
   const fileInput=main.querySelector('#backup-file');
   const previewElement=main.querySelector('#backup-preview');
-  let pendingBackup=null;
   const previewWords=settings.language==='en'
-    ?{heading:'Validated archive — review before replacing data',date:'Created',version:'Archive version',legacy:'Older archive: missing modules will restore their defaults (usually empty).',counts:['Notes','Tasks','Events','Quick lists','Bookmarks','RSS articles','Football leagues'],confirm:'Replace all local data',cancel:'Cancel',ready:'Nothing has been changed yet.',working:'Restoring…'}
-    :{heading:'Проверен архив — преглед преди заместване',date:'Създаден',version:'Версия на архива',legacy:'Стар архив: липсващите модули ще получат началните си стойности, обикновено празни.',counts:['Бележки','Задачи','Събития','Бързи списъци','Връзки','RSS статии','Футболни първенства'],confirm:'Замени всички локални данни',cancel:'Отказ',ready:'Все още нищо не е променено.',working:'Възстановяване…'};
+    ?{heading:'Checked archive — compare before replacing',date:'Created',version:'Archive version',legacy:'Older archive: absent sections will be restored to defaults (often empty).',counts:['Notes','Tasks','Events','Quick lists','Bookmarks','RSS articles','Football leagues'],confirm:'Replace local data',cancel:'Cancel',ready:'No local data has been changed.',working:'Restoring…',current:'Now',incoming:'After Restore',removed:'Missing from archive',changed:'Different existing records',comparisonFail:'Unable to compare existing data. Restore would still replace everything; take care.',safe:'Nothing missing among the seven compared record types. Settings and other content will still be replaced.',risk:'Some local records are missing from this archive.',ack:'I understand Restore REPLACES all local data and cannot be undone without a separate backup.',notAcknowledged:'Tick the confirmation box before restoring.'}
+    :{heading:'Проверен архив — сравнение преди заместване',date:'Създаден',version:'Версия на архива',legacy:'Стар архив: липсващите раздели ще получат началните си стойности (често празни).',counts:['Бележки','Задачи','Събития','Бързи списъци','Връзки','RSS статии','Футболни първенства'],confirm:'Замени локалните данни',cancel:'Отказ',ready:'Все още нищо не е променено.',working:'Възстановяване…',current:'Сега',incoming:'След Restore',removed:'Липсват в архива',changed:'Различни съществуващи записи',comparisonFail:'Не мога да сравня текущите данни. Restore въпреки това ще ги замени изцяло — бъди внимателен.',safe:'В седемте проверявани вида записи няма липсващи ID. Настройките и съдържанието пак ще бъдат заменени.',risk:'В този архив липсват някои текущи записи.',ack:'Разбирам, че Restore ЗАМЕНЯ всички локални данни и не може да бъде отменен без отделен архив.',notAcknowledged:'Маркирай полето за потвърждение преди Restore.'};
   function cancelPreview(){pendingBackup=null;previewElement.replaceChildren();previewElement.hidden=true;}
+  let pendingBackup=null;
   main.querySelector('#import-backup').addEventListener('click',()=>fileInput.click());
   fileInput.addEventListener('change',async()=>{
     const file=fileInput.files?.[0];fileInput.value='';cancelPreview();
@@ -329,26 +356,38 @@ function renderSettings(main,openHidden=false,openOrder=false){
       const data=JSON.parse(await file.text());
       const cleaned=validateBackup(data);
       const summary=previewBackup(data,cleaned);
+      // Comparing cannot modify local content. If local data is corrupt, allow
+      // selecting a known-good archive but display an explicit warning.
+      let comparison=null;
+      try{
+        const current=validateBackup(await createBackup());
+        comparison=compareBackupContents(current,cleaned);
+      }catch(err){console.warn('Current data comparison not available',err);}
       pendingBackup=data;
-      const entries=Object.entries(summary.counts);
       const created=summary.createdAt?new Intl.DateTimeFormat(languageCode(),{dateStyle:'medium',timeStyle:'short'}).format(new Date(summary.createdAt)):'—';
+      const lost=comparison?.some(item=>item.removed>0);
+      const changed=comparison?.some(item=>item.changed>0);
       previewElement.innerHTML=`<h3>${previewWords.heading}</h3><p>${previewWords.date}: <strong>${escapeHtml(created)}</strong> · ${previewWords.version}: <strong>${escapeHtml(summary.version||'—')}</strong></p>
-        <div class="backup-preview-counts">${entries.map(([key,n],i)=>`<span>${previewWords.counts[i]}: <strong>${n}</strong></span>`).join('')}</div>
+        ${comparison?`<div class="backup-compare-list">${comparison.map((entry,i)=>`<div class="backup-compare-row"><strong>${previewWords.counts[i]}</strong><span>${previewWords.current}: ${entry.current} → ${previewWords.incoming}: ${entry.incoming}</span>${entry.removed||entry.changed?`<small class="warning-text">${entry.removed?`${previewWords.removed}: ${entry.removed}`:''}${entry.removed&&entry.changed?' · ':''}${entry.changed?`${previewWords.changed}: ${entry.changed}`:''}</small>`:''}</div>`).join('')}</div>`:''}
+        <p class="${!comparison||lost||changed?'warning-text':'muted'}">${!comparison?previewWords.comparisonFail:lost?previewWords.risk:previewWords.safe}</p>
         ${summary.missing.length?`<p class="warning-text">${previewWords.legacy}</p>`:''}
         <p class="muted">${previewWords.ready}</p>
-        <div class="backup-actions"><button type="button" class="danger-btn" id="confirm-backup-restore">${previewWords.confirm}</button><button type="button" class="secondary-btn" id="cancel-backup-restore">${previewWords.cancel}</button></div>`;
+        <label class="backup-acknowledge"><input type="checkbox" id="backup-ack-check"><span>${previewWords.ack}</span></label>
+        <div class="backup-actions"><button type="button" class="danger-btn" id="confirm-backup-restore" disabled>${previewWords.confirm}</button><button type="button" class="secondary-btn" id="cancel-backup-restore">${previewWords.cancel}</button></div>`;
       previewElement.hidden=false;
+      const confirmButton=previewElement.querySelector('#confirm-backup-restore');
+      previewElement.querySelector('#backup-ack-check').addEventListener('change',e=>{confirmButton.disabled=!e.target.checked;});
       previewElement.querySelector('#cancel-backup-restore').addEventListener('click',cancelPreview);
-      previewElement.querySelector('#confirm-backup-restore').addEventListener('click',async()=>{
-        if(!pendingBackup)return;
+      confirmButton.addEventListener('click',async()=>{
+        if(!pendingBackup || !previewElement.querySelector('#backup-ack-check').checked){toast(previewWords.notAcknowledged);return;}
         if(!window.confirm(t('importConfirm')))return;
-        const btn=previewElement.querySelector('#confirm-backup-restore');btn.disabled=true;btn.textContent=previewWords.working;
+        confirmButton.disabled=true;confirmButton.textContent=previewWords.working;
         try{
-          // Validate again right before the atomic transaction.
+          // Validate again before the atomic IndexedDB transaction.
           await replaceFromBackup(pendingBackup);
           pendingBackup=null;
           toast(t('restored'));location.reload();
-        }catch(err){console.error(err);btn.disabled=false;btn.textContent=previewWords.confirm;toast(t('importFailed'));}
+        }catch(err){console.error(err);confirmButton.disabled=false;confirmButton.textContent=previewWords.confirm;toast(t('importFailed'));}
       });
     }catch(err){console.error(err);cancelPreview();toast(t('invalidBackup')+err.message);}
   });

@@ -165,6 +165,7 @@ export function normaliseSettings(candidate) {
   const weatherSelectedId=weatherCities.some(c=>c.id===s.weatherSelectedId)?s.weatherSelectedId:(weatherCities[0]?.id||'');
   return {
     theme:['auto','light','dark'].includes(s.theme) ? s.theme : DEFAULT_SETTINGS.theme,
+    backupReminderDays:[0,7,14,30].includes(s.backupReminderDays) ? s.backupReminderDays : DEFAULT_SETTINGS.backupReminderDays,
     language:['bg','en'].includes(s.language) ? s.language : DEFAULT_SETTINGS.language,
     favourites:favorites,
     hiddenTools:normaliseHiddenTools(s.hiddenTools),
@@ -205,6 +206,8 @@ export function validateBackup(data) {
     settings.favourites.some(v => typeof v !== 'string' || !TOOLS.some(t => t.id === v)) ||
     settings.timeZones.some(v => typeof v !== 'string' || !CITIES.some(c => c.zone === v)) ||
     new Set(settings.favourites).size !== settings.favourites.length || new Set(settings.timeZones).size !== settings.timeZones.length) throw Error('Невалидни предпочитания / invalid preferences');
+  // Older archives have no backup reminder preference. Preserve their defaults.
+  if(settings.backupReminderDays!==undefined && ![0,7,14,30].includes(settings.backupReminderDays))throw Error('Невалидно напомняне за архив / invalid backup reminder');
   // Older archives may have no hiddenTools/toolOrder; absent means defaults.
   if(settings.hiddenTools!==undefined && !validHiddenTools(settings.hiddenTools))throw Error('Невалидни скрити инструменти / invalid hidden tools');
   if(settings.toolOrder!==undefined && !validToolOrder(settings.toolOrder))throw Error('Невалиден ред на инструментите / invalid tool order');
