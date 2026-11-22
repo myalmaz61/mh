@@ -1,18 +1,26 @@
-# MyHub v2.0.0 — changes since v1.9.0
-# Upload these files to the SAME folders in your GitHub repository.
+MyHub v2.1.0 — changed/new files (relative to repository root)
+Based on MyHub v2.0.0. Copy these files into your existing repository,
+keeping exactly the folder paths (root, js/, tests/).
+Do not delete unchanged files. Backup your existing data first.
 
-APK-READINESS-BG.md
 CHANGED-FILES.txt
 README.md
 START-HERE-BG.md
 js/app.js
+js/calendar.js
 js/config.js
-js/db.js
+js/cross-actions-core.js
+js/i18n.js
+js/notes.js
+js/quick-add.js
+js/tasks.js
 package.json
+quick-add.css
 sw.js
 tests/backup-integrity.test.mjs
 tests/backup-safety.test.mjs
 tests/calendar.test.mjs
+tests/cross-actions.test.mjs
 tests/favourites.test.mjs
 tests/football.test.mjs
 tests/mini-tools.test.mjs

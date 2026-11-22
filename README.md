@@ -1,36 +1,42 @@
-# MyHub v2.0.0 — Reliability Milestone
+# MyHub — Personal Tools v2.1.0
 
-MyHub е безплатна **local-first PWA** за лична употреба: Android Chrome + GitHub Pages, без акаунт, платени API, сървър или реклами. **Всичките 16 съществуващи инструмента са запазени.** Версията не добавя нови инструменти или разрешения.
+Local-first, free, standalone, mobile-friendly PWA for Android Chrome and GitHub Pages.
 
-## Какво се промени
+## What changed in v2.1.0
 
-1. **Единен архивен snapshot.** Бележките и метаданните за всички раздели вече се четат в **една обща IndexedDB `readonly` транзакция**. Така архивът не смесва състояния от различни моменти, когато междувременно се редактират записи в други табове. Преди изтегляне се изпълнява съществуващата строга проверка на архива.
-2. **Защита срещу остарял преглед при Restore.** При избор на JSON архив MyHub запазва локален snapshot в паметта. Ако бележки, задачи, настройки или друг архивиран раздел се променят до окончателното потвърждение, Restore се **отказва атомарно**, без да замени нищо. Появява се съобщение да избереш файла отново. Няма автоматично презаписване.
-3. **По-ясен статус след Restore.** Датата „Последно подготвен JSON архив“ се нулира, след като локалните данни са възстановени, за да не се бърка с архив на току-що възстановеното съдържание. Това не изтрива изтеглени JSON файлове.
-4. **Последователни PWA ресурси.** При навигация активният Service Worker подава HTML от **собствения си версиониран кеш**, вместо да зарежда нов HTML върху стари кеширани скриптове, докато следваща версия чака активиране. Проверка и инсталиране на обновление — през съществуващите Settings / PWA controls.
-5. **Подготовка за APK.** В `APK-READINESS-BG.md` има архитектурните ограничения за бъдещия Capacitor APK и прехвърлянето на данни. **APK не е изграден** в тази версия.
+This release introduces **contextual Quick Add drafts** without linking or migrating existing records:
 
-## Съвместимост
+- **Tasks → Calendar**: From an individual task, choose “В календар” / “To Calendar”. The task title, details, and due date (or today's local date if undated) are copied to a **new, unsaved Calendar draft**.
+- **Calendar → Tasks**: From the selected calendar occurrence, choose “Нова задача” / “New task”. The event title and details are copied into a **new, unsaved task draft**. For repeating events, the date you are viewing is used as the task due date.
+- **Notes → Tasks**: From the open note, choose “Нова задача” / “New task”. The existing note is saved first; the title and body (or unchecked checklist items) become a **new, unsaved task draft**.
 
-- Име на IndexedDB: `myhub-local`, **версия 1**; същите хранилища `notes` и `meta`.
-- JSON архив: `app: "MyHub"`, **`format: 1`**; старите архиви остават валидни.
-- PWA `id`, `scope`, иконите и данните не са премахвани.
-- Старите 16 инструмента и публичните интеграции не са променяни.
-- Име на Service Worker кеша: `myhub-shell-v2.0.0`.
-- Share Target остава със своя отделен временен локален кеш; лични връзки не се качват в GitHub от новата функция.
+Nothing is automatically created or linked. To create the new record, the user must tap **Save** in Quick Add. Cancel leaves the existing data untouched. Drafts with text longer than the target field display a visible warning and show the shortened content for review.
 
-## Проверки
+## Files and compatibility
 
-- `npm test`: **233/233** автоматизирани теста (223 съществуващи + 10 нови).
-- Новите тестове симулират IndexedDB транзакции, редакции след Preview, отказ от презапис, запазване на различна метаинформация, валидиране на архиви и контрол на HTML кеша от Service Worker.
-- JavaScript синтаксис, вътрешни импорти и налични офлайн файлове са проверени; ZIP архивите се сравняват byte-for-byte след прилагане на обновлението.
-- **Ограничение:** Chromium в тази среда връща `ERR_BLOCKED_BY_ADMINISTRATOR` при опит за зареждане на тестовия сайт, дори когато заявките са локално прихванати. Следователно няма завършен end-to-end тест на инсталирана Android PWA. Проверете на реалния телефон след публикуването.
+- Version string: `2.1.0`
+- IndexedDB: `myhub-local`, database version **1** (unchanged)
+- JSON backup: format **1** (unchanged)
+- PWA offline cache: `myhub-shell-v2.1.0`
+- New shared helper: `js/cross-actions-core.js`
+- New tests: `tests/cross-actions.test.mjs`
+- All original tools, notes, tasks, events, settings, weather and feeds are retained.
+- No paid services, new API keys, third-party code, trackers, or new device permissions.
 
-## Архиви
+## Installation and updates
 
-- `MyHub-v2.0.0-UPDATE-ONLY.zip`: само новите/променени файлове за **v1.9.0 → v2.0.0**.
-- `MyHub-v2.0.0.zip`: целият проект.
-- `MyHub-v2.0.0-FULL-SOURCE.md`: цели кодови файлове на променените текстови ресурси.
-- `START-HERE-BG.md`: обновяване от Android + GitHub Pages.
+See `START-HERE-BG.md` for Android-only instructions. Use `MyHub-v2.1.0-UPDATE-ONLY.zip` to update an existing v2.0.0 GitHub Pages project, or `MyHub-v2.1.0.zip` for a fresh copy of every project file. ZIP contents are **repository-relative paths**, not a nested root folder.
 
-**Важно:** JSON Backup е лично резервно копие на телефона. Публичното GitHub хранилище трябва да съдържа само приложението — никога личните JSON архиви.
+Before uploading, export and verify a current JSON backup from the existing PWA. Do **not** uninstall the PWA or clear Chrome website data while updating.
+
+## Tests
+
+Run `npm test` (Node.js 20+). This is not required on your Android phone: tests were run when preparing this release. All 247 automated tests passed, including 14 dedicated cross-tool tests. Every JavaScript file passed `node --check`. All 68 Service Worker assets were present. The full installed Android PWA and its share-target registration have not been independently tested on a physical Android device; verify after publishing.
+
+## Known limitations
+
+- Shortcuts create an independent copy, not an automatically synchronized relation. Changes to the original record will not affect the new one.
+- A task without a deadline uses today's date when converting to an event; you may change it before saving.
+- A recurring Calendar item uses the *selected occurrence date* when converting to a task. It does not create a repeating task.
+- Target fields have length limits; the app warns before saving if content needed to be shortened.
+- Background alarms in PWA are not guaranteed by Android.
