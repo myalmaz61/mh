@@ -22,6 +22,7 @@ import { mountTextCounter } from './text-counter.js';
 import { mountRandomGenerator } from './random-generator.js';
 import { advanceRecentTools, validRecentTools } from './recent-core.js';
 import { visibleTools, toggleToolHidden } from './visibility-core.js';
+import { orderedTools, moveToolOrder, DEFAULT_TOOL_ORDER } from './tool-order-core.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -187,7 +188,7 @@ function renderHome(main){
   main.querySelector('#home-universal-search').addEventListener('click',()=>go('search'));
 }
 function renderTools(main){
-  const shown=visibleTools(TOOLS,settings.hiddenTools);
+  const shown=visibleTools(orderedTools(TOOLS,settings.toolOrder),settings.hiddenTools);
   const recent=recentTools.map(id=>shown.find(tool=>tool.id===id)).filter(Boolean);
   main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('allTools')}</h1><p>${t('availableOffline')}</p></section><button type="button" class="hub-search-launch hub-tools-search" id="tools-universal-search"><span aria-hidden="true">⌕</span><span>${t('universalSearch')}</span><span aria-hidden="true">›</span></button>
     ${recent.length?`<section class="recent-tools"><h2>${t('recentTools')}</h2><div class="recent-tool-row">${recent.map(tool=>`<button type="button" class="recent-tool" data-open="${tool.id}"><span aria-hidden="true">${tool.icon}</span>${t(tool.title)}</button>`).join('')}</div></section>`:''}
@@ -205,9 +206,10 @@ function settingsToolRow(id, idx){
     <button type="button" class="icon-btn small" data-reorder="${id}:up" title="${t('moveUp')}" aria-label="${t('moveUp')} ${t(tool.title)}" ${position<=0?'disabled':''}>↑</button>
     <button type="button" class="icon-btn small" data-reorder="${id}:down" title="${t('moveDown')}" aria-label="${t('moveDown')} ${t(tool.title)}" ${position<0||position===settings.favourites.length-1?'disabled':''}>↓</button></div>`;
 }
-function renderSettings(main,openHidden=false){
+function renderSettings(main,openHidden=false,openOrder=false){
   stopDiagnostics();
   const order=[...settings.favourites,...TOOLS.map(tool=>tool.id).filter(id=>!settings.favourites.includes(id))];
+  const currentOrder=orderedTools(TOOLS,settings.toolOrder);
   main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('settings')}</h1><p>${t('introSettings')}</p></section>
     <section class="surface setting-section"><h2>${t('theme')}</h2><div class="choice-row" role="group" aria-label="${t('theme')}">
       ${['light','dark','auto'].map(val=>`<button type="button" class="choice-btn ${settings.theme===val?'selected':''}" data-theme-choice="${val}" aria-pressed="${settings.theme===val}">${t(val)}</button>`).join('')}</div>
@@ -216,6 +218,16 @@ function renderSettings(main,openHidden=false){
       <button type="button" class="choice-btn ${settings.language==='en'?'selected':''}" data-lang-choice="en" aria-pressed="${settings.language==='en'}">English</button></div></section>
     <section class="surface setting-section"><h2>${t('customise')}</h2><p class="muted">${t('customiseHint')}</p>
       <div class="settings-tools">${order.map(settingsToolRow).join('')}</div></section>
+    <section class="surface setting-section"><details class="tool-visibility" id="tool-order" ${openOrder?'open':''}>
+      <summary><strong>${t('sortAllTools')}</strong><span class="muted">${t('tapToManage')}</span></summary>
+      <p class="muted">${t('sortAllToolsHint')}</p>
+      <div class="settings-tools tool-order-list">${currentOrder.map((tool,index)=>`<div class="setting-tool tool-order-row">
+        <span class="tool-icon mini ${tool.color}" aria-hidden="true">${tool.icon}</span>
+        <span class="setting-tool-name">${t(tool.title)}${settings.hiddenTools.includes(tool.id)?`<small class="order-hidden-note">${t('hiddenLabel')}</small>`:''}</span>
+        <button type="button" class="icon-btn small" data-tool-order="${tool.id}:up" title="${t('moveUp')}" aria-label="${t('moveUp')} ${t(tool.title)}" ${index===0?'disabled':''}>↑</button>
+        <button type="button" class="icon-btn small" data-tool-order="${tool.id}:down" title="${t('moveDown')}" aria-label="${t('moveDown')} ${t(tool.title)}" ${index===currentOrder.length-1?'disabled':''}>↓</button></div>`).join('')}</div>
+      <div class="visibility-footer"><button type="button" id="reset-tool-order" class="secondary-btn" ${settings.toolOrder.every((id,index)=>id===DEFAULT_TOOL_ORDER[index])?'disabled':''}>${t('resetToolOrder')}</button></div>
+      </details></section>
     <section class="surface setting-section"><details class="tool-visibility" id="tool-visibility" ${openHidden?'open':''}>
       <summary><strong>${t('manageTools')}</strong><span class="muted">${t('hiddenCount')}: ${settings.hiddenTools.length} · ${t('tapToManage')}</span></summary>
       <p class="muted">${t('hiddenToolsHint')}</p>
@@ -258,6 +270,18 @@ function renderSettings(main,openHidden=false){
     [fav[index],fav[target]]=[fav[target],fav[index]];
     try{await updateSettings({favourites:fav});renderSettings(main);}catch(err){handleError(err);}
   }));
+  main.querySelectorAll('[data-tool-order]').forEach(btn=>btn.addEventListener('click',async()=>{
+    const [id,direction]=btn.dataset.toolOrder.split(':');
+    try{
+      const toolOrder=moveToolOrder(settings.toolOrder,id,direction);
+      await updateSettings({toolOrder});
+      renderSettings(main,false,true);
+    }catch(err){handleError(err);}
+  }));
+  main.querySelector('#reset-tool-order').addEventListener('click',async()=>{
+    try{await updateSettings({toolOrder:[...DEFAULT_TOOL_ORDER]});renderSettings(main,false,true);}
+    catch(err){handleError(err);}
+  });
   main.querySelectorAll('[data-tool-visible]').forEach(input=>input.addEventListener('change',async()=>{
     const id=input.dataset.toolVisible;
     try{await updateSettings({hiddenTools:toggleToolHidden(settings.hiddenTools,id)});renderSettings(main,true);}
