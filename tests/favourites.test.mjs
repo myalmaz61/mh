@@ -76,14 +76,14 @@ test('restore rejects corrupt favourites, recent history and duplicates',()=>{
   const corrupted3=structuredClone(archive);corrupted3.data.unitFavouritesData.pairs[0].to='unknown';assert.throws(()=>validateBackup(corrupted3));
 });
 test('v1.4 declares, bundles and keeps old modules',()=>{
-  assert.equal(VERSION,'1.9.0');assert.equal(TOOLS.length,16);
+  assert.equal(VERSION,'2.0.0');assert.equal(TOOLS.length,16);
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  for(const asset of ['js/unit-favourites-core.js','js/recent-core.js','js/utilities.js','js/app.js','utilities.css','myhub-shell-v1.9.0'])assert.ok(sw.includes(asset),asset);
+  for(const asset of ['js/unit-favourites-core.js','js/recent-core.js','js/utilities.js','js/app.js','utilities.css','myhub-shell-v2.0.0'])assert.ok(sw.includes(asset),asset);
   for(const asset of [...sw.matchAll(/'\.\/(?:js|icons)\/[^']+'|'\.\/[^']+\.css'/g)].map(x=>x[0].slice(1,-1))){assert.ok(existsSync(new URL('../'+asset.slice(2),import.meta.url)),asset);}
   const app=readFileSync(new URL('../js/app.js',import.meta.url),'utf8');
   assert.ok(app.includes('recent-tool-row'));assert.ok(app.includes("mountUnitConverter"));assert.ok(app.includes('rememberTool(route)'));
   const db=readFileSync(new URL('../js/db.js',import.meta.url),'utf8');
-  for(const key of ["key:'unitFavouritesData'","key:'recentTools'", "getMeta('unitFavouritesData')", "getMeta('recentTools')"])assert.ok(db.includes(key),key);
+  for(const key of ["unitFavouritesData","recentTools", "readBackupSnapshot", "BACKUP_META_KEYS"])assert.ok(db.includes(key),key);
   assert.match(db,/DB_VERSION = 1/);
 });
 test('new conversion UI has accessible save and remove actions',()=>{

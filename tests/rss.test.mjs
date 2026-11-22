@@ -57,12 +57,12 @@ test('v0.1–v0.6 JSON backups remain accepted, RSS defaults empty',()=>{
   assert.throws(()=>validateBackup(bad),/RSS/);
 });
 test('v0.7 integration and translations exist without changing IndexedDB version',()=>{
-  assert.equal(VERSION,'1.9.0');assert.ok(TOOLS.some(item=>item.id==='rss'));
+  assert.equal(VERSION,'2.0.0');assert.ok(TOOLS.some(item=>item.id==='rss'));
   for(const f of ['js/rss.js','js/rss-core.js','rss.css']){
     assert.ok(readFileSync(new URL('../sw.js',import.meta.url),'utf8').includes(f));
   }
   const db=readFileSync(new URL('../js/db.js',import.meta.url),'utf8');
-  assert.match(db,/DB_VERSION = 1/);assert.ok(db.includes("key:'rssData'"));
+  assert.match(db,/DB_VERSION = 1/);assert.ok(db.includes("rssData"));
   const app=readFileSync(new URL('../js/app.js',import.meta.url),'utf8');
   assert.ok(app.includes('mountRss'));
   for(const key of ['rss','rssDesc','rssCorrupt','rssImportXml','rssImportOpml','rssReadLater','rssCORS','rssPublicCache']) {

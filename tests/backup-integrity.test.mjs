@@ -12,10 +12,19 @@ const database={
   transaction(storeName,mode){
     if(mode!=='readonly')wrote=true;
     const tx={oncomplete:null,onerror:null,onabort:null};
+    let pending=0;
+    const completed=()=>{if(--pending===0)setTimeout(()=>tx.oncomplete?.(),0);};
     tx.objectStore=name=>({
-      getAll(){const result=structuredClone(notes);setTimeout(()=>tx.oncomplete?.(),0);return {result};},
-      get(key){const result=values.has(key)?{key,value:structuredClone(values.get(key))}:undefined;
-        setTimeout(()=>tx.oncomplete?.(),0);return {result};}
+      getAll(){
+        pending++;
+        const result=name==='notes'?structuredClone(notes):[...values].map(([key,value])=>({key,value:structuredClone(value)}));
+        setTimeout(completed,0);return {result};
+      },
+      get(key){
+        pending++;
+        const result=values.has(key)?{key,value:structuredClone(values.get(key))}:undefined;
+        setTimeout(completed,0);return {result};
+      }
     });
     return tx;
   }
@@ -25,7 +34,7 @@ function reset(){values.clear();values.set('settings',structuredClone(DEFAULT_SE
 // Run serially; all tests share the same fake database and are deliberately read-only.
 test('actual backup creation validates valid data without modifying local records',async()=>{
   reset();const exported=await createBackup();
-  assert.equal(exported.version,'1.9.0');
+  assert.equal(exported.version,'2.0.0');
   assert.deepEqual(validateBackup(exported).notes,[]);
   assert.equal(wrote,false);
 });
