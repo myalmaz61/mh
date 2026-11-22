@@ -2,7 +2,7 @@ import { getMeta, setMeta } from './db.js';
 import { escapeHtml, uid } from './utils.js';
 import { draftTaskFromEvent } from './cross-actions-core.js';
 import { CALENDAR_REPEATS, MAX_CALENDAR_EVENTS, emptyCalendar, validCalendarData,
-  parseYmd, formatYmd, shiftDay, todayLocal, monthCells, monthEventCounts, eventsForDay, calendarDuplicateDraft } from './calendar-core.js';
+  parseYmd, formatYmd, shiftDay, todayLocal, monthCells, monthEventCounts, eventsForDay, occursOn, calendarDuplicateDraft } from './calendar-core.js';
 
 const displayDate=(value,lang,options={})=>{
   const p=parseYmd(value);
@@ -19,7 +19,7 @@ const weekdays=(lang)=>{
 const startDraft=date=>({title:'',details:'',date,time:'',repeat:'none',repeatUntil:''});
 
 /** Mount the isolated Calendar screen. The stored value remains in the existing meta store. */
-export async function mountCalendar({element,t,lang,notify,confirmAction,initialId=null,onQuickDraft=()=>{}}){
+export async function mountCalendar({element,t,lang,notify,confirmAction,initialId=null,initialDate=null,showDay=false,onQuickDraft=()=>{}}){
   let data=await getMeta('calendarData');
   if(data===undefined)data=emptyCalendar();
   if(!validCalendarData(data)){
@@ -29,15 +29,22 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
   const initial=todayLocal(), parsed=parseYmd(initial);
   let year=parsed.year,month=parsed.month,selected=initial,view='month',draft=null,editId=null;
   const initialEvent=initialId?data.events.find(event=>event.id===initialId):null;
-  if(initialEvent){const date=parseYmd(initialEvent.date);if(date){year=date.year;month=date.month;selected=initialEvent.date;view='day';editId=initialEvent.id;draft={...initialEvent};}}
+  if(initialEvent){
+    const target=showDay&&occursOn(initialEvent,initialDate)?initialDate:initialEvent.date;
+    const date=parseYmd(target);
+    if(date){year=date.year;month=date.month;selected=target;view='day';
+      if(!showDay){editId=initialEvent.id;draft={...initialEvent};}
+    }
+  }
   let disposed=false, pending=false;
+  let highlightId=showDay&&initialEvent?.id || null;
   const dayEvents=date=>eventsForDay(data.events,date);
   const displayTitle=title=>escapeHtml(title);
 
   function agenda(date){
     const entries=dayEvents(date);
     return `<div class="cal-agenda-head"><h2>${displayDate(date,lang)}</h2><button class="secondary-btn" type="button" data-cal-action="new">+ ${t('calendarNew')}</button></div>
-      ${entries.length?`<div class="cal-events">${entries.map(e=>`<div class="cal-event">
+      ${entries.length?`<div class="cal-events">${entries.map(e=>`<div class="cal-event ${highlightId===e.id?'cal-event-highlight':''}">
         <span class="cal-event-time">${e.time||t('calendarAllDay')}</span><div class="cal-event-info"><strong>${displayTitle(e.title)}</strong>
         ${e.details?`<p>${escapeHtml(e.details)}</p>`:''}${e.repeat!=='none'?`<small>↻ ${t('calendarRepeat'+e.repeat[0].toUpperCase()+e.repeat.slice(1))}</small>`:''}</div>
         ${!draft?`<button class="secondary-btn cross-shortcut" type="button" data-cal-action="to-task" data-cal-id="${escapeHtml(e.id)}" aria-label="${t('crossToTask')} ${displayTitle(e.title)}">${t('crossToTask')}</button>`:''}
@@ -100,12 +107,12 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
   const click=async event=>{
     const cell=event.target.closest('[data-cal-day]');
     if(cell&&element.contains(cell)){selected=cell.dataset.calDay;const p=parseYmd(selected);if(!p)return;
-      year=p.year;month=p.month;draft=null;editId=null;render();return;}
+      highlightId=null;year=p.year;month=p.month;draft=null;editId=null;render();return;}
     const button=event.target.closest('[data-cal-action]');
     if(!button||!element.contains(button)||pending)return;
     const action=button.dataset.calAction;
-    if(action==='month-view'||action==='day-view'){view=action==='day-view'?'day':'month';draft=null;editId=null;render();}
-    else if(action==='today'){selected=todayLocal();const p=parseYmd(selected);year=p.year;month=p.month;draft=null;editId=null;render();}
+    if(action==='month-view'||action==='day-view'){highlightId=null;view=action==='day-view'?'day':'month';draft=null;editId=null;render();}
+    else if(action==='today'){highlightId=null;selected=todayLocal();const p=parseYmd(selected);year=p.year;month=p.month;draft=null;editId=null;render();}
     else if(action==='prev'||action==='next'){movePeriod(action==='prev'?-1:1);draft=null;editId=null;render();}
     else if(action==='new'){
       if(data.events.length>=MAX_CALENDAR_EVENTS){notify(t('calendarLimit'));return;}

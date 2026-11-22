@@ -2,6 +2,7 @@ import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES
 import { safeClone } from './utils.js';
 import { emptyCalendar, validCalendarData, MAX_CALENDAR_EVENTS } from './calendar-core.js';
 import { emptyTasks, validTasksData, validTask, MAX_TASKS } from './tasks-core.js';
+import { completeTodayTaskData } from './today-actions-core.js';
 import { emptyQuickLists, validQuickListsData } from './quick-list-core.js';
 import { emptyFootballData, validFootballData } from './football-core.js';
 import { emptyRssData, validRssData } from './rss-core.js';
@@ -13,7 +14,34 @@ import { validHiddenTools, normaliseHiddenTools } from './visibility-core.js';
 import { defaultTimerData, normaliseTimerData, validTimerData, snapshotTimerForBackup } from './timer-core.js';
 const DB_NAME = 'myhub-local';
 const DB_VERSION = 1;
+// Keep a deterministic list of user-data keys: a snapshot must contain all
+// sections from the SAME IndexedDB transaction (including Notes).
+const BACKUP_META_KEYS = [
+  'settings','calcHistory','weatherCache','timerData','calendarData',
+  'tasksData','quickListsData','footballData','rssData','bookmarksData',
+  'unitFavouritesData','recentTools'
+];
 let dbPromise;
+
+function rawSnapshot(notes, metaRows) {
+  const rows = new Map((metaRows || []).map(row => [row.key, row.value]));
+  const meta = {};
+  for (const key of BACKUP_META_KEYS) if (rows.has(key)) meta[key] = rows.get(key);
+  return { notes, meta };
+}
+/** One readonly transaction, covering Notes + every backed-up setting. No writes. */
+export async function readBackupSnapshot() {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['notes','meta'], 'readonly');
+    const notesReq = tx.objectStore('notes').getAll();
+    const metaReq = tx.objectStore('meta').getAll();
+    tx.oncomplete = () => resolve(rawSnapshot(notesReq.result, metaReq.result));
+    tx.onerror = () => reject(tx.error || Error('Cannot read data snapshot'));
+    tx.onabort = () => reject(tx.error || Error('Data snapshot aborted'));
+  });
+}
+
 
 export function openDatabase() {
   if (dbPromise) return dbPromise;
@@ -76,6 +104,28 @@ export async function appendQuickTask(task) {
     tx.oncomplete=()=>resolve(task.id);
     tx.onerror=()=>reject(reason||tx.error||Error('Save failed'));
     tx.onabort=()=>reject(reason||tx.error||Error('Save aborted'));
+  });
+}
+/** Mark ONE pending Today task as done using a single readwrite transaction.
+ * Reject stale screens instead of overwriting changes from Tasks / another tab.
+ */
+export async function completeTodayTask(id, expectedUpdatedAt) {
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite');
+    const store=tx.objectStore('meta');
+    let reason=null;
+    const request=store.get('tasksData');
+    request.onsuccess=()=>{
+      try{
+        const current=request.result ? request.result.value : emptyTasks();
+        const next=completeTodayTaskData(current,id,expectedUpdatedAt,new Date().toISOString());
+        store.put({key:'tasksData',value:next});
+      }catch(err){reason=err;tx.abort();}
+    };
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(reason||tx.error||Error('Unable to complete task'));
+    tx.onabort=()=>reject(reason||tx.error||Error('Unable to complete task'));
   });
 }
 /** Append one Calendar event atomically. Refuse damaged existing Calendar data. */
@@ -274,8 +324,13 @@ export function validateBackup(data) {
   const recentTools=payload.recentTools===undefined?[]:safeClone(payload.recentTools);
   return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData,footballData,rssData,bookmarksData,unitFavouritesData,recentTools };
 }
-export async function createBackup() {
-  const [notes, s, h, weather, timer, calendar, tasks, quickLists, football, rss, bookmarks,unitFavs,recent] = await Promise.all([getNotes(), getMeta('settings'), getMeta('calcHistory'), getMeta('weatherCache'), getMeta('timerData'), getMeta('calendarData'), getMeta('tasksData'), getMeta('quickListsData'),getMeta('footballData'),getMeta('rssData'),getMeta('bookmarksData'),getMeta('unitFavouritesData'),getMeta('recentTools')]);
+export async function createBackup(snapshot = null) {
+  const raw = snapshot ?? await readBackupSnapshot();
+  const notes = raw.notes;
+  const {settings:s,calcHistory:h,weatherCache:weather,timerData:timer,
+    calendarData:calendar,tasksData:tasks,quickListsData:quickLists,
+    footballData:football,rssData:rss,bookmarksData:bookmarks,
+    unitFavouritesData:unitFavs,recentTools:recent} = raw.meta;
   if(calendar!==undefined && !validCalendarData(calendar))throw Error('Calendar data is damaged. Backup was stopped to avoid losing events.');
   if(tasks!==undefined && !validTasksData(tasks))throw Error('Task data is damaged. Backup was stopped to avoid losing tasks.');
   if(quickLists!==undefined && !validQuickListsData(quickLists))throw Error('Quick checklist data is damaged. Backup was stopped to avoid losing lists.');
@@ -313,28 +368,60 @@ export async function createBackup() {
   validateBackup(backup);
   return backup;
 }
-export async function replaceFromBackup(payload) {
+/**
+ * Restore only if the user has viewed the SAME local snapshot. Changes made
+ * in another tab after the preview abort the transaction without any writes.
+ * Passing no expectedSnapshot preserves the existing public API.
+ */
+export async function replaceFromBackup(payload, expectedSnapshot = null) {
   const data = validateBackup(payload);
+  if (expectedSnapshot !== null && (!expectedSnapshot ||
+      !Array.isArray(expectedSnapshot.notes) || !expectedSnapshot.meta ||
+      typeof expectedSnapshot.meta !== 'object')) throw Error('Invalid restore snapshot');
   const db = await openDatabase();
-  // ONE transaction for both stores: an error aborts all operations.
   return new Promise((resolve, reject) => {
     const tx = db.transaction(['notes','meta'],'readwrite');
-    tx.objectStore('notes').clear();
-    for (const note of data.notes) tx.objectStore('notes').put(note);
-    tx.objectStore('meta').put({ key:'settings', value:data.settings });
-    tx.objectStore('meta').put({ key:'calcHistory', value:data.calcHistory });
-    tx.objectStore('meta').put({ key:'weatherCache', value:data.weatherCache });
-    tx.objectStore('meta').put({ key:'timerData', value:data.timerData });
-    tx.objectStore('meta').put({ key:'calendarData', value:data.calendarData });
-    tx.objectStore('meta').put({ key:'tasksData', value:data.tasksData });
-    tx.objectStore('meta').put({ key:'quickListsData', value:data.quickListsData });
-    tx.objectStore('meta').put({ key:'footballData', value:data.footballData });
-    tx.objectStore('meta').put({ key:'rssData', value:data.rssData });
-    tx.objectStore('meta').put({ key:'bookmarksData', value:data.bookmarksData });
-    tx.objectStore('meta').put({ key:'unitFavouritesData', value:data.unitFavouritesData });
-    tx.objectStore('meta').put({ key:'recentTools', value:data.recentTools });
+    const notesStore = tx.objectStore('notes');
+    const metaStore = tx.objectStore('meta');
+    let failure = null;
+    function writeAll() {
+      try {
+        notesStore.clear();
+        for (const note of data.notes) notesStore.put(note);
+        const values = {
+          settings:data.settings, calcHistory:data.calcHistory,
+          weatherCache:data.weatherCache, timerData:data.timerData,
+          calendarData:data.calendarData, tasksData:data.tasksData,
+          quickListsData:data.quickListsData, footballData:data.footballData,
+          rssData:data.rssData, bookmarksData:data.bookmarksData,
+          unitFavouritesData:data.unitFavouritesData, recentTools:data.recentTools
+        };
+        for (const key of BACKUP_META_KEYS) metaStore.put({key,value:values[key]});
+        // An export prepared BEFORE this Restore no longer covers these data.
+        // Do not present its timestamp as a recent backup of restored content.
+        metaStore.delete('lastBackupExportAt');
+      } catch (error) { failure=error;tx.abort(); }
+    }
+    if (expectedSnapshot) {
+      const notesReq = notesStore.getAll();
+      const metaReq = metaStore.getAll();
+      let done = 0;
+      function checkAndWrite() {
+        if (++done !== 2) return;
+        const now = rawSnapshot(notesReq.result,metaReq.result);
+        if (JSON.stringify(now) !== JSON.stringify(expectedSnapshot)) {
+          failure = Error('Local data changed since Restore preview');
+          failure.code = 'stale-preview';
+          tx.abort();
+          return;
+        }
+        writeAll();
+      }
+      notesReq.onsuccess = checkAndWrite;
+      metaReq.onsuccess = checkAndWrite;
+    } else writeAll();
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error || Error('Backup restore failed'));
-    tx.onabort = () => reject(tx.error || Error('Backup restore aborted'));
+    tx.onerror = () => reject(failure || tx.error || Error('Backup restore failed'));
+    tx.onabort = () => reject(failure || tx.error || Error('Backup restore aborted'));
   });
 }

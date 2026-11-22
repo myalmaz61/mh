@@ -138,7 +138,7 @@ async function navigate(route,selection=null){
     weatherCities:settings.weatherCities,weatherSelectedId:settings.weatherSelectedId,
     saveWeather:change=>updateSettings(change),notify:toast});
   if(route==='timer') cleanup=await mountTimer({element:main,t,lang:settings.language,notify:toast});
-  if(route==='calendar') cleanup=await mountCalendar({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
+  if(route==='calendar') cleanup=await mountCalendar({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id,initialDate:selection?.date,showDay:selection?.showDay===true,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
   if(route==='tasks') cleanup=await mountTasks({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
   if(route==='quicklist') cleanup=await mountQuickList({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
   if(route==='football') cleanup=await mountFootball({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
@@ -183,7 +183,7 @@ function renderHome(main){
   };
   showDate();
   const minuteTimer=setInterval(showDate,15000);
-  const stopToday=mountToday({element:main.querySelector('#today-summary-slot'),lang:settings.language,openTool:go});
+  const stopToday=mountToday({element:main.querySelector('#today-summary-slot'),lang:settings.language,openTool:go,notify:toast});
   cleanup=()=>{clearInterval(minuteTimer);stopToday();};
   bindToolButtons(main);
   main.querySelector('#customise-home').addEventListener('click',()=>go('settings'));
