@@ -81,3 +81,10 @@ export function monthEventCounts(events,year,month){
   for(const date of monthCells(year,month))result.set(date,eventsForDay(events,date).length);
   return result;
 }
+
+/** Copy the contents to a NEW unsaved event on the viewed date, with repetition off. */
+export function calendarDuplicateDraft(original,selectedDate){
+  if(!validCalendarEvent(original)||!parseYmd(selectedDate))throw Error('Invalid calendar duplicate');
+  return {title:original.title,details:original.details,date:selectedDate,time:original.time,
+    repeat:'none',repeatUntil:''};
+}

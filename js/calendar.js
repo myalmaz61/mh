@@ -1,7 +1,7 @@
 import { getMeta, setMeta } from './db.js';
 import { escapeHtml, uid } from './utils.js';
 import { CALENDAR_REPEATS, MAX_CALENDAR_EVENTS, emptyCalendar, validCalendarData,
-  parseYmd, formatYmd, shiftDay, todayLocal, monthCells, monthEventCounts, eventsForDay } from './calendar-core.js';
+  parseYmd, formatYmd, shiftDay, todayLocal, monthCells, monthEventCounts, eventsForDay, calendarDuplicateDraft } from './calendar-core.js';
 
 const displayDate=(value,lang,options={})=>{
   const p=parseYmd(value);
@@ -39,6 +39,7 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
       ${entries.length?`<div class="cal-events">${entries.map(e=>`<div class="cal-event">
         <span class="cal-event-time">${e.time||t('calendarAllDay')}</span><div class="cal-event-info"><strong>${displayTitle(e.title)}</strong>
         ${e.details?`<p>${escapeHtml(e.details)}</p>`:''}${e.repeat!=='none'?`<small>↻ ${t('calendarRepeat'+e.repeat[0].toUpperCase()+e.repeat.slice(1))}</small>`:''}</div>
+        <button class="secondary-btn cal-edit" type="button" data-cal-action="duplicate" data-cal-id="${escapeHtml(e.id)}" aria-label="${t('calendarDuplicate')} ${displayTitle(e.title)}" title="${t('calendarDuplicate')}">⧉</button>
         <button class="secondary-btn cal-edit" type="button" data-cal-action="edit" data-cal-id="${escapeHtml(e.id)}" aria-label="${t('calendarEdit')} ${displayTitle(e.title)}">✎</button>
         </div>`).join('')}</div>`:`<p class="muted cal-empty">${t('calendarNoEvents')}</p>`}`;
   }
@@ -107,6 +108,13 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     else if(action==='new'){
       if(data.events.length>=MAX_CALENDAR_EVENTS){notify(t('calendarLimit'));return;}
       editId=null;draft=startDraft(selected);render();element.querySelector('#cal-title')?.focus();
+    }
+    else if(action==='duplicate'){
+      if(data.events.length>=MAX_CALENDAR_EVENTS){notify(t('calendarLimit'));return;}
+      const original=data.events.find(e=>e.id===button.dataset.calId);
+      if(!original)return;
+      editId=null;draft=calendarDuplicateDraft(original,selected);
+      render();element.querySelector('#cal-title')?.focus();
     }
     else if(action==='edit'){
       const original=data.events.find(e=>e.id===button.dataset.calId);

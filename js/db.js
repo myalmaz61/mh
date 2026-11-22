@@ -1,6 +1,6 @@
 import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
 import { safeClone } from './utils.js';
-import { emptyCalendar, validCalendarData } from './calendar-core.js';
+import { emptyCalendar, validCalendarData, MAX_CALENDAR_EVENTS } from './calendar-core.js';
 import { emptyTasks, validTasksData, validTask, MAX_TASKS } from './tasks-core.js';
 import { emptyQuickLists, validQuickListsData } from './quick-list-core.js';
 import { emptyFootballData, validFootballData } from './football-core.js';
@@ -74,6 +74,27 @@ export async function appendQuickTask(task) {
       store.put({key:'tasksData',value:{schema:1,tasks:[...existing.tasks,safeClone(task)]}});
     };
     tx.oncomplete=()=>resolve(task.id);
+    tx.onerror=()=>reject(reason||tx.error||Error('Save failed'));
+    tx.onabort=()=>reject(reason||tx.error||Error('Save aborted'));
+  });
+}
+/** Append one Calendar event atomically. Refuse damaged existing Calendar data. */
+export async function appendQuickCalendarEvent(item) {
+  if(!validCalendarData({schema:1,events:[item]}))throw Error('Invalid quick calendar event');
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite');
+    const store=tx.objectStore('meta');
+    let reason=null;
+    const req=store.get('calendarData');
+    req.onsuccess=()=>{
+      const existing=req.result ? req.result.value : emptyCalendar();
+      if(!validCalendarData(existing)){reason=Error('corrupt');tx.abort();return;}
+      if(existing.events.length>=MAX_CALENDAR_EVENTS){reason=Error('limit');tx.abort();return;}
+      if(existing.events.some(e=>e.id===item.id)){reason=Error('duplicate');tx.abort();return;}
+      store.put({key:'calendarData',value:{schema:1,events:[...existing.events,safeClone(item)]}});
+    };
+    tx.oncomplete=()=>resolve(item.id);
     tx.onerror=()=>reject(reason||tx.error||Error('Save failed'));
     tx.onabort=()=>reject(reason||tx.error||Error('Save aborted'));
   });
