@@ -31,3 +31,13 @@
 .tool-order-list .tool-order-row{min-height:53px}
 .tool-order-list .icon-btn.small{min-width:40px;min-height:44px;flex-shrink:0}
 .order-hidden-note{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-top:2px}
+
+/* v1.7 – Diagnostics and verified backup preview */
+.backup-preview{margin-top:16px;border:1px solid var(--stroke);border-radius:14px;padding:16px;background:var(--surface-alt)}
+.backup-preview[hidden]{display:none}
+.backup-preview h3{font-size:15px;margin:0 0 12px}
+.backup-preview p{font-size:12px;overflow-wrap:anywhere;line-height:1.5}
+.backup-preview-counts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;font-size:12px;margin-top:13px}
+.backup-preview-counts span{border:1px solid var(--stroke);border-radius:9px;padding:9px}
+.pwa-health-row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--stroke);font-size:12px;overflow-wrap:anywhere}
+.pwa-health-row strong{max-width:53%;text-align:right;overflow-wrap:anywhere}
