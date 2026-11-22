@@ -1,4 +1,4 @@
-const CACHE='myhub-shell-v1.9.0';
+const CACHE='myhub-shell-v2.0.0';
 const PREFIX='myhub-shell-';
 // Separate from shell cache: incoming shares are private, temporary, and never deployed.
 const SHARE_INBOX='myhub-share-inbox-v1';
@@ -67,16 +67,13 @@ self.addEventListener('fetch',event=>{
       // with share.html (a bug in generic navigation caches).
       const isShare=url.pathname===sharePage.pathname;
       const base=new URL(isShare?'./share.html':'./index.html',scope);
-      try{
-        const response=await fetch(request);
-        if(response.ok&&url.pathname===base.pathname){
-          const cache=await caches.open(CACHE);
-          await cache.put(base.href,response.clone());
-        }
-        return response;
-      }catch{
-        return await caches.match(base.href)||Response.error();
-      }
+      // Use the HTML that belongs to THIS installed worker's versioned shell.
+      // Network-first navigation could mix a newly deployed HTML page with
+      // old cached JavaScript while an update is still waiting.
+      const cache=await caches.open(CACHE);
+      const cached=await cache.match(base.href);
+      if(cached)return cached;
+      try{return await fetch(request);}catch{return Response.error();}
     })());
     return;
   }

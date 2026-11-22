@@ -1,17 +1,14 @@
-MyHub v1.8.0 -> v1.9.0: new / changed files (paths relative to repository root)
+# MyHub v2.0.0 — changes since v1.9.0
+# Upload these files to the SAME folders in your GitHub repository.
+
+APK-READINESS-BG.md
 CHANGED-FILES.txt
 README.md
 START-HERE-BG.md
-calendar.css
-js/calendar-core.js
-js/calendar.js
+js/app.js
 js/config.js
 js/db.js
-js/i18n.js
-js/quick-add-core.js
-js/quick-add.js
 package.json
-quick-add.css
 sw.js
 tests/backup-integrity.test.mjs
 tests/backup-safety.test.mjs
@@ -30,5 +27,6 @@ tests/timer.test.mjs
 tests/today.test.mjs
 tests/tool-order.test.mjs
 tests/utilities.test.mjs
+tests/v2-stability.test.mjs
 tests/visibility.test.mjs
 tests/weather.test.mjs
