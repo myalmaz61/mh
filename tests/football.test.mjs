@@ -84,9 +84,9 @@ test('Football favourites and cached matches are included in a validated JSON ba
   assert.throws(()=>validateBackup(archive),/football|футбол/i);
 });
 test('existing module assets and v0.6 football files are in offline shell',()=>{
-  assert.equal(VERSION,'1.6.0');assert.ok(TOOLS.some(x=>x.id==='football'));
+  assert.equal(VERSION,'1.7.0');assert.ok(TOOLS.some(x=>x.id==='football'));
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  for(const item of ['myhub-shell-v1.6.0','js/football.js','js/football-core.js','football.css','js/tasks.js','js/weather.js','js/calendar.js'])assert.ok(sw.includes(item),item);
+  for(const item of ['myhub-shell-v1.7.0','js/football.js','js/football-core.js','football.css','js/tasks.js','js/weather.js','js/calendar.js'])assert.ok(sw.includes(item),item);
   const page=readFileSync(new URL('../index.html',import.meta.url),'utf8');
   assert.ok(page.includes('football.css'));
   const app=readFileSync(new URL('../js/app.js',import.meta.url),'utf8');assert.ok(app.includes("route==='football'"));
