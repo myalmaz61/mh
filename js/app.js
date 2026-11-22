@@ -16,6 +16,8 @@ import { mountUnitConverter, mountDateCalculator, mountPercentageCalculator } fr
 import { mountBookmarks } from './bookmarks.js';
 import { mountToday } from './today.js';
 import { mountDiagnostics } from './diagnostics.js';
+import { mountPwaHealth } from './pwa-health.js';
+import { previewBackup } from './backup-preview-core.js';
 import { mountSearch } from './search.js';
 import { mountQuickAdd } from './quick-add.js';
 import { mountTextCounter } from './text-counter.js';
@@ -30,6 +32,7 @@ let history=[];
 let active='home';
 let cleanup=()=>{};
 let stopDiagnostics=()=>{};
+let stopPwaHealth=()=>{};
 let navigation=Promise.resolve();
 let settingsQueue=Promise.resolve();
 let waitingWorker=null;
@@ -208,6 +211,7 @@ function settingsToolRow(id, idx){
 }
 function renderSettings(main,openHidden=false,openOrder=false){
   stopDiagnostics();
+  stopPwaHealth();
   const order=[...settings.favourites,...TOOLS.map(tool=>tool.id).filter(id=>!settings.favourites.includes(id))];
   const currentOrder=orderedTools(TOOLS,settings.toolOrder);
   main.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / ${VERSION}</span><h1>${t('settings')}</h1><p>${t('introSettings')}</p></section>
@@ -242,14 +246,17 @@ function renderSettings(main,openHidden=false,openOrder=false){
       <div class="backup-actions"><button type="button" class="primary-btn" id="export-backup">↓ ${t('exportBackup')}</button>
       <button type="button" class="secondary-btn" id="import-backup">↑ ${t('importBackup')}</button>
       <input type="file" id="backup-file" accept=".json,application/json" hidden></div>
+      <div id="backup-preview" class="backup-preview" hidden></div>
       <p class="warning-text">${t('importWarning')}</p>
       <button type="button" class="text-link" id="persistent-storage">${t('storagePersist')} ›</button></section>
     <section class="surface setting-section" id="health-section"></section>
+    <section class="surface setting-section" id="pwa-health-section"></section>
     <section class="surface setting-section"><h2>${t('installation')}</h2><p class="muted">${t('installHint')}</p>
       <div class="row-between"><span>${t('appVersion')}</span><strong>v${VERSION}</strong></div>
       <p class="privacy-footer">🔒 ${t('privacy')}</p></section>`;
   stopDiagnostics=mountDiagnostics({element:main.querySelector('#health-section'),lang:settings.language});
-  cleanup=()=>stopDiagnostics();
+  stopPwaHealth=mountPwaHealth({element:main.querySelector('#pwa-health-section'),lang:settings.language,onWaiting:worker=>{waitingWorker=worker;updateIndicators();}});
+  cleanup=()=>{stopDiagnostics();stopPwaHealth();};
   main.querySelectorAll('[data-theme-choice]').forEach(btn=>btn.addEventListener('click',async()=>{
     try{await updateSettings({theme:btn.dataset.themeChoice}); renderSettings(main);}catch(err){handleError(err);}
   }));
@@ -307,20 +314,43 @@ function renderSettings(main,openHidden=false,openOrder=false){
     }catch(err){handleError(err);toast(t('exportFailed'));}
   });
   const fileInput=main.querySelector('#backup-file');
+  const previewElement=main.querySelector('#backup-preview');
+  let pendingBackup=null;
+  const previewWords=settings.language==='en'
+    ?{heading:'Validated archive — review before replacing data',date:'Created',version:'Archive version',legacy:'Older archive: missing modules will restore their defaults (usually empty).',counts:['Notes','Tasks','Events','Quick lists','Bookmarks','RSS articles','Football leagues'],confirm:'Replace all local data',cancel:'Cancel',ready:'Nothing has been changed yet.',working:'Restoring…'}
+    :{heading:'Проверен архив — преглед преди заместване',date:'Създаден',version:'Версия на архива',legacy:'Стар архив: липсващите модули ще получат началните си стойности, обикновено празни.',counts:['Бележки','Задачи','Събития','Бързи списъци','Връзки','RSS статии','Футболни първенства'],confirm:'Замени всички локални данни',cancel:'Отказ',ready:'Все още нищо не е променено.',working:'Възстановяване…'};
+  function cancelPreview(){pendingBackup=null;previewElement.replaceChildren();previewElement.hidden=true;}
   main.querySelector('#import-backup').addEventListener('click',()=>fileInput.click());
   fileInput.addEventListener('change',async()=>{
-    const file=fileInput.files?.[0];
-    fileInput.value='';
+    const file=fileInput.files?.[0];fileInput.value='';cancelPreview();
     if(!file)return;
     try{
       if(file.size>20_000_000)throw Error('File exceeds 20 MB');
       const data=JSON.parse(await file.text());
-      validateBackup(data);
-      if(!window.confirm(t('importConfirm')))return;
-      await replaceFromBackup(data);
-      toast(t('restored'));
-      location.reload();
-    }catch(err){console.error(err);toast(t('invalidBackup')+err.message);}
+      const cleaned=validateBackup(data);
+      const summary=previewBackup(data,cleaned);
+      pendingBackup=data;
+      const entries=Object.entries(summary.counts);
+      const created=summary.createdAt?new Intl.DateTimeFormat(languageCode(),{dateStyle:'medium',timeStyle:'short'}).format(new Date(summary.createdAt)):'—';
+      previewElement.innerHTML=`<h3>${previewWords.heading}</h3><p>${previewWords.date}: <strong>${escapeHtml(created)}</strong> · ${previewWords.version}: <strong>${escapeHtml(summary.version||'—')}</strong></p>
+        <div class="backup-preview-counts">${entries.map(([key,n],i)=>`<span>${previewWords.counts[i]}: <strong>${n}</strong></span>`).join('')}</div>
+        ${summary.missing.length?`<p class="warning-text">${previewWords.legacy}</p>`:''}
+        <p class="muted">${previewWords.ready}</p>
+        <div class="backup-actions"><button type="button" class="danger-btn" id="confirm-backup-restore">${previewWords.confirm}</button><button type="button" class="secondary-btn" id="cancel-backup-restore">${previewWords.cancel}</button></div>`;
+      previewElement.hidden=false;
+      previewElement.querySelector('#cancel-backup-restore').addEventListener('click',cancelPreview);
+      previewElement.querySelector('#confirm-backup-restore').addEventListener('click',async()=>{
+        if(!pendingBackup)return;
+        if(!window.confirm(t('importConfirm')))return;
+        const btn=previewElement.querySelector('#confirm-backup-restore');btn.disabled=true;btn.textContent=previewWords.working;
+        try{
+          // Validate again right before the atomic transaction.
+          await replaceFromBackup(pendingBackup);
+          pendingBackup=null;
+          toast(t('restored'));location.reload();
+        }catch(err){console.error(err);btn.disabled=false;btn.textContent=previewWords.confirm;toast(t('importFailed'));}
+      });
+    }catch(err){console.error(err);cancelPreview();toast(t('invalidBackup')+err.message);}
   });
   main.querySelector('#persistent-storage').addEventListener('click',async()=>{
     try{
@@ -331,7 +361,10 @@ function renderSettings(main,openHidden=false,openOrder=false){
 }
 function registerWorker(){
   if(!('serviceWorker' in navigator))return;
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(applyingUpdate) location.reload();});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(applyingUpdate){location.reload();return;}
+    waitingWorker=null;updateIndicators();
+  });
   navigator.serviceWorker.register('./sw.js').then(reg=>{
     if(reg.waiting && navigator.serviceWorker.controller){waitingWorker=reg.waiting;updateIndicators();}
     reg.addEventListener('updatefound',()=>{

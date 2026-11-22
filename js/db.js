@@ -24,7 +24,12 @@ export function openDatabase() {
       if (!db.objectStoreNames.contains('notes')) db.createObjectStore('notes', { keyPath:'id' });
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath:'key' });
     };
-    req.onsuccess = () => { req.result.onversionchange = () => req.result.close(); resolve(req.result); };
+    req.onsuccess = () => {
+      const db=req.result;
+      db.onversionchange=()=>{db.close();dbPromise=undefined;};
+      db.onclose=()=>{dbPromise=undefined;};
+      resolve(db);
+    };
     req.onerror = () => reject(req.error || Error('IndexedDB error'));
     req.onblocked = () => reject(Error('Database blocked by another tab'));
   }).catch(err => { dbPromise = undefined; throw err; });
@@ -257,8 +262,16 @@ export async function createBackup() {
   if(recent!==undefined && !validRecentTools(recent))throw Error('Recent tools are damaged. Backup stopped.');
   const cleanSettings=normaliseSettings(s);
   const cleanCache={};
-  for(const city of cleanSettings.weatherCities){if(validWeatherCacheEntry(weather?.[city.id]))cleanCache[city.id]=weather[city.id];}
-  return { app:'MyHub', format:1, createdAt:new Date().toISOString(), version:VERSION,
+  // Never silently drop a malformed forecast for a city the user still has.
+  if(weather!==undefined && (!weather||typeof weather!=='object'||Array.isArray(weather)))throw Error('Weather cache is damaged. Backup stopped.');
+  for(const city of cleanSettings.weatherCities){
+    const item=weather?.[city.id];
+    if(item!==undefined){
+      if(!validWeatherCacheEntry(item))throw Error('Weather cache is damaged. Backup stopped.');
+      cleanCache[city.id]=item;
+    }
+  }
+  const backup={ app:'MyHub', format:1, createdAt:new Date().toISOString(), version:VERSION,
     data:{ notes, settings:cleanSettings, calcHistory:Array.isArray(h) ? h.slice(0, 30) : [], weatherCache:cleanCache, timerData:snapshotTimerForBackup(normaliseTimerData(timer)), calendarData:calendar===undefined?emptyCalendar():safeClone(calendar),
       tasksData:tasks===undefined?emptyTasks():safeClone(tasks), quickListsData:quickLists===undefined?emptyQuickLists():safeClone(quickLists),
       footballData:football===undefined?emptyFootballData():safeClone(football),
@@ -266,6 +279,15 @@ export async function createBackup() {
       bookmarksData:bookmarks===undefined?emptyBookmarks():safeClone(bookmarks),
       unitFavouritesData:unitFavs===undefined?emptyUnitFavourites():safeClone(unitFavs),
       recentTools:recent===undefined?[]:safeClone(recent) } };
+  // Verify both raw stored fields and the final export. Normalisation must not
+  // conceal damaged user settings, timer or calculator history.
+  const preflight=structuredClone(backup);
+  if(s!==undefined)preflight.data.settings=s;
+  if(h!==undefined)preflight.data.calcHistory=h;
+  if(timer!==undefined)preflight.data.timerData=timer;
+  validateBackup(preflight);
+  validateBackup(backup);
+  return backup;
 }
 export async function replaceFromBackup(payload) {
   const data = validateBackup(payload);
