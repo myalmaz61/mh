@@ -11,3 +11,13 @@
 .hub-health-stats span{padding:8px;border:1px solid var(--stroke,#ddd);border-radius:10px}
 #health-status p{margin:9px 0;overflow-wrap:anywhere}
 @media(max-width:360px){.hub-health-stats{grid-template-columns:1fr}}
+
+/* v2.2: actions stay inside collapsed details; no extra home dashboard. */
+.hub-today-line{display:flex;align-items:center;gap:9px;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--stroke,#ddd);}
+.hub-today-line span{min-width:0;overflow-wrap:anywhere;flex:1;}
+.hub-today-line button{flex:none;min-height:38px;white-space:nowrap;}
+.hub-today-line .hub-today-complete{border:1px solid var(--stroke,#ddd);border-radius:9px;padding:6px 10px;background:transparent;color:inherit;cursor:pointer;}
+.hub-today-line .hub-today-complete:disabled{opacity:.55;cursor:wait;}
+.hub-today-line .hub-today-open{border:0;background:transparent;color:var(--accent,#2271b1);text-decoration:underline;cursor:pointer;min-height:38px;}
+.hub-today-extra{font-size:.82rem;color:var(--muted,#666);margin:6px 0;}
+.cal-event-highlight{outline:2px solid var(--accent,#2271b1);outline-offset:2px;border-radius:8px;}

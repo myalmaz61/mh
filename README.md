@@ -1,42 +1,37 @@
-# MyHub — Personal Tools v2.1.0
+# MyHub — Personal Tools v2.2.0
 
-Local-first, free, standalone, mobile-friendly PWA for Android Chrome and GitHub Pages.
+Mobile-first local-first PWA, designed for Android Chrome + GitHub Pages. No account, server, advertising, paid APIs or build step is required.
 
-## What changed in v2.1.0
+## What changed in v2.2.0
 
-This release introduces **contextual Quick Add drafts** without linking or migrating existing records:
+This is a **small usability release** for the existing Today summary. It does not introduce new tools or make the home screen busier.
 
-- **Tasks → Calendar**: From an individual task, choose “В календар” / “To Calendar”. The task title, details, and due date (or today's local date if undated) are copied to a **new, unsaved Calendar draft**.
-- **Calendar → Tasks**: From the selected calendar occurrence, choose “Нова задача” / “New task”. The event title and details are copied into a **new, unsaved task draft**. For repeating events, the date you are viewing is used as the task due date.
-- **Notes → Tasks**: From the open note, choose “Нова задача” / “New task”. The existing note is saved first; the title and body (or unchecked checklist items) become a **new, unsaved task draft**.
+- The collapsed **Today** details list now includes **✓ Готово / Done** on pending due/overdue tasks. Tapping it completes exactly that task in Tasks; the row disappears on refresh. Completed tasks are still available through Tasks and JSON backup.
+- A calendar item includes **Отвори / Open**, which opens the correct **day view** in Calendar. For recurring events this is the occurrence date shown in Today, not necessarily the first date of the series. Opening does **not** start editing the series.
+- Both buttons are placed **inside the existing collapsed details**. The first four tasks and first four events are displayed; the existing full Tasks and Calendar buttons remain.
+- Completing a task uses one IndexedDB **readwrite transaction**. The selected task's `updatedAt` must still match; otherwise the change is refused and the Today summary is refreshed, rather than overwriting edits from another tab/screen.
+- The panel preserves its expanded/collapsed state on refresh. Labels work in Bulgarian and English. Titles are HTML-escaped.
 
-Nothing is automatically created or linked. To create the new record, the user must tap **Save** in Quick Add. Cancel leaves the existing data untouched. Drafts with text longer than the target field display a visible warning and show the shortened content for review.
+## Compatibility
 
-## Files and compatibility
+- App version: `2.2.0`; PWA offline cache: `myhub-shell-v2.2.0`.
+- IndexedDB database: `myhub-local`, **schema version 1**. No database migration.
+- JSON Backup **format 1**: unchanged. All existing notes, tasks, calendar events, settings, favourites, and other tools are retained.
+- No new permissions, network services, background alarms, or data synchronisation.
+- All other modules and the home screen layout remain unchanged.
 
-- Version string: `2.1.0`
-- IndexedDB: `myhub-local`, database version **1** (unchanged)
-- JSON backup: format **1** (unchanged)
-- PWA offline cache: `myhub-shell-v2.1.0`
-- New shared helper: `js/cross-actions-core.js`
-- New tests: `tests/cross-actions.test.mjs`
-- All original tools, notes, tasks, events, settings, weather and feeds are retained.
-- No paid services, new API keys, third-party code, trackers, or new device permissions.
+## Test status
 
-## Installation and updates
+`npm test` (Node.js 20+): **262 of 262 tests passed**. This includes 15 new tests for the Today action logic, stale records, damaged data, atomic database writes, and recurring event selection. JavaScript syntax and offline manifest assets were checked.
 
-See `START-HERE-BG.md` for Android-only instructions. Use `MyHub-v2.1.0-UPDATE-ONLY.zip` to update an existing v2.0.0 GitHub Pages project, or `MyHub-v2.1.0.zip` for a fresh copy of every project file. ZIP contents are **repository-relative paths**, not a nested root folder.
+An **isolated mobile Chromium widget test** passed for showing the controls, opening a recurring event on its selected day and completing a task while preserving the expanded details; the test used stubbed local data. Loading the complete PWA through the local Chromium browser was blocked by the environment. The full installed Android PWA must be checked after publishing.
 
-Before uploading, export and verify a current JSON backup from the existing PWA. Do **not** uninstall the PWA or clear Chrome website data while updating.
+## Files and installation
 
-## Tests
+- `MyHub-v2.2.0-UPDATE-ONLY.zip`: only new/modified repository files compared with v2.1.0, plus `CHANGED-FILES.txt`.
+- `MyHub-v2.2.0.zip`: complete repository, with relative paths directly from its root.
+- `MyHub-v2.2.0-FULL-SOURCE.md`: full text of every new or changed text file.
 
-Run `npm test` (Node.js 20+). This is not required on your Android phone: tests were run when preparing this release. All 247 automated tests passed, including 14 dedicated cross-tool tests. Every JavaScript file passed `node --check`. All 68 Service Worker assets were present. The full installed Android PWA and its share-target registration have not been independently tested on a physical Android device; verify after publishing.
+**IMPORTANT:** Before uploading, export and verify a JSON backup from your existing PWA. Do not uninstall the PWA or clear Chrome site data. The ZIP itself must be extracted and individual files uploaded into their matching GitHub folders.
 
-## Known limitations
-
-- Shortcuts create an independent copy, not an automatically synchronized relation. Changes to the original record will not affect the new one.
-- A task without a deadline uses today's date when converting to an event; you may change it before saving.
-- A recurring Calendar item uses the *selected occurrence date* when converting to a task. It does not create a repeating task.
-- Target fields have length limits; the app warns before saving if content needed to be shortened.
-- Background alarms in PWA are not guaranteed by Android.
+Detailed Android-only instructions: `START-HERE-BG.md`.

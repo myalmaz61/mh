@@ -1,4 +1,4 @@
-const CACHE='myhub-shell-v2.1.0';
+const CACHE='myhub-shell-v2.2.0';
 const PREFIX='myhub-shell-';
 // Separate from shell cache: incoming shares are private, temporary, and never deployed.
 const SHARE_INBOX='myhub-share-inbox-v1';
@@ -11,7 +11,7 @@ const ASSETS=[
   './js/tasks.js','./js/tasks-core.js','./js/quick-list.js','./js/quick-list-core.js',
   './js/football.js','./js/football-core.js','./js/rss.js','./js/rss-core.js',
   './js/unit-core.js','./js/date-core.js','./js/percent-core.js','./js/bookmarks-core.js',
-  './js/utilities.js','./js/bookmarks.js','./js/today-core.js','./js/today.js','./js/diagnostics-core.js','./js/diagnostics.js','./js/search-core.js','./js/search.js','./js/quick-add-core.js','./js/quick-add.js',
+  './js/utilities.js','./js/bookmarks.js','./js/today-core.js','./js/today-actions-core.js','./js/today.js','./js/diagnostics-core.js','./js/diagnostics.js','./js/search-core.js','./js/search.js','./js/quick-add-core.js','./js/quick-add.js',
   './js/share-core.js','./js/share-target.js',
   './js/cross-actions-core.js','./js/unit-favourites-core.js','./js/recent-core.js','./js/visibility-core.js','./js/tool-order-core.js','./js/pwa-health-core.js','./js/pwa-health.js','./js/backup-preview-core.js','./js/text-counter-core.js','./js/text-counter.js','./js/random-core.js','./js/random-generator.js'
 ];

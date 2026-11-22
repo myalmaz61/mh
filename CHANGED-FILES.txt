@@ -1,40 +1,47 @@
-MyHub v2.1.0 — changed/new files (relative to repository root)
-Based on MyHub v2.0.0. Copy these files into your existing repository,
-keeping exactly the folder paths (root, js/, tests/).
-Do not delete unchanged files. Backup your existing data first.
+MyHub v2.2.0 — files changed from v2.1.0
 
-CHANGED-FILES.txt
-README.md
-START-HERE-BG.md
-js/app.js
-js/calendar.js
-js/config.js
-js/cross-actions-core.js
-js/i18n.js
-js/notes.js
-js/quick-add.js
-js/tasks.js
-package.json
-quick-add.css
-sw.js
-tests/backup-integrity.test.mjs
-tests/backup-safety.test.mjs
-tests/calendar.test.mjs
-tests/cross-actions.test.mjs
-tests/favourites.test.mjs
-tests/football.test.mjs
-tests/mini-tools.test.mjs
-tests/quick-add.test.mjs
-tests/quick-calendar.test.mjs
-tests/reliability.test.mjs
-tests/rss.test.mjs
-tests/search.test.mjs
-tests/share.test.mjs
-tests/tasks.test.mjs
-tests/timer.test.mjs
-tests/today.test.mjs
-tests/tool-order.test.mjs
-tests/utilities.test.mjs
-tests/v2-stability.test.mjs
-tests/visibility.test.mjs
-tests/weather.test.mjs
+NEW (2):
+  js/today-actions-core.js
+  tests/today-actions.test.mjs
+
+MODIFIED (31):
+  README.md
+  START-HERE-BG.md
+  js/app.js
+  js/calendar.js
+  js/config.js
+  js/db.js
+  js/today.js
+  package.json
+  sw.js
+  tests/backup-integrity.test.mjs
+  tests/backup-safety.test.mjs
+  tests/calendar.test.mjs
+  tests/cross-actions.test.mjs
+  tests/favourites.test.mjs
+  tests/football.test.mjs
+  tests/mini-tools.test.mjs
+  tests/quick-add.test.mjs
+  tests/quick-calendar.test.mjs
+  tests/reliability.test.mjs
+  tests/rss.test.mjs
+  tests/search.test.mjs
+  tests/share.test.mjs
+  tests/tasks.test.mjs
+  tests/timer.test.mjs
+  tests/today.test.mjs
+  tests/tool-order.test.mjs
+  tests/utilities.test.mjs
+  tests/v2-stability.test.mjs
+  tests/visibility.test.mjs
+  tests/weather.test.mjs
+  today.css
+
+Update procedure:
+1. Make and VERIFY an existing MyHub JSON backup in Downloads.
+2. Extract UPDATE-ONLY.zip on Android.
+3. Upload each listed file to the same repository-relative path on GitHub.
+4. Keep all other files and the existing PWA installation.
+5. Check Settings -> Version 2.2.0 and test Today controls.
+
+This ZIP includes the new CHANGED-FILES.txt itself. No files need deletion.
