@@ -126,3 +126,11 @@
 .notes-pagination{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;margin:15px 0 24px;font-size:12px}
 .notes-pagination .secondary-btn{min-height:44px}
 .notes-pagination [hidden]{display:none}
+
+/* v3.8.0: explicit note-save failure recovery; no persistent extra controls */
+.save-status-error{color:var(--danger,#b42318)!important;font-weight:700}
+.notes-save-recovery{margin:0 0 1rem;padding:.85rem 1rem;border:1px solid currentColor;border-radius:12px;color:var(--danger,#b42318);background:var(--surface,#fff)}
+.notes-save-recovery[hidden]{display:none!important}
+.notes-save-recovery p{margin:.35rem 0 .7rem;line-height:1.45}
+.notes-save-recovery-actions{display:flex;flex-wrap:wrap;gap:.55rem}
+.notes-save-recovery-actions button{min-height:44px}
