@@ -55,9 +55,10 @@ export function parseForecast(json) {
     const target=c.time.slice(0,13);
     for(let i=0;i<h.time.length && hours.length<48;i++){
       const time=h.time[i],prob=h.precipitation_probability[i],temp=h.temperature_2m[i];
+      const wind=h.wind_speed_10m?.[i] ?? null;
       if(typeof time!=='string'||time.slice(0,13)<target)continue;
-      if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(time)||!optionalNumber(prob,0,100)||!optionalNumber(temp,-100,80))continue;
-      hours.push({time,prob,temp});
+      if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(time)||!optionalNumber(prob,0,100)||!optionalNumber(temp,-100,80)||!optionalNumber(wind,0,500))continue;
+      hours.push({time,prob,temp,wind});
     }
   }
   return {
@@ -70,7 +71,7 @@ export function forecastUrl(city) {
   const url=new URL(FORECAST_URL);
   url.search=new URLSearchParams({latitude:String(city.latitude),longitude:String(city.longitude),
     current:'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day',
-    hourly:'temperature_2m,precipitation_probability',
+    hourly:'temperature_2m,precipitation_probability,wind_speed_10m',
     daily:'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max',
     timezone:'auto',forecast_days:'7'}).toString();
   return url.toString();
@@ -100,7 +101,8 @@ export function validSnapshot(entry) {
   for(const d of entry.daily){if(!validDay(d.date)||!finiteNumber(d.min,-100,80)||!finiteNumber(d.max,-100,80)||
     !optionalNumber(d.rain,0,10000)||!optionalNumber(d.prob,0,100)||!optionalNumber(d.wind,0,500)||!finiteNumber(d.code,0,100))return false;}
   for(const h of entry.hours){if(typeof h.time!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(h.time)||
-    !optionalNumber(h.temp,-100,80)||!optionalNumber(h.prob,0,100))return false;}
+    !optionalNumber(h.temp,-100,80)||!optionalNumber(h.prob,0,100)||
+    (h.wind!==undefined && !optionalNumber(h.wind,0,500)))return false;}
   return true;
 }
 const concise=(n,digits=0)=>n==null?'–':new Intl.NumberFormat('en-GB',{maximumFractionDigits:digits}).format(n);
@@ -168,7 +170,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       ${rainWindow ? `<div class="weather-rain-window">${rainWindow.firstTime
         ? `${t('weatherRainFirstHigh')}: <strong>${escapeHtml(rainWindow.firstTime.slice(8,10)+'.'+rainWindow.firstTime.slice(5,7)+' '+rainWindow.firstTime.slice(11,16))} (${t('weatherLocalTime')}) · ${concise(rainWindow.firstProbability)}%</strong>`
         : `${t('weatherRainBelowThreshold').replace('{n}',String(rainWindow.count))}`}</div>` : ''}</div>`:''}
-    ${dayComparison ? `<div class="weather-day-comparison"><h3 class="weather-subtitle">${t('weatherCompareDays')}</h3><p class="weather-hour-hint">${t('weatherCompareHint')}</p><div class="weather-compare-grid">${dayComparison.map((day,index)=>`<details class="weather-compare-card"><summary><span><strong>${t(index===0?'weatherToday':'weatherTomorrow')}</strong><small>${escapeHtml(day.date)}</small></span><span>${day.maxProbability===null?'—':`${Math.round(day.maxProbability)}%`} ☔</span></summary>${day.hours.length?`<div class="weather-compare-rows">${day.hours.map(hour=>`<div class="weather-compare-row"><span>${escapeHtml(hour.time.slice(11,16))}</span><span>${hour.temp===null?'—':`${concise(hour.temp)}°`}</span><strong>${hour.prob===null?'—':`${Math.round(hour.prob)}%`}</strong></div>`).join('')}</div>`:`<p class="muted">${t('weatherNoHourlyForDay')}</p>`}</details>`).join('')}</div></div>`:''}
+    ${dayComparison ? `<div class="weather-day-comparison"><h3 class="weather-subtitle">${t('weatherCompareDays')}</h3><p class="weather-hour-hint">${t('weatherCompareHint')}</p><div class="weather-compare-grid">${dayComparison.map((day,index)=>`<details class="weather-compare-card"><summary><span><strong>${t(index===0?'weatherToday':'weatherTomorrow')}</strong><small>${escapeHtml(day.date)}</small></span><span>${day.maxProbability===null?'—':`${Math.round(day.maxProbability)}%`} ☔</span></summary><p class="weather-compare-summary">🌡 ${t('weatherCompareTemperature')}: ${day.minTemperature===null?'—':`${concise(day.minTemperature)}°`} – ${day.maxTemperature===null?'—':`${concise(day.maxTemperature)}°`}<span>💨 ${t('weatherComparePeakWind')}: ${day.maxWind===null?'—':`${concise(day.maxWind)} km/h`}</span></p>${day.hours.length?`<div class="weather-compare-rows"><div class="weather-compare-row weather-compare-head"><span>${t('weatherCompareTime')}</span><span>°C</span><span>km/h</span><span>☔</span></div>${day.hours.map(hour=>`<div class="weather-compare-row"><span>${escapeHtml(hour.time.slice(11,16))}</span><span>${hour.temp===null?'—':`${concise(hour.temp)}°`}</span><span>${hour.wind==null?'—':concise(hour.wind)}</span><strong>${hour.prob===null?'—':`${Math.round(hour.prob)}%`}</strong></div>`).join('')}</div>`:`<p class="muted">${t('weatherNoHourlyForDay')}</p>`}</details>`).join('')}</div></div>`:''}
     <h3 class="weather-subtitle">${t('weatherNextDays')}</h3><div class="weather-week">${snapshot.daily.map(day=>{
       const w=weatherDescription(day.code,lang);
       return `<div class="weather-day"><div class="weather-day-title">${escapeHtml(fmtDay(day.date,lang))}</div><span class="weather-day-icon" aria-label="${escapeHtml(w.text)}" role="img">${w.symbol}</span>

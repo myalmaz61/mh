@@ -390,7 +390,8 @@ function validWeatherCacheEntry(entry) {
   if(!Array.isArray(entry.daily)||entry.daily.length<1||entry.daily.length>7||!Array.isArray(entry.hours)||entry.hours.length>48)return false;
   if(entry.daily.some(d=>!d || !goodDay(d.date)||!goodNumber(d.min,-100,80)||!goodNumber(d.max,-100,80)||
     !maybeNumber(d.rain,0,10000)||!maybeNumber(d.prob,0,100)||!maybeNumber(d.wind,0,500)||!goodNumber(d.code,0,100)))return false;
-  if(entry.hours.some(h=>!h || !goodTime(h.time)||!maybeNumber(h.temp,-100,80)||!maybeNumber(h.prob,0,100)))return false;
+  if(entry.hours.some(h=>!h || !goodTime(h.time)||!maybeNumber(h.temp,-100,80)||!maybeNumber(h.prob,0,100)||
+    (h.wind!==undefined && !maybeNumber(h.wind,0,500))))return false;
   return true;
 }
 function validateWeatherCache(value,weatherCities) {

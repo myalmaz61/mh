@@ -6,6 +6,7 @@ import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
 import { selectNotes } from './notes-view-core.js';
 import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
+import { parseChecklistBatch, setChecklistCompletion, checklistProgress } from './notes-checklist-core.js';
 
 export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
@@ -263,7 +264,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <label class="note-category-editor" for="note-category">${t('notesCategory')} <small>(${t('notesOptional')})</small><input class="text-field" id="note-category" type="text" maxlength="40" list="note-category-suggestions" autocomplete="off" placeholder="${t('notesCategoryPlaceholder')}" value="${escapeHtml(n.category || '')}"></label>
       <datalist id="note-category-suggestions">${noteCategories(notes,locale).map(c=>`<option value="${escapeHtml(c)}"></option>`).join('')}</datalist>
       ${n.kind==='text' ? `<textarea id="note-body" maxlength="100000" rows="11" class="note-body" placeholder="${t('textPlaceholder')}" aria-label="${t('textPlaceholder')}">${escapeHtml(n.body)}</textarea>` :
-      `<div id="checklist-items" class="checklist-items"></div><div class="form-row"><input class="text-field" id="new-item" maxlength="2000" placeholder="${t('checklistPlaceholder')}"><button type="button" class="primary-btn" id="add-item">+ ${t('add')}</button></div>`}
+      `<div class="checklist-tools"><span id="checklist-progress" class="muted" aria-live="polite"></span><div class="checklist-tool-buttons"><button type="button" class="secondary-btn" id="check-all">${t('checklistCheckAll')}</button><button type="button" class="secondary-btn" id="uncheck-all">${t('checklistUncheckAll')}</button><button type="button" class="secondary-btn" id="toggle-done-visibility" aria-pressed="false">${t('checklistHideDone')}</button></div></div><div id="checklist-items" class="checklist-items"></div><div class="form-row"><input class="text-field" id="new-item" maxlength="2000" placeholder="${t('checklistPlaceholder')}"><button type="button" class="primary-btn" id="add-item">+ ${t('add')}</button></div><details class="checklist-bulk"><summary>${t('checklistMultiAdd')}</summary><label for="checklist-paste">${t('checklistPasteHint')}</label><textarea id="checklist-paste" class="text-field" rows="4" placeholder="${t('checklistPastePlaceholder')}"></textarea><button type="button" class="secondary-btn" id="add-many-items">${t('checklistAddMany')}</button></details>`}
       <div class="editor-actions"><button type="button" class="secondary-btn" id="copy-note">⧉ ${t('copy')}</button><button type="button" class="secondary-btn" id="duplicate-note">${t('notesDuplicate')}</button><button type="button" class="secondary-btn" id="share-note">${t('notesShare')}</button><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
       <button type="button" class="secondary-btn" id="star-note">${n.favourite?'★ '+t('unfavourite'):'☆ '+t('favourite')}</button>
       <button type="button" class="danger-btn" id="delete-note">${t('delete')}</button></div></article>`;
@@ -277,8 +278,12 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     if(body) body.addEventListener('input',()=>{n.body=body.value;update();});
     const checklist=element.querySelector('#checklist-items');
     if(checklist){
+      let hideCompleted=false;
       const renderItems=()=>{
-        checklist.innerHTML=n.items.map((item,index)=>`<div class="checklist-row"><label class="check-row-label"><input type="checkbox" data-done="${index}" ${item.done?'checked':''} aria-label="${t('done')}"><span></span></label>
+        const progress=checklistProgress(n.items);
+        const progressElement=element.querySelector('#checklist-progress');
+        if(progressElement) progressElement.textContent=t('checklistProgress').replace('{done}',String(progress.done)).replace('{total}',String(progress.total));
+        checklist.innerHTML=n.items.map((item,index)=>`<div class="checklist-row" ${hideCompleted && item.done?'hidden':''}><label class="check-row-label"><input type="checkbox" data-done="${index}" ${item.done?'checked':''} aria-label="${t('done')}"><span></span></label>
           <input class="check-text" maxlength="2000" data-item-text="${index}" value="${escapeHtml(item.text)}" aria-label="${t('checklistPlaceholder')}">
           <button class="icon-btn subtle" type="button" data-delete-item="${index}" aria-label="${t('deleteItem')}">×</button></div>`).join('');
       };
@@ -291,7 +296,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       checklist.addEventListener('change',event=>{
         if(event.target.matches('[data-done]')){
           const idx=Number(event.target.dataset.done);
-          if(n.items[idx]){n.items[idx].done=event.target.checked;update();}
+          if(n.items[idx]){n.items[idx].done=event.target.checked;update();renderItems();}
         }
       });
       checklist.addEventListener('click',event=>{
@@ -307,6 +312,33 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       };
       element.querySelector('#add-item').addEventListener('click',addItem);
       itemInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addItem();}});
+      element.querySelector('#check-all').addEventListener('click',()=>{
+        if(!n.items.some(row=>!row.done))return;
+        n.items=setChecklistCompletion(n.items,true);update();renderItems();
+      });
+      element.querySelector('#uncheck-all').addEventListener('click',()=>{
+        if(!n.items.some(row=>row.done))return;
+        n.items=setChecklistCompletion(n.items,false);update();renderItems();
+      });
+      element.querySelector('#toggle-done-visibility').addEventListener('click',event=>{
+        hideCompleted=!hideCompleted;
+        event.currentTarget.setAttribute('aria-pressed',String(hideCompleted));
+        event.currentTarget.textContent=t(hideCompleted?'checklistShowDone':'checklistHideDone');
+        renderItems();
+      });
+      element.querySelector('#add-many-items').addEventListener('click',()=>{
+        const field=element.querySelector('#checklist-paste');
+        let lines;
+        try{ lines=parseChecklistBatch(field.value,n.items.length); }
+        catch(error){
+          const key=error.message==='empty-batch'?'checklistNoLines':error.message==='batch-limit'?'checklistTooMany':'checklistInvalidLines';
+          notify(t(key));return;
+        }
+        // Validate all rows before mutating the note. No silent truncation.
+        const rows=lines.map(text=>({id:uid(),text,done:false}));
+        n.items.push(...rows);field.value='';update();renderItems();
+        notify(t('checklistAdded').replace('{n}',String(rows.length)));
+      });
       renderItems();
     }
     element.querySelector('#copy-note').addEventListener('click',async()=>{
