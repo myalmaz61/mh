@@ -121,3 +121,8 @@
 .notes-quick-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .notes-filter-reset{display:flex;justify-content:flex-end;margin:0 0 10px}
 .notes-filter-reset [hidden]{display:none}
+
+/* v3.7.0: bounded Notes list, comfortable tap target on small screens. */
+.notes-pagination{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;margin:15px 0 24px;font-size:12px}
+.notes-pagination .secondary-btn{min-height:44px}
+.notes-pagination [hidden]{display:none}
