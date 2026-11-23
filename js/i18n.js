@@ -1,5 +1,6 @@
 const labels = {
   bg: {
+    notesFilter:'Показвай',notesAll:'Всички',notesPinned:'Закрепени',notesFavourites:'Любими',notesSort:'Сортиране',notesNewest:'Последно променени',notesOldest:'Най-стари',notesTitleSort:'По заглавие',notesCount:'Показани {shown} от {total}',notesShare:'↗ Сподели',notesShareCopied:'Няма директно споделяне. Текстът е копиран.',weatherRainFirstHigh:'Първи час с поне 50% шанс за валежи',weatherRainBelowThreshold:'В следващите {n} налични часа шансът остава под 50% (не означава, че няма да вали).',
     notesDuplicate:'⧉ Дублирай',notesCopySuffix:' (копие)',notesDuplicated:'Създадено е копие на бележката.',
     weatherRainNextHours:'Следващите {n} часа',weatherMaxRainChance:'Най-висока вероятност за валежи',
     crossToCalendar:'В календар',crossToTask:'Нова задача',crossTruncated:'Текстът е съкратен до допустимата дължина. Провери го преди запис.',crossSaveFirst:'Бележката не успя да се запази. Опитай отново.',
@@ -165,6 +166,7 @@ const labels = {
     noMoreCities:'Всички налични градове вече са добавени.',
   },
   en: {
+    notesFilter:'Show',notesAll:'All',notesPinned:'Pinned',notesFavourites:'Favourites',notesSort:'Sort',notesNewest:'Recently changed',notesOldest:'Oldest first',notesTitleSort:'By title',notesCount:'Showing {shown} of {total}',notesShare:'↗ Share',notesShareCopied:'Direct sharing unavailable. Text copied instead.',weatherRainFirstHigh:'First hour with ≥50% rain probability',weatherRainBelowThreshold:'The next {n} available hours stay below 50% (rain is still possible).',
     notesDuplicate:'⧉ Duplicate',notesCopySuffix:' (copy)',notesDuplicated:'A copy of the note was created.',
     weatherRainNextHours:'Next {n} hours',weatherMaxRainChance:'Highest rain probability',
     crossToCalendar:'To Calendar',crossToTask:'New task',crossTruncated:'Some text was shortened to fit. Review before saving.',crossSaveFirst:'The note could not be saved. Try again.',

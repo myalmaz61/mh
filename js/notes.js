@@ -3,6 +3,7 @@ import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
 import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
+import { selectNotes } from './notes-view-core.js';
 
 export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
@@ -14,12 +15,13 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   if(notes.length !== stored.length) notify(t('corruptRecords'));
   let currentId = null;
   let search = '';
+  let scope = 'all';
+  let order = 'newest';
   let timer = null;
   let dirty = false;
   let queue = Promise.resolve();
   let disposed = false;
   const locale = lang === 'en' ? 'en-GB' : 'bg-BG';
-  const sortNotes = (a,b) => Number(b.pinned)-Number(a.pinned) || Date.parse(b.updatedAt)-Date.parse(a.updatedAt);
   const current = () => notes.find(n=>n.id===currentId);
   const safePersist = snapshot => {
     queue = queue.then(() => putNote(snapshot));
@@ -54,13 +56,18 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     currentId=null;
     element.innerHTML=`<section class="tool-head"><span class="eyebrow">03 / MYHUB</span><h1>${t('notes')}</h1><p>${t('notesDesc')}</p></section>
       <div class="notes-toolbar"><input id="note-search" class="text-field" type="search" maxlength="200" placeholder="${t('notesSearch')}" value="${escapeHtml(search)}">
-      <div class="notes-actions"><button class="primary-btn" id="create-text">+ ${t('newNote')}</button><button class="secondary-btn" id="create-checklist">☑ ${t('newChecklist')}</button></div></div>
+      <div class="notes-filters"><label for="note-scope">${t('notesFilter')}<select class="input-select" id="note-scope"><option value="all">${t('notesAll')}</option><option value="pinned">${t('notesPinned')}</option><option value="favourites">${t('notesFavourites')}</option></select></label>
+      <label for="note-order">${t('notesSort')}<select class="input-select" id="note-order"><option value="newest">${t('notesNewest')}</option><option value="oldest">${t('notesOldest')}</option><option value="title">${t('notesTitleSort')}</option></select></label></div>
+      <div class="notes-actions"><button class="primary-btn" id="create-text">+ ${t('newNote')}</button><button class="secondary-btn" id="create-checklist">☑ ${t('newChecklist')}</button></div><p class="notes-count" id="notes-count" aria-live="polite"></p></div>
       <div id="notes-list" class="notes-grid"></div>`;
     const searchInput=element.querySelector('#note-search');
     const resultList=element.querySelector('#notes-list');
+    const scopeInput=element.querySelector('#note-scope');
+    const orderInput=element.querySelector('#note-order');
+    scopeInput.value=scope;orderInput.value=order;
     const renderList=() => {
-      const q=search.toLocaleLowerCase();
-      const visible=notes.filter(n => [n.title,n.body,...n.items.map(i=>i.text)].join(' ').toLocaleLowerCase().includes(q)).sort(sortNotes);
+      const visible=selectNotes(notes,{query:search,scope,order,locale});
+      element.querySelector('#notes-count').textContent=t('notesCount').replace('{shown}',String(visible.length)).replace('{total}',String(notes.length));
       resultList.innerHTML=visible.length ? visible.map(n => {
         const summary=n.kind==='checklist' ? `${n.items.filter(i=>i.done).length}/${n.items.length} ✓ · ${n.items.slice(0,2).map(i=>i.text).join(', ')}` : n.body.slice(0,110);
         const label=n.title.trim() || (n.kind==='checklist' ? t('newChecklist') : t('newNote'));
@@ -70,6 +77,8 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       }).join('') : `<div class="empty-state">${search ? t('notesNoResults') : t('notesEmpty')}</div>`;
     };
     searchInput.addEventListener('input', () => {search=searchInput.value; renderList();});
+    scopeInput.addEventListener('change',()=>{scope=scopeInput.value;renderList();});
+    orderInput.addEventListener('change',()=>{order=orderInput.value;renderList();});
     element.querySelector('#create-text').addEventListener('click',()=>{void create('text');});
     element.querySelector('#create-checklist').addEventListener('click',()=>{void create('checklist');});
     resultList.addEventListener('click',event=>{
@@ -92,7 +101,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <article class="surface note-editor"><input class="note-title-input" id="note-title" maxlength="200" placeholder="${t('titlePlaceholder')}" value="${escapeHtml(n.title)}" aria-label="${t('titlePlaceholder')}">
       ${n.kind==='text' ? `<textarea id="note-body" maxlength="100000" rows="11" class="note-body" placeholder="${t('textPlaceholder')}" aria-label="${t('textPlaceholder')}">${escapeHtml(n.body)}</textarea>` :
       `<div id="checklist-items" class="checklist-items"></div><div class="form-row"><input class="text-field" id="new-item" maxlength="2000" placeholder="${t('checklistPlaceholder')}"><button type="button" class="primary-btn" id="add-item">+ ${t('add')}</button></div>`}
-      <div class="editor-actions"><button type="button" class="secondary-btn" id="copy-note">⧉ ${t('copy')}</button><button type="button" class="secondary-btn" id="duplicate-note">${t('notesDuplicate')}</button><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
+      <div class="editor-actions"><button type="button" class="secondary-btn" id="copy-note">⧉ ${t('copy')}</button><button type="button" class="secondary-btn" id="duplicate-note">${t('notesDuplicate')}</button><button type="button" class="secondary-btn" id="share-note">${t('notesShare')}</button><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
       <button type="button" class="secondary-btn" id="star-note">${n.favourite?'★ '+t('unfavourite'):'☆ '+t('favourite')}</button>
       <button type="button" class="danger-btn" id="delete-note">${t('delete')}</button></div></article>`;
     const update = () => {n.updatedAt=new Date().toISOString();schedule();};
@@ -139,6 +148,23 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       if(dirty){notify(t('crossSaveFirst'));return;}
       try {await navigator.clipboard.writeText(plainNoteText(n));notify(t('copied'));}
       catch {notify(t('copyFailed'));}
+    });
+    element.querySelector('#share-note').addEventListener('click',()=>{
+      // Web Share requires transient user activation; call it before awaiting DB operations.
+      // The shared content is the current visible draft, without modifying the saved note.
+      const text=plainNoteText(n);
+      if(!text.trim())return;
+      const copyFallback=async()=>{
+        try{await navigator.clipboard.writeText(text);notify(t('notesShareCopied'));}
+        catch{notify(t('copyFailed'));}
+      };
+      if(typeof navigator.share==='function'){
+        try{
+          navigator.share({text}).catch(err=>{if(err?.name!=='AbortError')void copyFallback();});
+          return;
+        }catch{ /* Unsupported share payload: try the clipboard. */ }
+      }
+      void copyFallback();
     });
     element.querySelector('#duplicate-note').addEventListener('click',async()=>{
       await flush();
