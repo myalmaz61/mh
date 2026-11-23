@@ -84,7 +84,7 @@ test('indexing HTML-like titles remains raw data, all UI markup must escape them
   assert.doesNotMatch(search,/setMeta\(|putNote\(|deleteNote\(/);
 });
 test('v1.0 search integrates with route, local-first data and offline cache',()=>{
-  assert.equal(VERSION,'2.6.0');
+  assert.equal(VERSION,'2.7.0');
   const app=read('js/app.js'),index=read('index.html'),sw=read('sw.js'),db=read('js/db.js');
   assert.match(app,/route==='search'/);
   assert.match(app,/home-universal-search/);

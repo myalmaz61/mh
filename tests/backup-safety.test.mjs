@@ -7,7 +7,7 @@ import {compareBackupContents,backupReminderState} from '../js/backup-preview-co
 const mkNote=(id,body)=>({id,kind:'text',title:'Note',body,items:[],pinned:false,favourite:false,createdAt:'2026-11-01T12:00:00Z',updatedAt:'2026-11-01T12:00:00Z'});
 const empty=()=>validateBackup({app:'MyHub',format:1,version:'0.1.0',data:{notes:[],settings:{theme:'auto',language:'bg',favourites:[],timeZones:[]},calcHistory:[]}});
 test('v1.8 keeps database and backup format intact',()=>{
- assert.equal(VERSION,'2.6.0');
+ assert.equal(VERSION,'2.7.0');
  const source=readFileSync(new URL('../js/db.js',import.meta.url),'utf8');
  assert.match(source,/const DB_NAME = 'myhub-local'/);
  assert.match(source,/const DB_VERSION = 1/);
@@ -85,6 +85,6 @@ test('UI shows comparison and explicit checkbox only on Restore',()=>{
 });
 test('no unwanted additional privileges or network are needed',()=>{
  const worker=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
- assert.match(worker,/myhub-shell-v2\.6\.0/);
+ assert.match(worker,/myhub-shell-v2\.7\.0/);
  assert.match(worker,/js\/backup-preview-core\.js/);
 });

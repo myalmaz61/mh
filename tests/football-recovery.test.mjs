@@ -70,5 +70,5 @@ test('all Football source-status translations exist in Bulgarian and English',()
 });
 test('new module precached with correct version, legacy modules still included',()=>{
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  for(const asset of ['myhub-shell-v2.6.0','js/football-recovery-core.js','js/football-refresh-core.js','js/notes.js','js/weather.js'])assert.ok(sw.includes(asset));
+  for(const asset of ['myhub-shell-v2.7.0','js/football-recovery-core.js','js/football-refresh-core.js','js/notes.js','js/weather.js'])assert.ok(sw.includes(asset));
 });
