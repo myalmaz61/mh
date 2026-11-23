@@ -73,3 +73,10 @@
 .trash-card .note-preview{margin:10px 0;color:var(--text-muted,inherit);white-space:pre-wrap;}
 .notes-trash-footer{display:flex;justify-content:flex-end;margin:16px 0 30px;}
 @media (max-width:480px){.trash-card .row-between{flex-wrap:wrap;}.notes-trash-footer .danger-btn{width:100%;}}
+
+/* v3.1: optional note categories. Existing cards and editor remain unchanged otherwise. */
+.notes-category-filter{grid-column:1/-1}
+.note-category-editor{display:grid;gap:7px;margin:0 0 17px;color:var(--muted);font-size:12px;font-weight:650}
+.note-category-editor small{font-weight:400}
+.note-category-editor .text-field{min-height:44px}
+.note-category-chip{display:inline-block;max-width:100%;overflow-wrap:anywhere;background:var(--surface-alt);color:var(--accent);border-radius:9px;padding:4px 8px;font-size:11px;font-weight:650}

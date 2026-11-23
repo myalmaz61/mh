@@ -1,32 +1,37 @@
-# MyHub — Personal Tools v3.0.0
+# MyHub — Personal Tools v3.1.0
 
-Local-first Bulgarian/English Android-friendly PWA for GitHub Pages. No account, paid API, server or build step required for deployment.
+Безплатна, local-first PWA на български и английски за Android Chrome и GitHub Pages. Не са нужни акаунти, сървър, платени API или build процес.
 
-## New in 3.0.0: persistent Notes Trash
+## Ново във версия 3.1.0
 
-- **Notes → Кошче / Trash**: keeps deleted notes and checklists after closing or restarting the PWA.
-- Restore the **original record**, including checklist ticks, pinned/favourite flags, timestamps and ID.
-- One-tap Undo remains immediately after deletion, but deleted notes now also remain in Trash.
-- **Delete forever** (one record) and **Empty Trash** (all records) require explicit confirmation. Trash is never emptied automatically.
-- Maximum 100 deleted notes. When full, deleting another note is refused; no automatic eviction.
-- Deletion/restore use one IndexedDB transaction across `notes` and `meta`; invalid/corrupt data and stale-editor edits abort without writes. Restore never overwrites an existing ID.
-- JSON Backup **format 1** now includes `notesTrashData`. Existing older archives remain valid; restoring an older archive will replace the current trash with an empty one, after a preview warning.
-- Restore preview compares deleted notes as a separate category.
+### Notes: незадължителни категории
 
-## Technical choices
+- В редактора на бележка можеш да въведеш категория до 40 символа, например „Лични“, „Работа“, „Покупки“.
+- Категориите са свободен текст, без задължителни папки или преместване на файлове.
+- Когато съществува поне една категория, в списъка се появява филтър с всички, отделни и „Без категория“; той работи заедно с търсене и „Закрепени / Любими“.
+- Категориите се търсят и чрез Universal Search, запазват се в дублирани бележки, постоянния Trash и JSON архивите.
+- Старите бележки без `category` са напълно валидни; няма миграция или нов IndexedDB store. Некоректни категории се отхвърлят от Backup / Restore.
 
-- Same IndexedDB name `myhub-local`, **version 1**; no database upgrade or migration.
-- New meta key `notesTrashData` with `{schema:1,items:[{note,deletedAt}]}`.
-- New module `js/notes-trash-core.js` validates every deleted record.
-- Service worker cache `myhub-shell-v3.0.0` precaches the new module.
-- Football (including SportScore), Weather, and all other existing modules are **unchanged**.
+### Weather: днес срещу утре
 
-## Testing
+- Същата безплатна Open-Meteo заявка вече кешира до 48 предстоящи почасови стойности вместо до 12.
+- Нови компактни разгъваеми панели „Днес“ и „Утре“, с максималната известна вероятност за валежи и подробните почасови данни (спрямо **местното време на избрания град**).
+- Съществуващото резюме за следващите 12 часа остава непроменено.
+- Липсващите вероятности не се преобразуват в 0%. Старите 12-часови кешове остават валидни; за попълване на утрешните часове натисни „Обнови“ при интернет.
+- Кешът е офлайн и влиза в JSON Backup/Restore. Не се извършват допълнителни заявки към Open-Meteo.
 
-Run `npm test` using Node 22+ to exercise all old and new tests (no npm install needed). The new tests include a transactional fake IndexedDB and cover atomic deletion, restoration, corrupt data, ID collisions, old JSON files, and trash in the restore preview.
+## Защита и съвместимост
 
-The automated tests do not substitute for manually checking the installed PWA on Android Chrome. See `START-HERE-BG.md` for a safe test using a disposable note.
+- IndexedDB остава `myhub-local` версия **1**, JSON Backup остава **формат 1**.
+- Кошчето запазва категориите и оригиналните идентификатори на бележките.
+- От v3.0.0 до v3.1.0 не са променяни **Football / SportScore**, Tasks, Calendar или останалите инструменти.
+- PWA офлайн кеш: `myhub-shell-v3.1.0`; включва двата нови модула.
+- Запазвай JSON архивите извън Site Data преди обновяване. Не деинсталирай PWA.
 
-## Files
+## Тестове
 
-Use `MyHub-v3.0.0-UPDATE-ONLY.zip` only when upgrading the existing v2.9.0 files. Use the complete ZIP for a new repository. `APP-FILES-ONLY.txt` lists the minimal files to publish via Android + GitHub. Other modules and data must not be deleted.
+`npm test` с Node.js 22+ (без npm install) — 346 теста. Синтаксисът на всички JS модули и списъкът със Service Worker ресурси се проверяват при пакетиране.
+
+**Граница на проверката:** тестовият Chromium блокира локалния адрес с `ERR_BLOCKED_BY_ADMINISTRATOR`, затова пълният браузърен тест върху инсталиран Android Chrome не е извършен. Тествай с пробна бележка и реално заредена прогноза след GitHub Pages публикацията.
+
+Виж `START-HERE-BG.md` за инструкции. `APP-FILES-ONLY.txt` е минималният списък за GitHub Pages, а `CHANGED-FILES.txt` включва и тестовете.

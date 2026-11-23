@@ -1,18 +1,23 @@
-# MyHub v3.0.0 — обновяване от v2.9.0
-# Пълният списък, включително документация и тестове.
+# MyHub v3.1.0 — пълен списък нови / променени спрямо v3.0.0
+# Включва документация, тестове и минималните файлове за приложението.
 
 APP-FILES-ONLY.txt
 CHANGED-FILES.txt
 README.md
 RELEASE-NOTES-BG.md
 START-HERE-BG.md
-js/app.js
-js/backup-preview-core.js
 js/config.js
 js/db.js
 js/i18n.js
+js/note-actions-core.js
+js/notes-category-core.js
 js/notes-trash-core.js
+js/notes-view-core.js
 js/notes.js
+js/search-core.js
+js/utils.js
+js/weather-day-compare-core.js
+js/weather.js
 package.json
 styles.css
 sw.js
@@ -24,8 +29,8 @@ tests/favourites.test.mjs
 tests/football-recovery.test.mjs
 tests/football.test.mjs
 tests/mini-tools.test.mjs
+tests/notes-categories.test.mjs
 tests/notes-trash.test.mjs
-tests/notes-undo.test.mjs
 tests/quick-add.test.mjs
 tests/quick-calendar.test.mjs
 tests/reliability.test.mjs
@@ -40,5 +45,7 @@ tests/tool-order.test.mjs
 tests/utilities.test.mjs
 tests/v2-stability.test.mjs
 tests/visibility.test.mjs
+tests/weather-day-compare.test.mjs
 tests/weather-hour.test.mjs
 tests/weather.test.mjs
+weather.css

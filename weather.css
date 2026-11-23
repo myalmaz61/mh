@@ -52,3 +52,17 @@
 .weather-hour-hint{font-size:11px;color:var(--muted);margin:-3px 0 11px;line-height:1.4}
 .weather-rain-track{height:7px;width:100%;min-width:55px;border:1px solid var(--stroke);border-radius:99px;background:var(--surface);overflow:hidden}
 .weather-rain-fill{height:100%;background:var(--accent);border-radius:99px}
+
+/* v3.1 compact, optional today/tomorrow detail (city-local hours). */
+.weather-day-comparison{margin:18px 0}
+.weather-compare-grid{display:grid;gap:9px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.weather-compare-card{border:1px solid var(--stroke);border-radius:13px;background:var(--surface);min-width:0;padding:10px}
+.weather-compare-card summary{cursor:pointer;display:flex;justify-content:space-between;gap:6px;align-items:center;font-size:12px;list-style:none}
+.weather-compare-card summary::-webkit-details-marker{display:none}
+.weather-compare-card summary strong{display:block;font-size:13px}
+.weather-compare-card summary small{display:block;margin-top:3px;color:var(--muted)}
+.weather-compare-rows{margin-top:12px;border-top:1px solid var(--stroke)}
+.weather-compare-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:11px;padding:7px 1px;border-bottom:1px solid var(--stroke);text-align:right}
+.weather-compare-row span:first-child{text-align:left}
+.weather-compare-card .muted{font-size:11px}
+@media(max-width:350px){.weather-compare-grid{grid-template-columns:1fr}}

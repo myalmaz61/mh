@@ -1,12 +1,19 @@
-# MyHub v3.0.0 — минимални файлове за GitHub Pages при обновяване от v2.9.0
-# Запази точно имената и папките. Другите файлове (тестове и документация) са по желание.
+# MyHub v3.1.0 — файлове за публикуване от v3.0.0
+# Създай новите js/notes-category-core.js и js/weather-day-compare-core.js в папката js.
+# Не деинсталирай PWA и не изтривай останалите файлове.
 
-js/app.js
-js/backup-preview-core.js
 js/config.js
 js/db.js
 js/i18n.js
+js/note-actions-core.js
+js/notes-category-core.js
 js/notes-trash-core.js
+js/notes-view-core.js
 js/notes.js
+js/search-core.js
+js/utils.js
+js/weather-day-compare-core.js
+js/weather.js
 styles.css
 sw.js
+weather.css
