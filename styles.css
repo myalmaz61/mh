@@ -61,3 +61,7 @@
 .notes-filters select{min-width:0;width:100%;min-height:44px;padding:8px 7px;font-size:13px}
 .notes-count{font-size:11px;color:var(--muted);margin:12px 0 0}
 @media(max-width:350px){.notes-filters{grid-template-columns:1fr}}
+
+/* v2.9 — one-shot note deletion undo (never stored in personal backup). */
+.notes-undo{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--stroke);border-radius:13px;background:var(--surface-alt);padding:10px 13px;margin:-5px 0 17px;color:var(--muted);font-size:12px;line-height:1.4}
+.notes-undo .secondary-btn{min-height:40px}

@@ -1,13 +1,15 @@
-# MyHub v2.8.0 — update from v2.7.0
-# Copy each file to the SAME path; do not delete other files.
+# MyHub v2.9.0 — update from v2.8.0
+# Put each file at the EXACT same path as before.
 
+APP-FILES-ONLY.txt
+CHANGED-FILES.txt
 README.md
 START-HERE-BG.md
 js/config.js
+js/db.js
 js/i18n.js
-js/notes-view-core.js
 js/notes.js
-js/weather-rain-core.js
+js/weather-hour-core.js
 js/weather.js
 package.json
 styles.css
@@ -20,7 +22,7 @@ tests/favourites.test.mjs
 tests/football-recovery.test.mjs
 tests/football.test.mjs
 tests/mini-tools.test.mjs
-tests/notes-view.test.mjs
+tests/notes-undo.test.mjs
 tests/quick-add.test.mjs
 tests/quick-calendar.test.mjs
 tests/reliability.test.mjs
@@ -35,6 +37,6 @@ tests/tool-order.test.mjs
 tests/utilities.test.mjs
 tests/v2-stability.test.mjs
 tests/visibility.test.mjs
-tests/weather-outlook.test.mjs
+tests/weather-hour.test.mjs
 tests/weather.test.mjs
 weather.css

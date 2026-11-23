@@ -1,0 +1,12 @@
+# MyHub v2.9.0 — only files required for published app
+# Other changes are tests/documentation.
+
+js/config.js
+js/db.js
+js/i18n.js
+js/notes.js
+js/weather-hour-core.js
+js/weather.js
+styles.css
+sw.js
+weather.css
