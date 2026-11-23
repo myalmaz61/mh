@@ -4,6 +4,7 @@ import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
 import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
 import { selectNotes } from './notes-view-core.js';
+import { NOTES_PAGE_SIZE, sliceNotesPage, nextNotesPageLimit } from './notes-list-core.js';
 import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
 import { parseChecklistBatch, setChecklistCompletion, checklistProgress, moveChecklistRow } from './notes-checklist-core.js';
@@ -23,6 +24,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let search = '';
   let scope = 'all';
   let order = 'newest';
+  let displayedLimit = NOTES_PAGE_SIZE;
   let categoryFilter = '*';
   let bulkMode = false;
   let quickActionBusy = false;
@@ -81,9 +83,11 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       </div>`:''}</div>
       ${lastDeleted ? `<div class="notes-undo" role="status"><span>${t('notesDeletedUndo')}</span><button type="button" class="secondary-btn" id="undo-delete-note">${t('notesUndo')}</button></div>` : ''}
       <div class="notes-filter-reset"><button type="button" class="text-link" id="notes-reset-filters" hidden>${t('notesResetFilters')}</button></div>
-      <div id="notes-list" class="notes-grid"></div>`;
+      <div id="notes-list" class="notes-grid"></div><div class="notes-pagination"><span id="notes-page-count" class="muted" aria-live="polite"></span><button type="button" class="secondary-btn" id="notes-show-more" hidden>${t('notesShowMore')}</button></div>`;
     const searchInput=element.querySelector('#note-search');
     const resultList=element.querySelector('#notes-list');
+    const showMore=element.querySelector('#notes-show-more');
+    const pageCount=element.querySelector('#notes-page-count');
     const scopeInput=element.querySelector('#note-scope');
     const orderInput=element.querySelector('#note-order');
     const categoryInput=element.querySelector('#note-category-filter');
@@ -92,11 +96,14 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     if(categoryInput)categoryInput.value=categoryFilter;
     const renderList=() => {
       const visible=selectNotes(notes,{query:search,scope,order,locale,category:categoryFilter});
+      const page=sliceNotesPage(visible,displayedLimit);
       element.querySelector('#notes-count').textContent=t('notesCount').replace('{shown}',String(visible.length)).replace('{total}',String(notes.length));
       const hasFilters=Boolean(search.trim())||scope!=='all'||order!=='newest'||categoryFilter!=='*';
       const reset=element.querySelector('#notes-reset-filters');
       if(reset)reset.hidden=!hasFilters;
-      resultList.innerHTML=visible.length ? visible.map(n => {
+      pageCount.textContent=visible.length>page.length ? t('notesShowingPage').replace('{shown}',String(page.length)).replace('{total}',String(visible.length)) : '';
+      showMore.hidden=page.length>=visible.length;
+      resultList.innerHTML=visible.length ? page.map(n => {
         const summary=n.kind==='checklist' ? `${n.items.filter(i=>i.done).length}/${n.items.length} ✓ · ${n.items.slice(0,2).map(i=>i.text).join(', ')}` : n.body.slice(0,110);
         const label=n.title.trim() || (n.kind==='checklist' ? t('newChecklist') : t('newNote'));
         const content=`<div class="row-between"><span class="note-type">${n.kind==='checklist'?'☑':'✎'} ${n.kind==='checklist' ? t('newChecklist') : t('newNote')}</span><span>${n.pinned?'📌 ':''}${n.favourite?'★':''}</span></div>
@@ -114,12 +121,17 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         if(selectAll)selectAll.disabled=visible.length===0;
       }
     };
-    searchInput.addEventListener('input', () => {search=searchInput.value;selectedIds.clear();renderList();});
-    scopeInput.addEventListener('change',()=>{scope=scopeInput.value;selectedIds.clear();renderList();});
-    orderInput.addEventListener('change',()=>{order=orderInput.value;renderList();});
-    categoryInput?.addEventListener('change',()=>{categoryFilter=categoryInput.value;selectedIds.clear();renderList();});
+    showMore.addEventListener('click',()=>{
+      const count=selectNotes(notes,{query:search,scope,order,locale,category:categoryFilter}).length;
+      displayedLimit=nextNotesPageLimit(displayedLimit,count);
+      renderList();
+    });
+    searchInput.addEventListener('input', () => {search=searchInput.value;displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();renderList();});
+    scopeInput.addEventListener('change',()=>{scope=scopeInput.value;displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();renderList();});
+    orderInput.addEventListener('change',()=>{order=orderInput.value;displayedLimit=NOTES_PAGE_SIZE;renderList();});
+    categoryInput?.addEventListener('change',()=>{categoryFilter=categoryInput.value;displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();renderList();});
     element.querySelector('#notes-reset-filters').addEventListener('click',()=>{
-      search='';scope='all';order='newest';categoryFilter='*';selectedIds.clear();
+      search='';scope='all';order='newest';categoryFilter='*';displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();
       searchInput.value='';scopeInput.value=scope;orderInput.value=order;
       if(categoryInput)categoryInput.value=categoryFilter;
       renderList();searchInput.focus();
