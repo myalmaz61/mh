@@ -102,3 +102,10 @@
 .checklist-bulk summary{cursor:pointer;font-size:13px;font-weight:700}
 .checklist-bulk label{display:block;font-size:12px;margin:12px 0 7px;color:var(--muted)}
 .checklist-bulk textarea{display:block;width:100%;min-height:100px;resize:vertical;margin-bottom:10px;box-sizing:border-box}
+
+/* v3.4: compact touch-sized checklist reordering; no drag gesture needed. */
+.checklist-move-controls{display:flex;gap:2px;flex-shrink:0}
+.checklist-move-btn{display:grid;place-items:center;width:38px;min-height:44px;padding:0;background:transparent;color:var(--accent);border:1px solid var(--stroke);border-radius:10px;font-size:20px;font-weight:700;cursor:pointer}
+.checklist-move-btn:disabled{opacity:.28;cursor:default}
+.checklist-move-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:400px){.checklist-row{gap:4px}.checklist-move-btn{width:34px;min-height:44px}.checklist-row .icon-btn.subtle{width:32px;min-width:32px;padding:0}}
