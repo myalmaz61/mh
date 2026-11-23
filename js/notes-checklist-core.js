@@ -32,3 +32,27 @@ export function checklistProgress(items) {
   if (!Array.isArray(items)) return {done:0,total:0};
   return {done:items.filter(row=>row?.done===true).length,total:items.length};
 }
+
+
+/** Move one checklist row in the stored order, without mutating the original.
+ * If completed rows are hidden, navigation swaps with the nearest visible row;
+ * completed rows keep their position and state. Returns null at a boundary.
+ */
+export function moveChecklistRow(items, index, direction, { skipCompleted = false } = {}) {
+  if (!Array.isArray(items) || items.length > MAX_CHECKLIST_ROWS ||
+      !Number.isInteger(index) || index < 0 || index >= items.length ||
+      (direction !== -1 && direction !== 1) || typeof skipCompleted !== 'boolean' ||
+      items.some(item => !item || typeof item.id !== 'string' || !item.id ||
+        typeof item.text !== 'string' || typeof item.done !== 'boolean')) {
+    throw Error('invalid-checklist-move');
+  }
+  if (skipCompleted && items[index].done) return null;
+  let neighbour = index + direction;
+  while (skipCompleted && neighbour >= 0 && neighbour < items.length && items[neighbour].done) {
+    neighbour += direction;
+  }
+  if (neighbour < 0 || neighbour >= items.length) return null;
+  const result = [...items];
+  [result[index], result[neighbour]] = [result[neighbour], result[index]];
+  return {items: result, index: neighbour};
+}

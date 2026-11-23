@@ -6,7 +6,7 @@ import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
 import { selectNotes } from './notes-view-core.js';
 import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
-import { parseChecklistBatch, setChecklistCompletion, checklistProgress } from './notes-checklist-core.js';
+import { parseChecklistBatch, setChecklistCompletion, checklistProgress, moveChecklistRow } from './notes-checklist-core.js';
 
 export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
@@ -283,8 +283,12 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         const progress=checklistProgress(n.items);
         const progressElement=element.querySelector('#checklist-progress');
         if(progressElement) progressElement.textContent=t('checklistProgress').replace('{done}',String(progress.done)).replace('{total}',String(progress.total));
+        const shown = n.items.map((item, index) => (hideCompleted && item.done ? -1 : index)).filter(index => index >= 0);
+        const firstVisible = shown[0], lastVisible = shown.at(-1);
         checklist.innerHTML=n.items.map((item,index)=>`<div class="checklist-row" ${hideCompleted && item.done?'hidden':''}><label class="check-row-label"><input type="checkbox" data-done="${index}" ${item.done?'checked':''} aria-label="${t('done')}"><span></span></label>
           <input class="check-text" maxlength="2000" data-item-text="${index}" value="${escapeHtml(item.text)}" aria-label="${t('checklistPlaceholder')}">
+          <span class="checklist-move-controls"><button class="checklist-move-btn" type="button" data-move-item="${index}" data-move-direction="up" aria-label="${t('moveUp')}: ${escapeHtml(item.text)}" title="${t('moveUp')}" ${index===firstVisible || (hideCompleted && item.done)?'disabled':''}>↑</button>
+          <button class="checklist-move-btn" type="button" data-move-item="${index}" data-move-direction="down" aria-label="${t('moveDown')}: ${escapeHtml(item.text)}" title="${t('moveDown')}" ${index===lastVisible || (hideCompleted && item.done)?'disabled':''}>↓</button></span>
           <button class="icon-btn subtle" type="button" data-delete-item="${index}" aria-label="${t('deleteItem')}">×</button></div>`).join('');
       };
       checklist.addEventListener('input',event=>{
@@ -300,6 +304,21 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         }
       });
       checklist.addEventListener('click',event=>{
+        const move=event.target.closest('[data-move-item]');
+        if(move && !move.disabled){
+          const idx=Number(move.dataset.moveItem);
+          const direction=move.dataset.moveDirection==='up'?-1:1;
+          try {
+            const moved=moveChecklistRow(n.items,idx,direction,{skipCompleted:hideCompleted});
+            if(!moved)return;
+            n.items=moved.items;
+            update();renderItems();
+            // Keep keyboard and screen-reader focus on the same moved row.
+            const target=checklist.querySelector(`[data-move-item="${moved.index}"][data-move-direction="${move.dataset.moveDirection}"]`);
+            (target?.disabled ? checklist.querySelector(`[data-move-item="${moved.index}"][data-move-direction="${direction===-1?'down':'up'}"]`) : target)?.focus({preventScroll:true});
+          } catch(error){notify(`${t('error')}: ${error.message}`);}
+          return;
+        }
         const button=event.target.closest('[data-delete-item]');
         if(button){n.items.splice(Number(button.dataset.deleteItem),1);update();renderItems();}
       });
