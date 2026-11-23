@@ -69,7 +69,7 @@ test('Undo is explicitly temporary and translated; old Notes actions still prese
   assert.match(notesSource,/let lastDeleted = null/);
   assert.match(notesSource,/lastDeleted=null;/);
   assert.match(notesSource,/id="undo-delete-note"/);
-  assert.match(notesSource,/restoreDeletedNote\(candidate\)/);
+  assert.match(notesSource,/restoreTrashedNote\(lastDeleted\)/);
   assert.match(notesSource,/id="copy-note"/);
   assert.match(notesSource,/id="duplicate-note"/);
   for(const language of ['bg','en'])for(const key of ['notesDeletedUndo','notesUndo','notesUndoSuccess','notesUndoFailed']){

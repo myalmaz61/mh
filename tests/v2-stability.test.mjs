@@ -60,7 +60,7 @@ function reset(){state.notes=[];state.meta=new Map([['settings',structuredClone(
 const mkNote=(id,body='A')=>({id,kind:'text',title:'Note',body,items:[],pinned:false,favourite:false,createdAt:'2026-11-22T12:00:00.000Z',updatedAt:'2026-11-22T12:00:00.000Z'});
 // Tests are awaited sequentially because the state and fake IndexedDB are shared.
 test('v2 uses same IndexedDB schema and no extra services',()=>{
-  assert.equal(VERSION,'2.9.0');
+  assert.equal(VERSION,'3.0.0');
   const src=readFileSync(new URL('../js/db.js',import.meta.url),'utf8');
   assert.match(src,/DB_NAME = 'myhub-local'/);
   assert.match(src,/DB_VERSION = 1/);
@@ -78,7 +78,7 @@ test('backup export validates full consistent snapshot and does no writes',async
   reset();await putNote(mkNote('a'));
   transactions.length=0;
   const exported=await createBackup();
-  assert.equal(exported.version,'2.9.0');
+  assert.equal(exported.version,'3.0.0');
   assert.equal(validateBackup(exported).notes[0].id,'a');
   assert.deepEqual(transactions,[{scope:['notes','meta'],mode:'readonly'}]);
 });
@@ -129,13 +129,13 @@ test('invalid archive never starts a write transaction',async()=>{
 });
 test('service worker keeps matching HTML and scripts in one versioned shell',async()=>{
   const source=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  assert.match(source,/myhub-shell-v2\.9\.0/);
+  assert.match(source,/myhub-shell-v3\.0\.0/);
   const listeners=new Map(),requested=[];
   const scope='https://test.example/myhub/';
   const shell=new Map([[scope+'index.html',{tag:'cached-index-v2'}],[scope+'share.html',{tag:'cached-share-v2'}]]);
   const ctx={URL,Response:{error:()=>({tag:'offline-error'})},console,
     self:{registration:{scope},addEventListener:(n,fn)=>listeners.set(n,fn)},
-    caches:{open:async name=>{assert.equal(name,'myhub-shell-v2.9.0');return {match:async url=>shell.get(url)};}},
+    caches:{open:async name=>{assert.equal(name,'myhub-shell-v3.0.0');return {match:async url=>shell.get(url)};}},
     fetch:async request=>{requested.push(request.url);return {tag:'network-v3'};}};
   vm.runInNewContext(source,ctx);
   for(const [url,tag] of [[scope,'cached-index-v2'],[scope+'share.html?shareId=local-token','cached-share-v2']]){

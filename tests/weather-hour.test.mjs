@@ -24,7 +24,7 @@ test('Weather cards show cached probability text AND a visual bar, without extra
 });
 test('SW includes new Weather helper and keeps unique versioned shell',()=>{
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  assert.match(sw,/myhub-shell-v2\.9\.0/);
+  assert.match(sw,/myhub-shell-v3\.0\.0/);
   assert.match(sw,/js\/weather-hour-core\.js/);
   assert.match(sw,/js\/weather-rain-core\.js/);
 });
