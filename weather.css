@@ -62,7 +62,12 @@
 .weather-compare-card summary strong{display:block;font-size:13px}
 .weather-compare-card summary small{display:block;margin-top:3px;color:var(--muted)}
 .weather-compare-rows{margin-top:12px;border-top:1px solid var(--stroke)}
-.weather-compare-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:11px;padding:7px 1px;border-bottom:1px solid var(--stroke);text-align:right}
+.weather-compare-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:11px;padding:7px 1px;border-bottom:1px solid var(--stroke);text-align:right}
 .weather-compare-row span:first-child{text-align:left}
 .weather-compare-card .muted{font-size:11px}
 @media(max-width:350px){.weather-compare-grid{grid-template-columns:1fr}}
+
+/* v3.3: daily temperature/wind comparison; unknown values display as dashes. */
+.weather-compare-summary{font-size:11px;line-height:1.6;color:var(--muted);margin:10px 0 0}
+.weather-compare-summary span{display:block}
+.weather-compare-head{font-weight:700;color:var(--muted)}
