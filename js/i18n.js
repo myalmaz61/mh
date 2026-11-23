@@ -109,6 +109,7 @@ const labels = {
     quickCorrupt:'Данните на бързите списъци са повредени. Не са изтрити или презаписани. Запази данните и потърси помощ.',
     quickLocalHint:'Списъците са отделни от Бележки и се включват в JSON архива.',
 
+    footballSecondTitle:'Провери резултатите от втори източник (SportScore)',footballSecondHint:'Независими резултати по UTC дата. Избери събота или неделя, ако OpenLigaDB още няма краен резултат. Не се променят твоите фаворити и мачове.',footballSecondDate:'Дата',footballSecondYesterday:'Вчера',footballSecondFilter:'Търси отбор или първенство…',footballSecondFinal:'Завършил (SportScore)',footballSecondLive:'В игра (SportScore)',footballSecondUnknown:'Непотвърден статус',footballSecondShown:'Показани срещи',footballSecondEmpty:'Няма открити срещи за тази дата или филтър.',footballSecondLimit:'Показваме до 80 срещи; използвай търсене.',footballSecondBadDay:'Избери валидна дата, не по-късна от днес.',footballSecondOffline:'Необходим е интернет за втория източник.',footballSecondLimited:'Последната проверка е отпреди по-малко от 5 минути.',footballSecondError:'Неуспешно зареждане от SportScore.',footballSecondDisclaimer:'Данните са независими от OpenLigaDB и могат да са непълни. Не са гарантирано на живо.',
     football:'Футболни резултати',footballDesc:'Програма, резултати и любими отбори',
     footballIntro:'Реални данни от OpenLigaDB. Наличността и точността зависят от общността.',
     footballMyLeagues:'Моите първенства',footballSelectLeague:'Избери първенство',
@@ -274,6 +275,7 @@ const labels = {
     quickCorrupt:'Quick checklist data appears damaged. It has not been erased or overwritten. Preserve your data and seek assistance.',
     quickLocalHint:'Checklists are separate from Notes and are included in JSON backups.',
 
+    footballSecondTitle:'Check another score source (SportScore)',footballSecondHint:'Independent results by UTC date. Choose Saturday or Sunday if OpenLigaDB still lacks a final result. Your favourites and saved fixtures are unchanged.',footballSecondDate:'Date',footballSecondYesterday:'Yesterday',footballSecondFilter:'Search a team or competition…',footballSecondFinal:'Finished (SportScore)',footballSecondLive:'In play (SportScore)',footballSecondUnknown:'Unconfirmed status',footballSecondShown:'Matches shown',footballSecondEmpty:'No matches found for this date or filter.',footballSecondLimit:'Showing up to 80 matches; use search.',footballSecondBadDay:'Choose a valid date no later than today.',footballSecondOffline:'Internet is needed for the second source.',footballSecondLimited:'Checked less than 5 minutes ago.',footballSecondError:'Could not load SportScore results.',footballSecondDisclaimer:'Independent of OpenLigaDB; may be incomplete or delayed. Not guaranteed live.',
     football:'Football Scores',footballDesc:'Fixtures, results and favourite teams',
     footballIntro:'Real OpenLigaDB data. Coverage and accuracy depend on community updates.',
     footballMyLeagues:'My leagues',footballSelectLeague:'Choose league',

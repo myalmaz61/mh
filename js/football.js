@@ -1,4 +1,5 @@
 import {getMeta,setMeta} from './db.js';
+import {mountFootballSecondSource} from './football-second-source.js';
 import {escapeHtml} from './utils.js';
 import {FOOTBALL_BASE,MAX_LEAGUES,emptyFootballData,validFootballData,leagueListFromAPI,
   matchURL,parseMatches,matchStatus,visibleMatches,hasPossibleMatch} from './football-core.js';
@@ -41,7 +42,20 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
       <button type="button" data-football-tab="finished">${t('footballFinished')}</button>
       <button type="button" data-football-tab="favorites">★ ${t('footballFavorites')}</button></div>
       <div id="football-matches" aria-live="polite"></div></section>
+    <details class="surface football-second-panel" id="football-second-details"><summary>${t('footballSecondTitle')}</summary>
+      <p class="muted">${t('footballSecondHint')}</p>
+      <div class="football-second-controls"><label>${t('footballSecondDate')} (UTC)<input class="text-field" id="football-second-date" type="date"></label>
+        <button type="button" class="secondary-btn" id="football-second-today">${t('calendarToday')}</button>
+        <button type="button" class="secondary-btn" id="football-second-yesterday">${t('footballSecondYesterday')}</button>
+        <button type="button" class="secondary-btn" id="football-second-refresh">↻ ${t('weatherRefresh')}</button></div>
+      <label class="sr-only" for="football-second-search">${t('footballSecondFilter')}</label>
+      <input class="text-field football-second-search" id="football-second-search" type="search" maxlength="80" placeholder="${t('footballSecondFilter')}">
+      <p id="football-second-message" class="muted" role="status" aria-live="polite"></p>
+      <div id="football-second-results" aria-live="polite"></div>
+      <p class="football-source"><a href="https://sportscore.com/" rel="dofollow" title="Sports data by SportScore" target="_blank">Powered by SportScore</a> · ${t('footballSecondDisclaimer')}</p>
+    </details>
     <p class="football-source">${t('footballSource')}: <a href="https://www.openligadb.de/" target="_blank" rel="noopener noreferrer">OpenLigaDB</a> (<a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener noreferrer">ODbL 1.0</a>) · ${t('footballCaution')}</p>`;
+  const releaseSecondSource=mountFootballSecondSource({element,t,lang});
   const one=sel=>element.querySelector(sel);
   const select=one('#football-league'),results=one('#football-matches');
   const league=()=>data.leagues.find(l=>l.key===data.selected);
@@ -267,6 +281,6 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   const onOnline=()=>{render();tick();},onOffline=()=>render();
   window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);
   render();void loadMatches();
-  return ()=>{dead=true;clearInterval(interval);document.removeEventListener('visibilitychange',onFocus);
+  return ()=>{dead=true;releaseSecondSource();clearInterval(interval);document.removeEventListener('visibilitychange',onFocus);
     window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);currentController?.abort();catalogController?.abort();};
 }
