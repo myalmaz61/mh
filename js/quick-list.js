@@ -1,11 +1,12 @@
-import {getMeta,setMeta} from './db.js';
+import {getMeta,setMetaIfUnchanged} from './db.js';
+import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
 import {escapeHtml,uid} from './utils.js';
 import {emptyQuickLists,validQuickListsData,quickProgress,MAX_QUICK_LISTS,MAX_QUICK_ITEMS} from './quick-list-core.js';
 
 const now=()=>new Date().toISOString();
 export async function mountQuickList({element,t,notify,confirmAction,initialId=null}){
-  let data=await getMeta('quickListsData');
-  if(data===undefined)data=emptyQuickLists();
+  let savedSnapshot=await getMeta('quickListsData');
+  let data=savedSnapshot===undefined?emptyQuickLists():savedSnapshot;
   if(!validQuickListsData(data)){
     element.innerHTML=`<section class="tool-head"><h1>${t('quickList')}</h1></section><section class="surface"><p class="warning-text">${t('quickCorrupt')}</p></section>`;
     return ()=>{};
@@ -42,14 +43,15 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
   async function persist(next,success){
     if(busy||!validQuickListsData(next)){notify(t('quickInvalid'));return false;}
     busy=true;
-    try{await setMeta('quickListsData',next);data=next;success?.();render();return true;}
-    catch(err){console.error(err);notify(t('quickSaveError'));return false;}
+    try{await setMetaIfUnchanged('quickListsData',savedSnapshot,next);savedSnapshot=next;data=next;success?.();render();return true;}
+    catch(err){console.error(err);showMetaSaveError(element,t,err);notify(t('quickSaveError'));return false;}
     finally{busy=false;}
   }
   const replaceList=(id,change)=>({schema:1,lists:data.lists.map(x=>x.id===id?change(x):x)});
   async function click(event){
     const button=event.target.closest('button');
     if(!button||!element.contains(button)||busy)return;
+    if(!mayLeaveAfterFailure(element,t,confirmAction))return;
     if(button.dataset.quickSelect){selected=button.dataset.quickSelect;renameMode=false;render();return;}
     const list=chosen();if(!list)return;
     const remove=button.dataset.quickRemove;
@@ -75,12 +77,16 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
     if(!input||!element.contains(input)||busy)return;
     const list=chosen();if(!list||!list.items.some(x=>x.id===input.dataset.quickToggle))return;
     const itemId=input.dataset.quickToggle,done=input.checked;
-    await persist(replaceList(list.id,x=>({...x,updatedAt:now(),items:x.items.map(item=>item.id===itemId?{...item,done}:item)})),()=>notify(t('saved')));
+    if(!mayLeaveAfterFailure(element,t,confirmAction)){input.checked=list.items.find(x=>x.id===itemId).done;return;}
+    const original=list.items.find(x=>x.id===itemId);
+    const ok=await persist(replaceList(list.id,x=>({...x,updatedAt:now(),items:x.items.map(item=>item.id===itemId?{...item,done}:item)})),()=>notify(t('saved')));
+    if(!ok && input.isConnected)input.checked=original.done;
   }
   async function submit(event){
     const form=event.target;
-    if(!['quick-new-form','quick-add-item','quick-rename-form'].includes(form?.id)||busy)return;
+    if(!['quick-new-form','quick-add-item','quick-rename-form'].includes(form?.id))return;
     event.preventDefault();
+    if(busy)return;
     const fd=new FormData(form);
     if(form.id==='quick-new-form'){
       if(data.lists.length>=MAX_QUICK_LISTS){notify(t('quickListLimit'));return;}
@@ -102,10 +108,12 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
       element.querySelector('#quick-item-text')?.focus();
     }
   }
+  const onUnload=event=>{if(element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
+  window.addEventListener('beforeunload',onUnload);
   element.addEventListener('click',click);
   element.addEventListener('change',change);
   element.addEventListener('submit',submit);
   render();
-  return ()=>{disposed=true;element.removeEventListener('click',click);
+  return ()=>{if(!mayLeaveAfterFailure(element,t,confirmAction))return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',click);
     element.removeEventListener('change',change);element.removeEventListener('submit',submit);};
 }

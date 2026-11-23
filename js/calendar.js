@@ -1,4 +1,5 @@
-import { getMeta, setMeta } from './db.js';
+import { getMeta, setMetaIfUnchanged } from './db.js';
+import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
 import { escapeHtml, uid } from './utils.js';
 import { draftTaskFromEvent } from './cross-actions-core.js';
 import { CALENDAR_REPEATS, MAX_CALENDAR_EVENTS, emptyCalendar, validCalendarData,
@@ -20,8 +21,8 @@ const startDraft=date=>({title:'',details:'',date,time:'',repeat:'none',repeatUn
 
 /** Mount the isolated Calendar screen. The stored value remains in the existing meta store. */
 export async function mountCalendar({element,t,lang,notify,confirmAction,initialId=null,initialDate=null,showDay=false,onQuickDraft=()=>{}}){
-  let data=await getMeta('calendarData');
-  if(data===undefined)data=emptyCalendar();
+  let savedSnapshot=await getMeta('calendarData');
+  let data=savedSnapshot===undefined?emptyCalendar():savedSnapshot;
   if(!validCalendarData(data)){
     element.innerHTML=`<section class="tool-head"><h1>${t('calendar')}</h1></section><section class="surface"><p class="warning-text">${t('calendarCorrupt')}</p></section>`;
     return ()=>{}; // Never overwrite or silently discard damaged existing data.
@@ -106,11 +107,12 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
   };
   const click=async event=>{
     const cell=event.target.closest('[data-cal-day]');
-    if(cell&&element.contains(cell)){selected=cell.dataset.calDay;const p=parseYmd(selected);if(!p)return;
+    if(cell&&element.contains(cell)){if(!mayLeaveAfterFailure(element,t,confirmAction))return;selected=cell.dataset.calDay;const p=parseYmd(selected);if(!p)return;
       highlightId=null;year=p.year;month=p.month;draft=null;editId=null;render();return;}
     const button=event.target.closest('[data-cal-action]');
     if(!button||!element.contains(button)||pending)return;
     const action=button.dataset.calAction;
+    if(!mayLeaveAfterFailure(element,t,confirmAction))return;
     if(action==='month-view'||action==='day-view'){highlightId=null;view=action==='day-view'?'day':'month';draft=null;editId=null;render();}
     else if(action==='today'){highlightId=null;selected=todayLocal();const p=parseYmd(selected);year=p.year;month=p.month;draft=null;editId=null;render();}
     else if(action==='prev'||action==='next'){movePeriod(action==='prev'?-1:1);draft=null;editId=null;render();}
@@ -139,8 +141,8 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
       if(!confirmAction(t('calendarDeleteConfirm')))return;
       pending=true;
       try {const next={schema:1,events:data.events.filter(e=>e.id!==editId)};
-        await setMeta('calendarData',next);data=next;draft=null;editId=null;notify(t('calendarDeleted'));render();}
-      catch(error){console.error(error);notify(t('calendarSaveError'));}finally{pending=false;}
+        await setMetaIfUnchanged('calendarData',savedSnapshot,next);savedSnapshot=next;data=next;draft=null;editId=null;notify(t('calendarDeleted'));render();}
+      catch(error){console.error(error);showMetaSaveError(element,t,error);notify(t('calendarSaveError'));}finally{pending=false;}
     }
   };
   const change=event=>{
@@ -169,15 +171,17 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     if(!validCalendarData(next)){notify(t('calendarInvalid'));return;}
     pending=true;
     try{
-      await setMeta('calendarData',next);data=next;selected=date;
+      await setMetaIfUnchanged('calendarData',savedSnapshot,next);savedSnapshot=next;data=next;selected=date;
       const p=parseYmd(selected);year=p.year;month=p.month;
       draft=null;editId=null;notify(t('calendarSaved'));render();
-    }catch(error){console.error(error);notify(t('calendarSaveError'));}
+    }catch(error){console.error(error);showMetaSaveError(element,t,error);notify(t('calendarSaveError'));}
     finally{pending=false;}
   };
+  const onUnload=event=>{if(element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
+  window.addEventListener('beforeunload',onUnload);
   element.addEventListener('click',click);
   element.addEventListener('change',change);
   element.addEventListener('submit',submit);
   render();
-  return ()=>{disposed=true;element.removeEventListener('click',click);element.removeEventListener('change',change);element.removeEventListener('submit',submit);};
+  return ()=>{if(!mayLeaveAfterFailure(element,t,confirmAction))return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',click);element.removeEventListener('change',change);element.removeEventListener('submit',submit);};
 }

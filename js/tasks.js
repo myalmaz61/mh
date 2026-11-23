@@ -1,4 +1,5 @@
-import { getMeta, setMeta } from './db.js';
+import { getMeta, setMetaIfUnchanged } from './db.js';
+import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
 import { escapeHtml, uid } from './utils.js';
 import { parseYmd, todayLocal } from './calendar-core.js';
 import { emptyTasks, validTask, validTasksData, filteredTasks, taskCounts, MAX_TASKS } from './tasks-core.js';
@@ -13,8 +14,8 @@ const dateLabel=(ymd,lang)=>{
 
 /** Mount Tasks. No migrations or extra IDB stores needed. */
 export async function mountTasks({element,t,lang,notify,confirmAction,initialId=null,onQuickDraft=()=>{}}){
-  let data=await getMeta('tasksData');
-  if(data===undefined)data=emptyTasks();
+  let savedSnapshot=await getMeta('tasksData');
+  let data=savedSnapshot===undefined?emptyTasks():savedSnapshot;
   if(!validTasksData(data)){
     element.innerHTML=`<section class="tool-head"><h1>${t('tasks')}</h1></section><section class="surface"><p class="warning-text">${t('taskCorrupt')}</p></section>`;
     return ()=>{}; // Keep damaged records intact; never save over them.
@@ -69,14 +70,17 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
   async function persist(next, success){
     if(busy || !validTasksData(next)){notify(t('taskInvalid'));return false;}
     busy=true;
-    try{await setMeta('tasksData',next);data=next;success?.();render();return true;}
-    catch(err){console.error(err);notify(t('taskSaveError'));return false;}
+    try{await setMetaIfUnchanged('tasksData',savedSnapshot,next);savedSnapshot=next;data=next;success?.();render();return true;}
+    catch(err){console.error(err);showMetaSaveError(element,t,err);notify(t('taskSaveError'));return false;}
     finally{busy=false;}
   }
   async function handleClick(event){
     const button=event.target.closest('button');
     if(!button || !element.contains(button)||busy)return;
     const action=button.dataset.taskAction;
+    // A failed form save must not be silently lost by another UI action.
+    if((action || button.dataset.taskFilter || button.dataset.taskEdit || button.dataset.taskDelete || button.dataset.taskToCalendar)
+       && !mayLeaveAfterFailure(element,t,confirmAction))return;
     if(action==='new'){
       if(data.tasks.length>=MAX_TASKS){notify(t('taskLimit'));return;}
       editId=null;formOpen=true;render();element.querySelector('#task-title')?.focus();return;
@@ -102,8 +106,10 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     const input=event.target.closest('[data-task-toggle]');
     if(!input || !element.contains(input)||busy)return;
     const id=input.dataset.taskToggle,original=data.tasks.find(x=>x.id===id);
+    if(!mayLeaveAfterFailure(element,t,confirmAction)){if(original)input.checked=original.done;return;}
     if(!original)return;
-    await persist({schema:1,tasks:data.tasks.map(x=>x.id===id?{...x,done:input.checked,updatedAt:isoNow()}:x)},()=>notify(t('saved')));
+    const ok=await persist({schema:1,tasks:data.tasks.map(x=>x.id===id?{...x,done:input.checked,updatedAt:isoNow()}:x)},()=>notify(t('saved')));
+    if(!ok && input.isConnected)input.checked=original.done;
   }
   function handleInput(event){
     if(event.target?.id!=='task-search')return;
@@ -112,8 +118,9 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     if(list)list.innerHTML=cards(); // Keep input focus and keyboard open.
   }
   async function handleSubmit(event){
-    if(event.target?.id!=='task-form'||busy)return;
+    if(event.target?.id!=='task-form')return;
     event.preventDefault();
+    if(busy)return;
     const fd=new FormData(event.target),title=String(fd.get('title')||'').trim();
     const original=editId?data.tasks.find(x=>x.id===editId):null;
     if(editId&&!original)return;
@@ -126,13 +133,15 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     await persist({schema:1,tasks:original?data.tasks.map(x=>x.id===task.id?task:x):[...data.tasks,task]},
       ()=>{editId=null;formOpen=false;notify(t('taskSaved'));});
   }
+  const onUnload=event=>{if(element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
+  window.addEventListener('beforeunload',onUnload);
   element.addEventListener('click',handleClick);
   element.addEventListener('change',handleChange);
   element.addEventListener('input',handleInput);
   element.addEventListener('submit',handleSubmit);
   render();
   if(formOpen)element.querySelector('#task-editor')?.scrollIntoView({block:'nearest'});
-  return ()=>{disposed=true;element.removeEventListener('click',handleClick);
+  return ()=>{if(!mayLeaveAfterFailure(element,t,confirmAction))return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',handleClick);
     element.removeEventListener('change',handleChange);element.removeEventListener('input',handleInput);
     element.removeEventListener('submit',handleSubmit);};
 }

@@ -1,5 +1,6 @@
 import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
 import { safeClone } from './utils.js';
+import {sameMetaSnapshot} from './meta-save-core.js';
 import { MAX_TRASH_NOTES, emptyNotesTrash, validNotesTrash, validStoredNote } from './notes-trash-core.js';
 import {validNoteCategory} from './notes-category-core.js';
 import {planBulkCategoryChange} from './notes-bulk-core.js';
@@ -287,6 +288,34 @@ export async function getMeta(key) {
 }
 export async function setMeta(key, value) {
   return request('meta','readwrite',store => store.put({ key, value:safeClone(value) }));
+}
+/** Atomic compare-and-swap for Tasks, Calendar and Quick Lists.
+ * Read and write happen in ONE readwrite transaction; concurrent changes
+ * (including Quick Add, Today and Restore) must not be silently overwritten.
+ */
+export async function setMetaIfUnchanged(key, expectedValue, nextValue) {
+  if (!['tasksData','calendarData','quickListsData'].includes(key)) throw Error('Unsupported guarded meta key');
+  const snapshot=safeClone(nextValue);
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite');
+    const store=tx.objectStore('meta');
+    let failure=null;
+    const read=store.get(key);
+    read.onsuccess=()=>{
+      const actual=read.result?read.result.value:undefined;
+      if(!sameMetaSnapshot(actual, expectedValue)){
+        failure=Error('Data changed in another tab or tool');
+        failure.code='stale-meta';
+        tx.abort();return;
+      }
+      try{store.put({key,value:snapshot});}
+      catch(error){failure=error;tx.abort();}
+    };
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(failure||tx.error||Error('Guarded save failed'));
+    tx.onabort=()=>reject(failure||tx.error||Error('Guarded save aborted'));
+  });
 }
 /** Atomically append one valid task without overwriting a concurrently changed list. */
 export async function appendQuickTask(task) {

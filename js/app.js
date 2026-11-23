@@ -100,7 +100,7 @@ function shell(){
   app.querySelectorAll('[data-nav]').forEach(button=>button.addEventListener('click',()=>go(button.dataset.nav)));
   app.querySelector('#update-now').addEventListener('click',async()=>{
     if(!waitingWorker)return;
-    try {await cleanup(); applyingUpdate=true; waitingWorker.postMessage({type:'SKIP_WAITING'});}catch(err){handleError(err);}
+    try {if(await cleanup()===false)return; applyingUpdate=true; waitingWorker.postMessage({type:'SKIP_WAITING'});}catch(err){handleError(err);}
   });
   quickAdd=mountQuickAdd({element:app,t,notify:toast,openRecord:go});
   updateIndicators();
@@ -117,7 +117,7 @@ function go(route, selection=null){
   navigation=navigation.then(()=>navigate(route,selection)).catch(handleError);
 }
 async function navigate(route,selection=null){
-  await cleanup();
+  if(await cleanup()===false)return;
   cleanup=()=>{};
   if(!['home','tools','settings','search',...TOOLS.map(a=>a.id)].includes(route))route='home';
   active=route;
