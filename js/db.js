@@ -78,6 +78,31 @@ async function request(storeName, mode, run) {
 export async function getNotes() { return await request('notes','readonly',store => store.getAll()) || []; }
 export async function putNote(note) { return request('notes','readwrite',store => store.put(safeClone(note))); }
 export async function deleteNote(id) { return request('notes','readwrite',store => store.delete(id)); }
+/** One-click undo for a just-deleted note, only while Notes is open.
+ * Use add (never put) so another tab's note with the same ID is NEVER overwritten.
+ */
+export async function restoreDeletedNote(note) {
+  if (!note || typeof note.id !== 'string' || !note.id || !['text','checklist'].includes(note.kind) ||
+      typeof note.title !== 'string' || typeof note.body !== 'string' || !Array.isArray(note.items)) {
+    throw Error('Invalid deleted note');
+  }
+  const snapshot=safeClone(note);
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('notes','readwrite');
+    const store=tx.objectStore('notes');
+    let reason=null;
+    const count=store.count();
+    count.onsuccess=()=>{
+      if(count.result>=MAX_NOTES){reason=Error('limit');tx.abort();return;}
+      store.add(snapshot); // a duplicate ID aborts the transaction instead of replacing it
+    };
+    tx.oncomplete=()=>resolve(note.id);
+    tx.onerror=()=>reject(reason||tx.error||Error('Restore failed'));
+    tx.onabort=()=>reject(reason||tx.error||Error('Restore aborted'));
+  });
+}
+
 export async function getMeta(key) {
   const record = await request('meta','readonly',store => store.get(key));
   return record?.value;

@@ -1,4 +1,4 @@
-import { getNotes, putNote, deleteNote } from './db.js';
+import { getNotes, putNote, deleteNote, restoreDeletedNote } from './db.js';
 import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
@@ -19,6 +19,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let order = 'newest';
   let timer = null;
   let dirty = false;
+  let lastDeleted = null; // private, temporary; not a hidden backup or persistent trash
   let queue = Promise.resolve();
   let disposed = false;
   const locale = lang === 'en' ? 'en-GB' : 'bg-BG';
@@ -59,6 +60,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <div class="notes-filters"><label for="note-scope">${t('notesFilter')}<select class="input-select" id="note-scope"><option value="all">${t('notesAll')}</option><option value="pinned">${t('notesPinned')}</option><option value="favourites">${t('notesFavourites')}</option></select></label>
       <label for="note-order">${t('notesSort')}<select class="input-select" id="note-order"><option value="newest">${t('notesNewest')}</option><option value="oldest">${t('notesOldest')}</option><option value="title">${t('notesTitleSort')}</option></select></label></div>
       <div class="notes-actions"><button class="primary-btn" id="create-text">+ ${t('newNote')}</button><button class="secondary-btn" id="create-checklist">☑ ${t('newChecklist')}</button></div><p class="notes-count" id="notes-count" aria-live="polite"></p></div>
+      ${lastDeleted ? `<div class="notes-undo" role="status"><span>${t('notesDeletedUndo')}</span><button type="button" class="secondary-btn" id="undo-delete-note">${t('notesUndo')}</button></div>` : ''}
       <div id="notes-list" class="notes-grid"></div>`;
     const searchInput=element.querySelector('#note-search');
     const resultList=element.querySelector('#notes-list');
@@ -81,6 +83,24 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     orderInput.addEventListener('change',()=>{order=orderInput.value;renderList();});
     element.querySelector('#create-text').addEventListener('click',()=>{void create('text');});
     element.querySelector('#create-checklist').addEventListener('click',()=>{void create('checklist');});
+    const undoBtn=element.querySelector('#undo-delete-note');
+    if(undoBtn)undoBtn.addEventListener('click',async()=>{
+      if(!lastDeleted)return;
+      undoBtn.disabled=true;
+      const candidate=safeClone(lastDeleted);
+      try{
+        await restoreDeletedNote(candidate);
+        if(disposed)return;
+        notes.push(candidate);
+        lastDeleted=null;
+        list();
+        notify(t('notesUndoSuccess'));
+      }catch(error){
+        if(disposed)return;
+        undoBtn.disabled=false;
+        notify(`${t('notesUndoFailed')}: ${error.message}`);
+      }
+    });
     resultList.addEventListener('click',event=>{
       const btn=event.target.closest('[data-note-id]');
       if(btn) editor(btn.dataset.noteId);
@@ -189,8 +209,13 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     element.querySelector('#delete-note').addEventListener('click', async()=>{
       if(!confirmAction(t('deleteConfirm'))) return;
       await flush();
-      try { await deleteNote(n.id); notes=notes.filter(note=>note.id!==n.id);list(); }
-      catch(err){notify(`${t('error')}: ${err.message}`);}
+      try {
+        const deleted=safeClone(n);
+        await deleteNote(n.id);
+        notes=notes.filter(note=>note.id!==n.id);
+        lastDeleted=deleted;
+        list();
+      }catch(err){notify(`${t('error')}: ${err.message}`);}
     });
     element.querySelector('#back-notes').addEventListener('click',async()=>{await flush();list();});
   };
@@ -201,6 +226,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   return async () => {
     await flush();
     disposed=true;
+    lastDeleted=null;
     document.removeEventListener('visibilitychange',onVisibility);
   };
 }

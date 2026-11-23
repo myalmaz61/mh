@@ -2,6 +2,7 @@ import { MAX_WEATHER_CITIES } from './config.js';
 import { getMeta, setMeta } from './db.js';
 import { escapeHtml } from './utils.js';
 import { upcomingRainSummary, rainChanceWindow } from './weather-rain-core.js';
+import { hourlyProbabilityBar } from './weather-hour-core.js';
 
 const REFRESH_MS = 30 * 60 * 1000;
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -171,7 +172,10 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
         <div class="weather-day-temp">${concise(day.max)}° <span>${concise(day.min)}°</span></div>
         <div class="weather-day-rain">☔ ${concise(day.prob)}% <small>· ${concise(day.rain,1)} mm</small></div></div>`;
     }).join('')}</div>
-    ${snapshot.hours.length?`<h3 class="weather-subtitle">${t('weatherComingHours')}</h3><div class="weather-hours">${snapshot.hours.map(hour=>`<div class="weather-hour"><strong>${escapeHtml(hour.time.slice(11,16))}</strong><span>${concise(hour.temp)}°</span><small>☔ ${concise(hour.prob)}%</small></div>`).join('')}</div>`:''}
+    ${snapshot.hours.length?`<h3 class="weather-subtitle">${t('weatherComingHours')}</h3><p class="weather-hour-hint">${t('weatherHoursHint')}</p><div class="weather-hours">${snapshot.hours.map(hour=>{
+      const probability=hourlyProbabilityBar(hour.prob);
+      return `<div class="weather-hour"><strong>${escapeHtml(hour.time.slice(11,16))}</strong><span>${concise(hour.temp)}°</span><small>☔ ${probability === null ? '–' : `${probability}%`}</small><div class="weather-rain-track" aria-hidden="true"><div class="weather-rain-fill" style="width:${probability === null ? 0 : probability}%"></div></div></div>`;
+    }).join('')}</div>`:''}
     <p class="weather-disclaimer">${t('weatherForecastDisclaimer')}</p>`;
   }
   async function getForecast(force=false){
