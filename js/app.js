@@ -25,6 +25,7 @@ import { mountRandomGenerator } from './random-generator.js';
 import { advanceRecentTools, validRecentTools } from './recent-core.js';
 import { visibleTools, toggleToolHidden } from './visibility-core.js';
 import { orderedTools, moveToolOrder, DEFAULT_TOOL_ORDER } from './tool-order-core.js';
+import { addEverydayFavourites } from './settings-layout-core.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -125,7 +126,7 @@ async function navigate(route,selection=null){
   const main=app.querySelector('#main-content');
   if(route==='home') renderHome(main);
   if(route==='tools') renderTools(main);
-  if(route==='settings') renderSettings(main);
+  if(route==='settings') renderSettings(main,false,false,selection?.panel==='favourites');
   if(route==='search') cleanup=await mountSearch({element:main,lang:settings.language,t,tools:visibleTools(TOOLS,settings.hiddenTools),openResult:go});
   if(route==='calculator') cleanup=mountCalculator({element:main,t,history,
     saveHistory:async list=>{history=list;await setMeta('calcHistory',list);},
@@ -186,7 +187,7 @@ function renderHome(main){
   const stopToday=mountToday({element:main.querySelector('#today-summary-slot'),lang:settings.language,openTool:go,notify:toast});
   cleanup=()=>{clearInterval(minuteTimer);stopToday();};
   bindToolButtons(main);
-  main.querySelector('#customise-home').addEventListener('click',()=>go('settings'));
+  main.querySelector('#customise-home').addEventListener('click',()=>go('settings',{panel:'favourites'}));
   main.querySelector('#all-tools-link').addEventListener('click',()=>go('tools'));
   main.querySelector('#home-universal-search').addEventListener('click',()=>go('search'));
 }
@@ -209,7 +210,7 @@ function settingsToolRow(id, idx){
     <button type="button" class="icon-btn small" data-reorder="${id}:up" title="${t('moveUp')}" aria-label="${t('moveUp')} ${t(tool.title)}" ${position<=0?'disabled':''}>↑</button>
     <button type="button" class="icon-btn small" data-reorder="${id}:down" title="${t('moveDown')}" aria-label="${t('moveDown')} ${t(tool.title)}" ${position<0||position===settings.favourites.length-1?'disabled':''}>↓</button></div>`;
 }
-function renderSettings(main,openHidden=false,openOrder=false){
+function renderSettings(main,openHidden=false,openOrder=false,openFavourites=false,openRecent=false){
   stopDiagnostics();
   stopPwaHealth();
   const order=[...settings.favourites,...TOOLS.map(tool=>tool.id).filter(id=>!settings.favourites.includes(id))];
@@ -220,8 +221,13 @@ function renderSettings(main,openHidden=false,openOrder=false){
       <h2 class="setting-subhead">${t('language')}</h2><div class="choice-row" role="group" aria-label="${t('language')}">
       <button type="button" class="choice-btn ${settings.language==='bg'?'selected':''}" data-lang-choice="bg" aria-pressed="${settings.language==='bg'}">Български</button>
       <button type="button" class="choice-btn ${settings.language==='en'?'selected':''}" data-lang-choice="en" aria-pressed="${settings.language==='en'}">English</button></div></section>
-    <section class="surface setting-section"><h2>${t('customise')}</h2><p class="muted">${t('customiseHint')}</p>
-      <div class="settings-tools">${order.map(settingsToolRow).join('')}</div></section>
+    <section class="surface setting-section"><details class="tool-visibility" id="favourite-settings" ${openFavourites?'open':''}>
+      <summary><strong>${t('customise')}</strong><span class="muted">${t('favouritesCount')}: ${settings.favourites.length} · ${t('tapToManage')}</span></summary>
+      <p class="muted">${t('customiseHint')}</p>
+      <div class="everyday-tools-shortcut"><span class="muted">${t('everydayShortcutHint')}</span>
+        <button type="button" class="secondary-btn" id="add-everyday-tools" ${settings.favourites.includes('notes')&&settings.favourites.includes('weather')&&!settings.hiddenTools.includes('notes')&&!settings.hiddenTools.includes('weather')?'disabled':''}>${t('everydayShortcut')}</button></div>
+      <div class="settings-tools">${order.map(settingsToolRow).join('')}</div>
+      </details></section>
     <section class="surface setting-section"><details class="tool-visibility" id="tool-order" ${openOrder?'open':''}>
       <summary><strong>${t('sortAllTools')}</strong><span class="muted">${t('tapToManage')}</span></summary>
       <p class="muted">${t('sortAllToolsHint')}</p>
@@ -239,9 +245,11 @@ function renderSettings(main,openHidden=false,openOrder=false){
         <label class="switch"><input id="shown-${tool.id}" type="checkbox" data-tool-visible="${tool.id}" ${settings.hiddenTools.includes(tool.id)?'':'checked'} aria-label="${t('visible')} ${t(tool.title)}"><span></span></label></div>`).join('')}</div>
       <div class="visibility-footer"><button type="button" id="show-all-tools" class="secondary-btn" ${settings.hiddenTools.length?'':'disabled'}>${t('showAllTools')}</button></div>
       </details></section>
-    <section class="surface setting-section"><h2>${t('recentTools')}</h2>
+    <section class="surface setting-section"><details class="tool-visibility" id="recent-settings" ${openRecent?'open':''}>
+      <summary><strong>${t('recentTools')}</strong><span class="muted">${t('tapToManage')}</span></summary>
       <p class="muted">${recentReadOnly?t('recentCorrupt'):recentTools.map(id=>t(TOOLS.find(tool=>tool.id===id)?.title||'')).join(' · ')||t('none')}</p>
-      <button type="button" class="secondary-btn" id="clear-recent">${t('clearRecent')}</button></section>
+      <button type="button" class="secondary-btn" id="clear-recent">${t('clearRecent')}</button>
+      </details></section>
     <section class="surface setting-section"><h2>${t('dataBackup')}</h2><p class="muted">${t('backupHint')}</p>
       <div class="backup-reminder-control"><label for="backup-reminder-days">${settings.language==='en'?'Backup reminder (only in Settings)':'Напомняне за архив (само в Настройки)'}</label>
         <select id="backup-reminder-days" aria-label="${settings.language==='en'?'Backup reminder':'Напомняне за архив'}">
@@ -254,7 +262,10 @@ function renderSettings(main,openHidden=false,openOrder=false){
       <div id="backup-preview" class="backup-preview" hidden></div>
       <p class="warning-text">${t('importWarning')}</p>
       <button type="button" class="text-link" id="persistent-storage">${t('storagePersist')} ›</button></section>
-    <section class="surface setting-section" id="health-section"></section>
+    <section class="surface setting-section"><details class="tool-visibility" id="diagnostics-panel">
+      <summary><strong>${t('diagnosticsAdvanced')}</strong><span class="muted">${t('tapToManage')}</span></summary>
+      <div id="health-section" class="settings-diagnostics-body"></div>
+      </details></section>
     <section class="surface setting-section" id="pwa-health-section"></section>
     <section class="surface setting-section"><h2>${t('installation')}</h2><p class="muted">${t('installHint')}</p>
       <div class="row-between"><span>${t('appVersion')}</span><strong>v${VERSION}</strong></div>
@@ -290,11 +301,20 @@ function renderSettings(main,openHidden=false,openOrder=false){
   main.querySelectorAll('[data-lang-choice]').forEach(btn=>btn.addEventListener('click',async()=>{
     try{await updateSettings({language:btn.dataset.langChoice});go('settings');}catch(err){handleError(err);}
   }));
+  main.querySelector('#add-everyday-tools').addEventListener('click',async()=>{
+    const change=addEverydayFavourites(settings.favourites,settings.hiddenTools);
+    if(!change.changed)return;
+    try{
+      await updateSettings({favourites:change.favourites,hiddenTools:change.hiddenTools});
+      renderSettings(main,false,false,true);
+      toast(t('everydayShortcutDone'));
+    }catch(err){handleError(err);}
+  });
   main.querySelectorAll('[data-favourite]').forEach(check=>check.addEventListener('change',async()=>{
     const id=check.dataset.favourite;
     const fav=settings.favourites.filter(x=>x!==id);
     if(check.checked)fav.push(id);
-    try{await updateSettings({favourites:fav});renderSettings(main);}catch(err){handleError(err);}
+    try{await updateSettings({favourites:fav});renderSettings(main,false,false,true);}catch(err){handleError(err);}
   }));
   main.querySelectorAll('[data-reorder]').forEach(btn=>btn.addEventListener('click',async()=>{
     const [id,direction]=btn.dataset.reorder.split(':');
@@ -302,7 +322,7 @@ function renderSettings(main,openHidden=false,openOrder=false){
     const index=fav.indexOf(id),target=index+(direction==='up'?-1:1);
     if(index<0||target<0||target>=fav.length)return;
     [fav[index],fav[target]]=[fav[target],fav[index]];
-    try{await updateSettings({favourites:fav});renderSettings(main);}catch(err){handleError(err);}
+    try{await updateSettings({favourites:fav});renderSettings(main,false,false,true);}catch(err){handleError(err);}
   }));
   main.querySelectorAll('[data-tool-order]').forEach(btn=>btn.addEventListener('click',async()=>{
     const [id,direction]=btn.dataset.toolOrder.split(':');
@@ -325,7 +345,7 @@ function renderSettings(main,openHidden=false,openOrder=false){
     try{await updateSettings({hiddenTools:[]});renderSettings(main,true);}catch(err){handleError(err);}
   });
   main.querySelector('#clear-recent').addEventListener('click',async()=>{
-    try{await recentQueue.catch(()=>{});await setMeta('recentTools',[]);recentTools=[];recentReadOnly=false;toast(t('recentCleared'));renderSettings(main);}catch(err){handleError(err);}
+    try{await recentQueue.catch(()=>{});await setMeta('recentTools',[]);recentTools=[];recentReadOnly=false;toast(t('recentCleared'));renderSettings(main,false,false,false,true);}catch(err){handleError(err);}
   });
   main.querySelector('#export-backup').addEventListener('click',async()=>{
     try{
