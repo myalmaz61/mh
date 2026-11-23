@@ -19,3 +19,9 @@
 .football-league-results{max-height:300px;overflow-y:auto;border-radius:12px;border:1px solid var(--stroke)}
 .football-league-option{display:flex;justify-content:space-between;gap:14px;text-align:left;align-items:center;width:100%;background:var(--surface);padding:13px;border:0;border-bottom:1px solid var(--stroke);font-size:13px;min-height:49px}.football-league-option:last-child{border-bottom:0}.football-league-option small{color:var(--muted)}.football-league-option strong{color:var(--accent);font-size:20px}
 @media(max-width:400px){.football-match-main{gap:4px}.football-team{gap:3px;font-size:12px}.football-score{font-size:15px}.football-star{width:28px;font-size:23px}}
+
+/* v2.4: explanatory fallback only when provider has no confirmed result */
+.football-health:not(:empty){margin:8px 0 0;padding:10px 12px;border:1px solid var(--stroke);border-radius:12px;font-size:12px;line-height:1.5}
+.football-result-help{margin-top:9px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12px;color:var(--muted)}
+.football-result-help .text-link,.football-result-help a{font-size:12px;padding:7px 2px;color:var(--accent);background:transparent;border:0;text-decoration:underline;text-underline-offset:2px}
+.football-result-help button[disabled]{opacity:.55}

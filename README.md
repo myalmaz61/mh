@@ -1,48 +1,34 @@
-# MyHub — Personal Tools v2.3.0
+# MyHub — Personal Tools v2.4.0
 
-A free, local-first Android Chrome PWA hosted on GitHub Pages. No account, server, private API key, subscription, advertising, or build step required. This release builds directly on v2.2.0, retaining **all 16 existing tools** and the uncluttered home screen.
+Local-first Android-friendly PWA, hosted for free on GitHub Pages. No account, paid API, advertisements, analytics or server required. UI in Bulgarian and English.
 
-## What's improved in v2.3.0
+## v2.4.0 — Football results: more honest status + recovery
 
-### Notes — faster everyday actions
+This release responds to the real-world issue of a match that was played on Saturday or Sunday still appearing as unconfirmed on Monday.
 
-- **Copy** copies the note's title and text, or a readable checklist with `[ ]` and `[x]`, to the Android clipboard. The action may require clipboard permission and a secure context (GitHub Pages provides HTTPS).
-- **Duplicate** makes a separate note with a fresh ID (and fresh checklist-item IDs), retains content and checked states, but does **not** inherit pin/favourite flags. Nothing is deleted from the original.
-- A pending edit is saved before either operation; on a save failure the action is stopped.
-- Both actions are within the existing editor. No home-screen additions and no new persistent storage format.
+- Explain missing final results clearly: for matches whose scheduled kickoff is at least **six hours** in the past and that have no *confirmed final result* from OpenLigaDB, show an informative label, rather than promising a live score.
+- Count potentially missing results among matches scheduled in the **past ten days** for the selected competition. The label is based on **cached/provider records**, not an independent claim about whether a match really took place. Postponements remain possible.
+- Allow a user-initiated **Check this match** using OpenLigaDB's single-match API endpoint. Each match is subject to a **two-minute cooldown per screen session**. The provider may still have no result.
+- Allow explicit **Search for result in browser** as a fallback. This opens a Google search on demand; no information is transmitted until the user chooses it. This does **not** automatically import results into the app.
+- When the provider temporarily sends a shorter fixture list, merge valid new data with the older local cache instead of discarding the entire response or erasing previously confirmed scores. A genuinely empty response leaves the previously cached list untouched.
+- Keep existing OpenLigaDB fair-use refresh intervals (4/12/120 minutes as appropriate while the Football screen is in use). No extra background polling, API keys or alternative undocumented APIs.
 
-### Weather — quick rainfall probability
+Other tools (Notes, Weather, Tasks, Calendar, RSS and the rest) retain their existing functions and storage. No IndexedDB migration, no change to backup schema.
 
-- A small line above the daily forecast displays the **highest forecast probability of precipitation** from up to the next three available hourly entries, sourced from the already cached Open-Meteo response.
-- This is **not** a claim that rain will occur or an emergency weather warning. It introduces **no additional API requests**, and works with already saved forecasts offline.
-- Existing hourly and seven-day forecasts are preserved without schema changes.
+## Limitations
 
-### Football — match-aware refresh
+OpenLigaDB is maintained by community contributors. Some league data can be delayed, incomplete or wrong. More frequent requests and the single-match check cannot create results that do not exist in the provider. The external search is an explicit manual fallback and is not evidence that the provider has updated. A result is only labelled confirmed if the source has reported the match as finished and published a numerical score. Consult https://www.openligadb.de/en/terms-of-use for the API's fair-use guidance and accuracy limitations.
 
-- The original v2.2.0 refresh policy could wait **two hours for automatic updates** and **30 minutes for manual ones** outside the short possible-live window.
-- With v2.3.0, while the Football screen is open and the phone is online:
-  - **Unfinished match up to 4 hours after kickoff:** scheduled automatic refresh every **4 minutes** at most, and manual refresh every **90 seconds** at most; a changed-data signal from the inexpensive OpenLigaDB endpoint can trigger an earlier full refresh when permitted.
-  - **Around kickoff, recent finals, or late unconfirmed matches:** automatic **12 minutes**, manual **3 minutes**.
-  - **Quiet periods:** automatic **2 hours**, manual **10 minutes** to respect OpenLigaDB fair-use guidelines.
-- The inexpensive OpenLigaDB `getlastchangedate` check is retained, throttled to **90 seconds**, as a supplementary check around possible live matches. A provider update can trigger a full refresh sooner than the scheduled four-minute check; MyHub still applies the manual cooldown.
-- Existing source timestamps, cached scores, conservative match status and error backoff remain. A displayed score can still be **delayed at source**, and an unconfirmed status is **not** labelled verified live.
-- **No new provider or API key** has been added. OpenLigaDB explicitly recommends caching, inexpensive change-date polling and few requests outside live play: https://www.openligadb.de/en/terms-of-use
+## How to update
 
-## Backward compatibility and privacy
+Use `MyHub-v2.4.0-UPDATE-ONLY.zip` on an existing **v2.3.0** repository. Use the full project ZIP only for a new installation or a full-repository replacement. Check the exact files in `CHANGED-FILES.txt` (inside the update ZIP) and follow `START-HERE-BG.md` for phone-only Android/GitHub instructions.
 
-- IndexedDB remains `myhub-local`, schema version **1**. JSON Backup remains **format 1** and includes all tools' existing data.
-- No migration, login, advertising, analytics, background permissions, or account connections.
-- PWA service worker cache is renamed to `myhub-shell-v2.3.0` and includes the three new pure helper modules.
-- Old archived data and user favourites are not modified by this release.
+Before updating, create a **JSON Backup** and check that the downloaded `.json` file exists. Do **not** uninstall the current PWA or clear Chrome site storage.
 
-## Automated checks
+## Tests
 
-The command `npm test` passes **274 of 274 automated tests**, covering legacy modules and new note, weather and football cases. Syntax, assets and ZIP structure are also checked in the release preparation. Browser / physical Android integration testing is not claimed as completed; test with your actual PWA after publishing.
+Run `npm test` in a Node.js environment (such as GitHub Actions); `node --check` checks JavaScript syntax. Tests cover the new data merge, outdated provider results, manual single-match checks, translated labels, legacy backups and previous tools. Actual Android Chrome behavior and current upstream result availability still require real-device verification.
 
-## Installation
+## Future APK
 
-- `MyHub-v2.3.0-UPDATE-ONLY.zip` contains only new and modified repository files since **v2.2.0**, plus `CHANGED-FILES.txt`.
-- `MyHub-v2.3.0.zip` contains the complete repository; no new repositories or accounts are needed.
-- `MyHub-v2.3.0-FULL-SOURCE.md` contains full contents of every changed text file.
-
-**Before uploading**, use MyHub Settings to export JSON Backup and verify the downloaded file exists. **Do not uninstall** the installed PWA or clear Chrome site data. Full Android-only upload and test instructions in `START-HERE-BG.md`.
+The longer-term Capacitor/GitHub Actions plan remains in `APK-READINESS-BG.md`. PWA and APK do not automatically share local storage: export JSON from the PWA and restore it into the APK after explicit validation.

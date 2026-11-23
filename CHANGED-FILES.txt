@@ -1,51 +1,39 @@
-MyHub v2.3.0 — UPDATE from v2.2.0
+MyHub v2.4.0 — UPDATE from v2.3.0
 
-This list contains EVERY new or modified repository file compared with the complete MyHub v2.2.0 ZIP.
-Upload with the SAME relative folder names. Do not uninstall the PWA and do not delete browser site data.
-Always export and verify a JSON Backup before updating.
+Only the files below need adding/replacing in the same GitHub repository.
+Keep the folders exactly as listed. Do not remove any other files.
 
-FILES (38):
-  README.md
-  START-HERE-BG.md
-  js/config.js
-  js/football-refresh-core.js
-  js/football.js
-  js/i18n.js
-  js/note-actions-core.js
-  js/notes.js
-  js/weather-rain-core.js
-  js/weather.js
-  package.json
-  sw.js
-  tests/backup-integrity.test.mjs
-  tests/backup-safety.test.mjs
-  tests/calendar.test.mjs
-  tests/cross-actions.test.mjs
-  tests/favourites.test.mjs
-  tests/football-refresh.test.mjs
-  tests/football.test.mjs
-  tests/mini-tools.test.mjs
-  tests/notes-everyday.test.mjs
-  tests/quick-add.test.mjs
-  tests/quick-calendar.test.mjs
-  tests/reliability.test.mjs
-  tests/rss.test.mjs
-  tests/search.test.mjs
-  tests/share.test.mjs
-  tests/tasks.test.mjs
-  tests/timer.test.mjs
-  tests/today-actions.test.mjs
-  tests/today.test.mjs
-  tests/tool-order.test.mjs
-  tests/utilities.test.mjs
-  tests/v2-stability.test.mjs
-  tests/visibility.test.mjs
-  tests/weather-rain-summary.test.mjs
-  tests/weather.test.mjs
-  weather.css
+README.md
+START-HERE-BG.md
+football.css
+js/config.js
+js/football-recovery-core.js
+js/football.js
+js/i18n.js
+package.json
+sw.js
+tests/backup-integrity.test.mjs
+tests/backup-safety.test.mjs
+tests/calendar.test.mjs
+tests/cross-actions.test.mjs
+tests/favourites.test.mjs
+tests/football-recovery.test.mjs
+tests/football.test.mjs
+tests/mini-tools.test.mjs
+tests/quick-add.test.mjs
+tests/quick-calendar.test.mjs
+tests/reliability.test.mjs
+tests/rss.test.mjs
+tests/search.test.mjs
+tests/share.test.mjs
+tests/tasks.test.mjs
+tests/timer.test.mjs
+tests/today-actions.test.mjs
+tests/today.test.mjs
+tests/tool-order.test.mjs
+tests/utilities.test.mjs
+tests/v2-stability.test.mjs
+tests/visibility.test.mjs
+tests/weather.test.mjs
 
-Additional release file in this archive:
-  CHANGED-FILES.txt (this list)
-
-Count of new or changed repository files, excluding CHANGED-FILES.txt: 38
-No files need deletion.
+Before updating, download and verify a JSON Backup from Settings.
