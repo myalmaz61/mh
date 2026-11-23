@@ -83,9 +83,9 @@ test('new labels exist in Bulgarian and English',()=>{
   }
 });
 test('offline cache precaches the cross-action helper',()=>{
-  assert.equal(VERSION,'3.0.0');
+  assert.equal(VERSION,'3.1.0');
   const sw=read('sw.js');
-  assert.match(sw,/myhub-shell-v3\.0\.0/);
+  assert.match(sw,/myhub-shell-v3\.1\.0/);
   assert.match(sw,/\.\/js\/cross-actions-core\.js/);
   assert.ok(existsSync(new URL('../js/cross-actions-core.js',import.meta.url)));
 });

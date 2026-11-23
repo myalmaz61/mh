@@ -83,7 +83,7 @@ test('v0.4 backup contains calendar, rejects corrupt input before restore',()=>{
   assert.throws(()=>validateBackup(b),/calendar|календар/i);
 });
 test('module, stylesheet, worker and translations are correctly linked',()=>{
-  assert.equal(VERSION,'3.0.0');
+  assert.equal(VERSION,'3.1.0');
   assert.ok(TOOLS.some(x=>x.id==='calendar'));
   const app=readFileSync(new URL('../js/app.js',import.meta.url),'utf8');
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
@@ -93,7 +93,7 @@ test('module, stylesheet, worker and translations are correctly linked',()=>{
   assert.ok(app.includes("route==='calendar'"));
   for(const path of ['js/calendar.js','js/calendar-core.js','calendar.css'])assert.ok(sw.includes(path));
   assert.ok(html.includes('calendar.css'));
-  assert.ok(sw.includes('myhub-shell-v3.0.0'));
+  assert.ok(sw.includes('myhub-shell-v3.1.0'));
   for(const [,key] of mod.matchAll(/\bt\('([A-Za-z0-9]+)'\)/g)){
     assert.notEqual(translate('bg')(key),key,`BG missing ${key}`);
     assert.notEqual(translate('en')(key),key,`EN missing ${key}`);

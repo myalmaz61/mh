@@ -84,11 +84,11 @@ test('Choice picker rejects one option, excessive options or overlong text',()=>
   assert.throws(()=>parseChoices('x'.repeat(201)+'\ny'));
 });
 test('Both new tools are registered, translated and pre-cached for offline use',()=>{
-  assert.equal(VERSION,'3.0.0');
+  assert.equal(VERSION,'3.1.0');
   for(const id of ['textcounter','random']) assert.ok(TOOLS.some(t=>t.id===id));
   const worker=source('sw.js');
   for(const asset of ['./js/text-counter-core.js','./js/text-counter.js','./js/random-core.js','./js/random-generator.js','./mini-tools.css'])assert.ok(worker.includes(asset));
-  assert.ok(worker.includes('myhub-shell-v3.0.0'));
+  assert.ok(worker.includes('myhub-shell-v3.1.0'));
   assert.ok(source('index.html').includes('mini-tools.css'));
   for(const term of ['textCounter','textCounterDesc','randomGenerator','randomGeneratorDesc']){
     assert.notEqual(translate('bg')(term),term);

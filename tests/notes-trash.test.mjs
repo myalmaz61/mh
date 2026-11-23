@@ -169,3 +169,14 @@ test('Notes persistent trash UI is translated and pre-cached',()=>{
     assert.notEqual(translate(lang)(key),key,lang+' '+key);
   }
 });
+test('v3.1 category survives atomic trash → restore, including backup',async()=>{
+  const note={...sample('classified'),category:'Работа'};
+  reset([note]);
+  await moveNoteToTrash(note);
+  const trash=await getNotesTrash();
+  assert.equal(trash.items[0].note.category,'Работа');
+  const backup=await createBackup();
+  assert.equal(backup.data.notesTrashData.items[0].note.category,'Работа');
+  await restoreTrashedNote('classified');
+  assert.deepEqual(await getNotes(),[note]);
+});
