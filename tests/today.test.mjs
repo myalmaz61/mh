@@ -49,12 +49,12 @@ test('storage diagnostic bytes are formatted and invalid values are safe',()=>{
   assert.equal(formatBytes(1048576,'en'),'1 MB');assert.equal(formatBytes(-100),'—');
 });
 test('v0.9 shell references new module assets and bump',()=>{
-  assert.equal(VERSION,'2.3.0');
+  assert.equal(VERSION,'2.4.0');
   const index=readFileSync(new URL('../index.html',import.meta.url),'utf8');
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
   const app=readFileSync(new URL('../js/app.js',import.meta.url),'utf8');
   assert.ok(index.includes('today.css'));
-  for(const asset of ['myhub-shell-v2.3.0','./today.css','./js/today.js','./js/today-core.js','./js/diagnostics.js','./js/diagnostics-core.js'])assert.ok(sw.includes(asset),asset);
+  for(const asset of ['myhub-shell-v2.4.0','./today.css','./js/today.js','./js/today-core.js','./js/diagnostics.js','./js/diagnostics-core.js'])assert.ok(sw.includes(asset),asset);
   assert.ok(app.includes('id="today-summary-slot"'));assert.ok(app.includes('id="health-section"'));
 });
 test('v0.8 backup with no v0.9 metadata restores without migration',()=>{
