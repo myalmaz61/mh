@@ -1,34 +1,37 @@
-# MyHub — Personal Tools v2.4.0
+# MyHub — Personal Tools v2.5.0
 
-Local-first Android-friendly PWA, hosted for free on GitHub Pages. No account, paid API, advertisements, analytics or server required. UI in Bulgarian and English.
+## Ново: втори източник за футболните резултати
 
-## v2.4.0 — Football results: more honest status + recovery
+**Причина:** някои срещи в OpenLigaDB продължават да стоят без резултат дни след играта. Още по-честите заявки няма да поправят липсващите данни при доставчика.
 
-This release responds to the real-world issue of a match that was played on Saturday or Sunday still appearing as unconfirmed on Monday.
+Football вече има **Провери резултатите от втори източник (SportScore)** — отделен разгъваем панел. Избираш дата (UTC), например събота, неделя или вчера, и по желание филтрираш по отбор/първенство. Не се налага акаунт, API ключ, собствен сървър, или платена услуга.
 
-- Explain missing final results clearly: for matches whose scheduled kickoff is at least **six hours** in the past and that have no *confirmed final result* from OpenLigaDB, show an informative label, rather than promising a live score.
-- Count potentially missing results among matches scheduled in the **past ten days** for the selected competition. The label is based on **cached/provider records**, not an independent claim about whether a match really took place. Postponements remain possible.
-- Allow a user-initiated **Check this match** using OpenLigaDB's single-match API endpoint. Each match is subject to a **two-minute cooldown per screen session**. The provider may still have no result.
-- Allow explicit **Search for result in browser** as a fallback. This opens a Google search on demand; no information is transmitted until the user chooses it. This does **not** automatically import results into the app.
-- When the provider temporarily sends a shorter fixture list, merge valid new data with the older local cache instead of discarding the entire response or erasing previously confirmed scores. A genuinely empty response leaves the previously cached list untouched.
-- Keep existing OpenLigaDB fair-use refresh intervals (4/12/120 minutes as appropriate while the Football screen is in use). No extra background polling, API keys or alternative undocumented APIs.
+- OpenLigaDB остава основният източник за твоите първенства, любимите отбори и кешираните срещи.
+- SportScore е **допълнителна проверка по дата** чрез документирания публичен `/api/v1/fixtures/` API. Отваряш панела само когато ти трябва. При липса на връзка ще получиш съобщение, а не измислен резултат.
+- Двата източника не се обединяват автоматично. Това избягва смесване на различни идентификатори на отбори и грешно потвърждаване на резултат.
+- „Завършил“ се показва само когато източникът означи срещата като приключила; непотвърдени резултати не се превръщат в 0:0.
+- Поставени са видими връзки **Powered by SportScore**, както изисква безплатният API лиценз. Първата е статична в `index.html` за обхождане от търсачки.
+- Функцията **не записва нищо** в IndexedDB, не променя favorites и не изисква миграция на JSON Backup. Резултатите от втората справка са временни и изчезват след затваряне на Football.
+- Предвидено е ограничение от 5 минути между две проверки за една и съща избрана дата при непроменен изглед. Не е постоянно фоново следене.
 
-Other tools (Notes, Weather, Tasks, Calendar, RSS and the rest) retain their existing functions and storage. No IndexedDB migration, no change to backup schema.
+**Техническо ограничение:** не можах да извлека истински отговор от SportScore или да отворя цялото приложение в Chromium от тази работна среда (локалната мрежа е блокирана). API документацията и примерната структура са проверени; има автоматизирани тестове със симулирани валидни/невалидни данни. Реалната работа на SportScore в Android Chrome **остава за проверка**, а покритието на конкретните срещи не е гарантирано. Ако този източник не върне данни, той няма да замени текущите OpenLigaDB резултати.
 
-## Limitations
+## Данни, PWA и съвместимост
 
-OpenLigaDB is maintained by community contributors. Some league data can be delayed, incomplete or wrong. More frequent requests and the single-match check cannot create results that do not exist in the provider. The external search is an explicit manual fallback and is not evidence that the provider has updated. A result is only labelled confirmed if the source has reported the match as finished and published a numerical score. Consult https://www.openligadb.de/en/terms-of-use for the API's fair-use guidance and accuracy limitations.
+- IndexedDB `myhub-local`, version 1 — без миграции и без изтриване на данни.
+- JSON Backup/Restore, format 1 — същите лични записи като v2.4.0.
+- Service Worker cache `myhub-shell-v2.5.0` съдържа двата нови JS модула.
+- Начален екран, Weather, Notes, Calendar, RSS и всички останали модули — без промяна.
+- `npm test` изпълнява 298 Node теста; не изисква външни npm зависимости.
+- След актуализация **не деинсталирай** PWA и не изчиствай данните на Chrome.
 
-## How to update
+## Официални източници
 
-Use `MyHub-v2.4.0-UPDATE-ONLY.zip` on an existing **v2.3.0** repository. Use the full project ZIP only for a new installation or a full-repository replacement. Check the exact files in `CHANGED-FILES.txt` (inside the update ZIP) and follow `START-HERE-BG.md` for phone-only Android/GitHub instructions.
+- [SportScore developer portal](https://sportscore.com/developers/) — публичен JSON API, CORS, без ключ, лимити и задължителна атрибуция.
+- [SportScore API reference](https://sportscore.com/developers/api/) — `/api/v1/fixtures/?sport=football&date=YYYY-MM-DD&limit=200` (anonymous), плюс примерна структура на матчовете.
+- [SportScore developer terms](https://sportscore.com/developers/terms/) — разрешено лично и отворено разработване, видима `Powered by SportScore` връзка.
+- [OpenLigaDB API](https://api.openligadb.de/) — първичният източник, който запазваме.
 
-Before updating, create a **JSON Backup** and check that the downloaded `.json` file exists. Do **not** uninstall the current PWA or clear Chrome site storage.
+## Инсталиране
 
-## Tests
-
-Run `npm test` in a Node.js environment (such as GitHub Actions); `node --check` checks JavaScript syntax. Tests cover the new data merge, outdated provider results, manual single-match checks, translated labels, legacy backups and previous tools. Actual Android Chrome behavior and current upstream result availability still require real-device verification.
-
-## Future APK
-
-The longer-term Capacitor/GitHub Actions plan remains in `APK-READINESS-BG.md`. PWA and APK do not automatically share local storage: export JSON from the PWA and restore it into the APK after explicit validation.
+Използвай `START-HERE-BG.md` за Android и GitHub Pages; `CHANGED-FILES.txt` съдържа точните файлове на малкия ZIP.

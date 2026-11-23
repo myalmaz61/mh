@@ -25,3 +25,20 @@
 .football-result-help{margin-top:9px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12px;color:var(--muted)}
 .football-result-help .text-link,.football-result-help a{font-size:12px;padding:7px 2px;color:var(--accent);background:transparent;border:0;text-decoration:underline;text-underline-offset:2px}
 .football-result-help button[disabled]{opacity:.55}
+
+/* v2.5 — opt-in, separate second-source results. No changes to existing cards. */
+.football-second-panel{margin-bottom:18px}.football-second-panel>summary{font-weight:700;font-size:16px;cursor:pointer;padding:5px 0;min-height:30px}
+.football-second-panel>.muted{font-size:12px;line-height:1.5}
+.football-second-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:12px 0}
+.football-second-controls label{font-size:12px;font-weight:600;flex:1 1 160px}
+.football-second-controls input{width:100%;margin-top:5px;min-height:43px}
+.football-second-controls button{min-height:42px;font-size:12px;padding:8px 10px}
+.football-second-search{width:100%;min-height:44px;margin:8px 0 12px}
+.football-second-match{padding:11px 0;border-top:1px solid var(--stroke)}
+.football-second-meta{font-size:11px;margin-bottom:6px}
+.football-second-line{display:flex;align-items:start;justify-content:space-between;gap:15px;font-size:13px}
+.football-second-line span{overflow-wrap:anywhere}.football-second-line strong{white-space:nowrap;font-size:15px;font-variant-numeric:tabular-nums}
+
+/* Small static attribution also exists in the HTML for source-license crawlers. */
+.football-provider-attribution{font-size:10px;line-height:1.3;text-align:center;padding:4px 5px 8px;color:var(--muted)}
+.football-provider-attribution a{color:inherit;text-decoration:underline;text-underline-offset:2px}

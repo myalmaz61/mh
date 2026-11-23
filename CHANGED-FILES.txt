@@ -1,13 +1,15 @@
-MyHub v2.4.0 — UPDATE from v2.3.0
+# MyHub v2.5.0 — файлове за обновяване от v2.4.0
 
-Only the files below need adding/replacing in the same GitHub repository.
-Keep the folders exactly as listed. Do not remove any other files.
+Нови или променени: 36 файла
 
+API-SOURCES-BG.md
 README.md
 START-HERE-BG.md
 football.css
+index.html
 js/config.js
-js/football-recovery-core.js
+js/football-second-source-core.js
+js/football-second-source.js
 js/football.js
 js/i18n.js
 package.json
@@ -18,6 +20,7 @@ tests/calendar.test.mjs
 tests/cross-actions.test.mjs
 tests/favourites.test.mjs
 tests/football-recovery.test.mjs
+tests/football-second-source.test.mjs
 tests/football.test.mjs
 tests/mini-tools.test.mjs
 tests/quick-add.test.mjs
@@ -36,4 +39,4 @@ tests/v2-stability.test.mjs
 tests/visibility.test.mjs
 tests/weather.test.mjs
 
-Before updating, download and verify a JSON Backup from Settings.
+Всички останали файлове от v2.4.0 остават непроменени.
