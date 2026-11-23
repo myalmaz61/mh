@@ -8,6 +8,7 @@ import { NOTES_PAGE_SIZE, sliceNotesPage, nextNotesPageLimit } from './notes-lis
 import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
 import { parseChecklistBatch, setChecklistCompletion, checklistProgress, moveChecklistRow } from './notes-checklist-core.js';
+import { createNoteSaveManager } from './notes-save-core.js';
 
 export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
@@ -32,38 +33,36 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let timer = null;
   let dirty = false;
   let lastDeleted = null; // quick Undo stays temporary; the Trash itself persists
-  let queue = Promise.resolve();
   let disposed = false;
   const locale = lang === 'en' ? 'en-GB' : 'bg-BG';
   const current = () => notes.find(n=>n.id===currentId);
-  const safePersist = snapshot => {
-    queue = queue.then(() => putNote(snapshot));
-    // A rejected write is signalled, not swallowed silently. Continue for future saves.
-    const task = queue;
-    queue = queue.catch(err => { notify(`${t('error')}: ${err.message}`); });
-    return task;
+  const updateSaveStatus = state => {
+    dirty=state.dirty;
+    if(disposed || !currentId)return;
+    const status=element.querySelector('#note-status');
+    const recovery=element.querySelector('#notes-save-recovery');
+    if(status){
+      status.textContent=state.error?t('notesSaveFailed'):(state.dirty||state.saving?t('saving'):t('saved'));
+      status.classList.toggle('save-status-error',Boolean(state.error));
+    }
+    if(recovery){
+      recovery.hidden=!state.error;
+      const message=recovery.querySelector('#notes-save-message');
+      if(message)message.textContent=t(state.quota?'notesStorageFull':'notesSaveHelp');
+    }
   };
+  const saveManager=createNoteSaveManager({write:putNote,onChange:updateSaveStatus});
   const flush = async () => {
-    if (timer) { clearTimeout(timer); timer=null; }
-    if (dirty && current()) {
-      dirty=false;
-      const snapshot=safeClone(current());
-      const task=safePersist(snapshot);
-      try { await task; }
-      catch { dirty=true; }
-    }
-    await queue;
-    if (!disposed && currentId) {
-      const status=element.querySelector('#note-status');
-      if(status) status.textContent=dirty ? t('saving') : t('saved');
-    }
+    if(timer){clearTimeout(timer);timer=null;}
+    const ok=await saveManager.saveNow();
+    updateSaveStatus(saveManager.state());
+    if(!ok)notify(t('notesSaveFailed'));
+    return ok;
   };
   const schedule = () => {
-    dirty=true;
-    const status=element.querySelector('#note-status');
-    if(status) status.textContent=t('saving');
-    if(timer) clearTimeout(timer);
-    timer=setTimeout(()=>{ void flush(); },350);
+    saveManager.mark(safeClone(current()));
+    if(timer)clearTimeout(timer);
+    timer=setTimeout(()=>{void flush();},350);
   };
   const list = () => {
     currentId=null;
@@ -305,7 +304,8 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     currentId=id;
     const n=current();
     if(!n){list();return;}
-    element.innerHTML=`<div class="editor-top"><button class="back-btn" type="button" id="back-notes">‹ ${t('backToNotes')}</button><span class="save-status" id="note-status">${t('saved')}</span></div>
+    element.innerHTML=`<div class="editor-top"><button class="back-btn" type="button" id="back-notes">‹ ${t('backToNotes')}</button><span class="save-status" id="note-status" role="status" aria-live="polite">${t('saved')}</span></div>
+      <div class="notes-save-recovery" id="notes-save-recovery" role="alert" hidden><strong>${t('notesSaveFailed')}</strong><p id="notes-save-message">${t('notesSaveHelp')}</p><div class="notes-save-recovery-actions"><button type="button" class="primary-btn" id="notes-save-retry">${t('notesSaveRetry')}</button><button type="button" class="secondary-btn" id="notes-save-copy">${t('notesSaveCopy')}</button></div></div>
       <article class="surface note-editor"><input class="note-title-input" id="note-title" maxlength="200" placeholder="${t('titlePlaceholder')}" value="${escapeHtml(n.title)}" aria-label="${t('titlePlaceholder')}">
       <label class="note-category-editor" for="note-category">${t('notesCategory')} <small>(${t('notesOptional')})</small><input class="text-field" id="note-category" type="text" maxlength="40" list="note-category-suggestions" autocomplete="off" placeholder="${t('notesCategoryPlaceholder')}" value="${escapeHtml(n.category || '')}"></label>
       <datalist id="note-category-suggestions">${noteCategories(notes,locale).map(c=>`<option value="${escapeHtml(c)}"></option>`).join('')}</datalist>
@@ -315,6 +315,16 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <button type="button" class="secondary-btn" id="star-note">${n.favourite?'★ '+t('unfavourite'):'☆ '+t('favourite')}</button>
       <button type="button" class="danger-btn" id="delete-note">${t('delete')}</button></div></article>`;
     const update = () => {n.updatedAt=new Date().toISOString();schedule();};
+    element.querySelector('#notes-save-retry').addEventListener('click',async event=>{
+      event.currentTarget.disabled=true;
+      const ok=await flush();
+      if(ok)notify(t('notesSaveRecovered'));
+      else if(event.currentTarget.isConnected)event.currentTarget.disabled=false;
+    });
+    element.querySelector('#notes-save-copy').addEventListener('click',async()=>{
+      try { await navigator.clipboard.writeText(plainNoteText(n));notify(t('copied')); }
+      catch { notify(t('notesSaveCopyFailed')); }
+    });
     const title=element.querySelector('#note-title');
     title.addEventListener('input',()=>{n.title=title.value;update();});
     const categoryEditor=element.querySelector('#note-category');
@@ -452,6 +462,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     element.querySelector('#delete-note').addEventListener('click', async()=>{
       if(!confirmAction(t('trashMoveConfirm'))) return;
       await flush();
+      if(dirty){notify(t('notesSaveCannotLeave'));return;}
       try {
         await moveNoteToTrash(safeClone(n));
         notes=notes.filter(note=>note.id!==n.id);
@@ -461,16 +472,26 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         notify(t('trashMoved'));
       }catch(err){notify(`${t('error')}: ${err.message}`);}
     });
-    element.querySelector('#back-notes').addEventListener('click',async()=>{await flush();list();});
+    element.querySelector('#back-notes').addEventListener('click',async()=>{await flush();if(dirty){notify(t('notesSaveCannotLeave'));return;}list();});
   };
   const onVisibility = () => {if(document.hidden) void flush();};
+  const onPageHide = () => { if(saveManager.state().dirty)void flush(); }; // best-effort only
+  const onBeforeUnload = event => {
+    if(!saveManager.state().dirty)return;
+    event.preventDefault();
+    event.returnValue=''; // browser may display a generic unsaved-changes dialog
+  };
   document.addEventListener('visibilitychange',onVisibility);
+  window.addEventListener('pagehide',onPageHide);
+  window.addEventListener('beforeunload',onBeforeUnload);
   list();
   if(initialId && notes.some(note=>note.id===initialId)) editor(initialId);
   return async () => {
-    await flush();
+    if(!(await flush()))throw Error(t('notesSaveCannotLeave'));
     disposed=true;
     lastDeleted=null;
     document.removeEventListener('visibilitychange',onVisibility);
+    window.removeEventListener('pagehide',onPageHide);
+    window.removeEventListener('beforeunload',onBeforeUnload);
   };
 }
