@@ -11,7 +11,7 @@ const ids=TOOLS.map(tool=>tool.id);
 const oldBackup=()=>({app:'MyHub',format:1,data:{notes:[],settings:{theme:'dark',language:'bg',favourites:['notes','calculator'],hiddenTools:['notes'],timeZones:['Europe/London']},calcHistory:[]}});
 
 test('default order matches existing All Tools order',()=>{
-  assert.equal(VERSION,'2.2.0');
+  assert.equal(VERSION,'2.3.0');
   assert.deepEqual([...DEFAULT_TOOL_ORDER],ids);
   assert.deepEqual(DEFAULT_SETTINGS.toolOrder,ids);
   assert.deepEqual(normaliseSettings({}).toolOrder,ids);
@@ -100,7 +100,7 @@ test('App renders sorted All Tools and independent manage section',()=>{
 });
 test('Offline cache, versions, and JS modules present',()=>{
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  assert.ok(sw.includes('myhub-shell-v2.2.0'));
+  assert.ok(sw.includes('myhub-shell-v2.3.0'));
   assert.ok(sw.includes('js/tool-order-core.js'));
   assert.ok(existsSync(new URL('../js/tool-order-core.js',import.meta.url)));
   assert.ok(sw.includes('./js/visibility-core.js'));
