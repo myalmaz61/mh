@@ -4,6 +4,7 @@ import { escapeHtml } from './utils.js';
 import { upcomingRainSummary, rainChanceWindow } from './weather-rain-core.js';
 import { hourlyProbabilityBar } from './weather-hour-core.js';
 import {weatherDayComparison} from './weather-day-compare-core.js';
+import {weatherQuickOutlook} from './weather-quick-core.js';
 
 const REFRESH_MS = 30 * 60 * 1000;
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -156,6 +157,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     const rainSummary=upcomingRainSummary(snapshot.hours);
     const rainWindow=rainChanceWindow(snapshot.hours);
     const dayComparison=weatherDayComparison(snapshot.hours,snapshot.current.time);
+    const quickOutlook=weatherQuickOutlook(snapshot.hours,snapshot.current.time);
     content.innerHTML=`<div class="weather-condition">
       <div class="weather-condition-row"><span class="weather-emblem" aria-hidden="true">${condition.symbol}</span><div><div class="weather-temp">${concise(current.temp)}°</div><div class="weather-description">${escapeHtml(condition.text)}</div></div></div>
       <span class="weather-status ${stale?'stale':''}">${stale?t('weatherStored'):t('weatherRecent')}</span>
@@ -166,6 +168,19 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       <div><small>${t('weatherHumidity')}</small><strong>${concise(current.humidity)}%</strong></div>
       <div><small>${t('weatherRainNow')}</small><strong>${concise(current.rain,1)} mm</strong></div>
     </div>
+    ${quickOutlook ? `<section class="weather-quick" aria-label="${t('weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}">
+      <h3 class="weather-quick-title">${t('weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}</h3>
+      <p class="weather-quick-hint">${t('weatherQuickLocalHint')}${stale?` · ${t('weatherQuickCached')}`:''}</p>
+      <div class="weather-quick-grid">
+        <div class="weather-quick-stat"><small>🌡 ${t('weatherQuickTemperature')}</small><strong>${quickOutlook.minTemperature === null?'–':`${concise(quickOutlook.minTemperature)}°`}${quickOutlook.maxTemperature===null||quickOutlook.maxTemperature===quickOutlook.minTemperature?'':` – ${concise(quickOutlook.maxTemperature)}°`}</strong></div>
+        <div class="weather-quick-stat"><small>☔ ${t('weatherQuickRain')}</small><strong>${quickOutlook.peakRainProbability===null?'–':`${concise(quickOutlook.peakRainProbability)}%`}</strong>${quickOutlook.peakRainTime?`<small>${escapeHtml(quickOutlook.peakRainTime.slice(11,16))}</small>`:''}</div>
+        <div class="weather-quick-stat"><small>💨 ${t('weatherQuickWind')}</small><strong>${quickOutlook.maxWind===null?'–':`${concise(quickOutlook.maxWind)} km/h`}</strong></div>
+      </div>
+      <details class="weather-quick-details"><summary>${t('weatherQuickDetails')}</summary>
+        <div class="weather-quick-rows"><div class="weather-quick-row weather-quick-head"><span>${t('weatherCompareTime')}</span><span>°C</span><span>☔</span><span>km/h</span></div>
+        ${quickOutlook.hours.map(hour=>`<div class="weather-quick-row"><span>${escapeHtml(hour.time.slice(11,16))}</span><span>${hour.temp===null?'–':`${concise(hour.temp)}°`}</span><span>${hour.prob===null?'–':`${concise(hour.prob)}%`}</span><span>${hour.wind===null?'–':concise(hour.wind)}</span></div>`).join('')}</div>
+      </details>
+    </section>`:''}
     ${rainSummary?`<div class="weather-rain-overview"><span>☔ ${t('weatherRainNextHours').replace('{n}',String(rainSummary.count))}</span><strong>${t('weatherMaxRainChance')}: ${concise(rainSummary.maxProbability)}%</strong>
       ${rainWindow ? `<div class="weather-rain-window">${rainWindow.firstTime
         ? `${t('weatherRainFirstHigh')}: <strong>${escapeHtml(rainWindow.firstTime.slice(8,10)+'.'+rainWindow.firstTime.slice(5,7)+' '+rainWindow.firstTime.slice(11,16))} (${t('weatherLocalTime')}) · ${concise(rainWindow.firstProbability)}%</strong>`
