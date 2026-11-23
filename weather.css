@@ -39,3 +39,8 @@
 .weather-source{font-size:11px;color:var(--muted);text-align:center;line-height:1.7;margin-top:17px}
 .weather-source a{color:var(--accent)}
 @media(max-width:440px){.weather-day{grid-template-columns:minmax(80px,1fr) 29px minmax(68px,.7fr) minmax(75px,.85fr);padding:9px 7px;gap:4px}.weather-day-title{font-size:11px}.weather-day-rain{font-size:11px}.weather-day-icon{font-size:19px}.weather-manage .form-row{flex-wrap:wrap}.weather-manage .form-row input{flex:1 1 100%}.weather-manage .primary-btn{width:100%}}
+
+/* v2.3: compact, probability-only weather overview */
+.weather-rain-overview{margin-top:12px;padding:12px 13px;border:1px solid var(--stroke);border-radius:13px;background:var(--surface-alt);display:flex;flex-direction:column;gap:5px;line-height:1.4}
+.weather-rain-overview span{font-size:12px;color:var(--muted)}
+.weather-rain-overview strong{font-size:13px;font-weight:750}

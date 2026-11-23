@@ -1,17 +1,20 @@
-MyHub v2.2.0 — files changed from v2.1.0
+MyHub v2.3.0 — UPDATE from v2.2.0
 
-NEW (2):
-  js/today-actions-core.js
-  tests/today-actions.test.mjs
+This list contains EVERY new or modified repository file compared with the complete MyHub v2.2.0 ZIP.
+Upload with the SAME relative folder names. Do not uninstall the PWA and do not delete browser site data.
+Always export and verify a JSON Backup before updating.
 
-MODIFIED (31):
+FILES (38):
   README.md
   START-HERE-BG.md
-  js/app.js
-  js/calendar.js
   js/config.js
-  js/db.js
-  js/today.js
+  js/football-refresh-core.js
+  js/football.js
+  js/i18n.js
+  js/note-actions-core.js
+  js/notes.js
+  js/weather-rain-core.js
+  js/weather.js
   package.json
   sw.js
   tests/backup-integrity.test.mjs
@@ -19,8 +22,10 @@ MODIFIED (31):
   tests/calendar.test.mjs
   tests/cross-actions.test.mjs
   tests/favourites.test.mjs
+  tests/football-refresh.test.mjs
   tests/football.test.mjs
   tests/mini-tools.test.mjs
+  tests/notes-everyday.test.mjs
   tests/quick-add.test.mjs
   tests/quick-calendar.test.mjs
   tests/reliability.test.mjs
@@ -29,19 +34,18 @@ MODIFIED (31):
   tests/share.test.mjs
   tests/tasks.test.mjs
   tests/timer.test.mjs
+  tests/today-actions.test.mjs
   tests/today.test.mjs
   tests/tool-order.test.mjs
   tests/utilities.test.mjs
   tests/v2-stability.test.mjs
   tests/visibility.test.mjs
+  tests/weather-rain-summary.test.mjs
   tests/weather.test.mjs
-  today.css
+  weather.css
 
-Update procedure:
-1. Make and VERIFY an existing MyHub JSON backup in Downloads.
-2. Extract UPDATE-ONLY.zip on Android.
-3. Upload each listed file to the same repository-relative path on GitHub.
-4. Keep all other files and the existing PWA installation.
-5. Check Settings -> Version 2.2.0 and test Today controls.
+Additional release file in this archive:
+  CHANGED-FILES.txt (this list)
 
-This ZIP includes the new CHANGED-FILES.txt itself. No files need deletion.
+Count of new or changed repository files, excluding CHANGED-FILES.txt: 38
+No files need deletion.
