@@ -137,3 +137,12 @@
 
 /* v3.9.0 – persistent alerts for failed Tasks / Calendar / Quick Lists saves */
 .hub-meta-save-warning {margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--danger, #c65a52); border-radius: 12px; font-weight: 600; line-height: 1.5;}
+
+/* v4.0: compact settings without hiding the PWA update or backup controls. */
+#favourite-settings summary,#recent-settings summary,#diagnostics-panel summary{min-height:44px}
+.everyday-tools-shortcut{display:grid;gap:9px;padding:12px;margin-top:12px;border:1px solid var(--stroke);border-radius:13px;background:var(--surface-alt)}
+.everyday-tools-shortcut .secondary-btn{justify-self:start;min-height:44px}
+.everyday-tools-shortcut .secondary-btn:disabled{opacity:.48}
+.settings-diagnostics-body{padding-top:12px}
+.settings-diagnostics-body h2{margin-bottom:12px}
+@media(max-width:400px){.everyday-tools-shortcut .secondary-btn{width:100%;}}
