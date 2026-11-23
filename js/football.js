@@ -44,14 +44,23 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
       <div id="football-matches" aria-live="polite"></div></section>
     <details class="surface football-second-panel" id="football-second-details"><summary>${t('footballSecondTitle')}</summary>
       <p class="muted">${t('footballSecondHint')}</p>
+      <label class="football-second-league-label" for="football-second-competition">${t('footballSecondCompetition')}
+        <select class="input-select" id="football-second-competition">
+          <option value="premier-league">English Premier League</option>
+          <option value="">${t('footballSecondAllLeagues')}</option>
+        </select>
+      </label>
+      <p class="muted">${t('footballSecondIndependent')}</p>
       <div class="football-second-controls"><label>${t('footballSecondDate')} (UTC)<input class="text-field" id="football-second-date" type="date"></label>
         <button type="button" class="secondary-btn" id="football-second-today">${t('calendarToday')}</button>
         <button type="button" class="secondary-btn" id="football-second-yesterday">${t('footballSecondYesterday')}</button>
+        <button type="button" class="secondary-btn" id="football-second-saturday">${t('footballSecondSaturday')}</button>
         <button type="button" class="secondary-btn" id="football-second-refresh">↻ ${t('weatherRefresh')}</button></div>
       <label class="sr-only" for="football-second-search">${t('footballSecondFilter')}</label>
       <input class="text-field football-second-search" id="football-second-search" type="search" maxlength="80" placeholder="${t('footballSecondFilter')}">
       <p id="football-second-message" class="muted" role="status" aria-live="polite"></p>
       <div id="football-second-results" aria-live="polite"></div>
+      <p class="football-source"><a href="https://sportscore.com/football/competition/england/english-premier-league/jednm9whz0ryox8/" rel="noopener noreferrer" target="_blank">${t('footballSecondOpenEpl')}</a></p>
       <p class="football-source"><a href="https://sportscore.com/" rel="dofollow" title="Sports data by SportScore" target="_blank">Powered by SportScore</a> · ${t('footballSecondDisclaimer')}</p>
     </details>
     <p class="football-source">${t('footballSource')}: <a href="https://www.openligadb.de/" target="_blank" rel="noopener noreferrer">OpenLigaDB</a> (<a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener noreferrer">ODbL 1.0</a>) · ${t('footballCaution')}</p>`;
