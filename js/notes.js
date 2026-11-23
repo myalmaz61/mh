@@ -1,10 +1,11 @@
-import { getNotes, putNote, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever } from './db.js';
+import { getNotes, putNote, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever, changeNotesCategories } from './db.js';
 import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
 import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
 import { selectNotes } from './notes-view-core.js';
 import { categoryName, noteCategories } from './notes-category-core.js';
+import { MAX_BULK_NOTES } from './notes-bulk-core.js';
 
 export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
@@ -22,6 +23,8 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let scope = 'all';
   let order = 'newest';
   let categoryFilter = '*';
+  let bulkMode = false;
+  const selectedIds = new Set();
   let timer = null;
   let dirty = false;
   let lastDeleted = null; // quick Undo stays temporary; the Trash itself persists
@@ -65,7 +68,15 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <div class="notes-filters"><label for="note-scope">${t('notesFilter')}<select class="input-select" id="note-scope"><option value="all">${t('notesAll')}</option><option value="pinned">${t('notesPinned')}</option><option value="favourites">${t('notesFavourites')}</option></select></label>
       <label for="note-order">${t('notesSort')}<select class="input-select" id="note-order"><option value="newest">${t('notesNewest')}</option><option value="oldest">${t('notesOldest')}</option><option value="title">${t('notesTitleSort')}</option></select></label>
       ${noteCategories(notes,locale).length ? `<label class="notes-category-filter" for="note-category-filter">${t('notesCategory')}<select class="input-select" id="note-category-filter"><option value="*">${t('notesAllCategories')}</option><option value="">${t('notesNoCategory')}</option>${noteCategories(notes,locale).map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select></label>` : ''}</div>
-      <div class="notes-actions"><button class="primary-btn" id="create-text">+ ${t('newNote')}</button><button class="secondary-btn" id="create-checklist">☑ ${t('newChecklist')}</button><button type="button" class="secondary-btn" id="open-notes-trash">🗑 ${t('trashTitle')} (${trash?.items.length ?? '?'})</button></div><p class="notes-count" id="notes-count" aria-live="polite"></p></div>
+      <div class="notes-actions"><button class="primary-btn" id="create-text">+ ${t('newNote')}</button><button class="secondary-btn" id="create-checklist">☑ ${t('newChecklist')}</button><button type="button" class="secondary-btn" id="open-notes-trash">🗑 ${t('trashTitle')} (${trash?.items.length ?? '?'})</button><button type="button" class="secondary-btn" id="toggle-notes-bulk" aria-pressed="${bulkMode}">${t(bulkMode?'notesBulkCancel':'notesBulkSelect')}</button></div><p class="notes-count" id="notes-count" aria-live="polite"></p>
+      ${bulkMode?`<div class="notes-bulk-panel" aria-label="${t('notesBulkSelect')}">
+        <div class="notes-bulk-top"><strong id="notes-bulk-count" role="status">${t('notesBulkCount').replace('{n}','0')}</strong><button type="button" class="secondary-btn" id="notes-bulk-select-visible">${t('notesBulkSelectVisible')}</button></div>
+        <label for="notes-bulk-category">${t('notesBulkDestination')}</label>
+        <input type="text" class="text-field" id="notes-bulk-category" maxlength="40" list="notes-bulk-suggestions" autocomplete="off" placeholder="${t('notesBulkPlaceholder')}">
+        <datalist id="notes-bulk-suggestions">${noteCategories(notes,locale).map(c=>`<option value="${escapeHtml(c)}"></option>`).join('')}</datalist>
+        <p class="notes-bulk-hint">${t('notesBulkHint')}</p>
+        <button type="button" class="primary-btn" id="notes-bulk-apply" disabled>${t('notesBulkApply')}</button>
+      </div>`:''}</div>
       ${lastDeleted ? `<div class="notes-undo" role="status"><span>${t('notesDeletedUndo')}</span><button type="button" class="secondary-btn" id="undo-delete-note">${t('notesUndo')}</button></div>` : ''}
       <div id="notes-list" class="notes-grid"></div>`;
     const searchInput=element.querySelector('#note-search');
@@ -82,18 +93,78 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       resultList.innerHTML=visible.length ? visible.map(n => {
         const summary=n.kind==='checklist' ? `${n.items.filter(i=>i.done).length}/${n.items.length} ✓ · ${n.items.slice(0,2).map(i=>i.text).join(', ')}` : n.body.slice(0,110);
         const label=n.title.trim() || (n.kind==='checklist' ? t('newChecklist') : t('newNote'));
-        return `<button class="note-card" type="button" data-note-id="${escapeHtml(n.id)}"><div class="row-between"><span class="note-type">${n.kind==='checklist'?'☑':'✎'} ${n.kind==='checklist' ? t('newChecklist') : t('newNote')}</span><span>${n.pinned?'📌 ':''}${n.favourite?'★':''}</span></div>
+        const content=`<div class="row-between"><span class="note-type">${n.kind==='checklist'?'☑':'✎'} ${n.kind==='checklist' ? t('newChecklist') : t('newNote')}</span><span>${n.pinned?'📌 ':''}${n.favourite?'★':''}</span></div>
           <strong>${escapeHtml(label)}</strong>${categoryName(n.category) ? `<span class="note-category-chip">${escapeHtml(categoryName(n.category))}</span>` : ''}<span class="note-preview">${escapeHtml(summary) || '—'}</span>
-          <small>${new Intl.DateTimeFormat(locale,{day:'numeric',month:'short'}).format(new Date(n.updatedAt))}</small></button>`;
+          <small>${new Intl.DateTimeFormat(locale,{day:'numeric',month:'short'}).format(new Date(n.updatedAt))}</small>`;
+        return bulkMode ? `<label class="note-card notes-select-card"><span class="notes-select-control"><input type="checkbox" data-select-note="${escapeHtml(n.id)}" ${selectedIds.has(n.id)?'checked':''}><span>${t('notesBulkSelect')}</span></span>${content}</label>`
+          : `<button class="note-card" type="button" data-note-id="${escapeHtml(n.id)}">${content}</button>`;
       }).join('') : `<div class="empty-state">${search ? t('notesNoResults') : t('notesEmpty')}</div>`;
+      if(bulkMode){
+        const counter=element.querySelector('#notes-bulk-count');
+        if(counter)counter.textContent=t('notesBulkCount').replace('{n}',String(selectedIds.size));
+        const apply=element.querySelector('#notes-bulk-apply');
+        if(apply)apply.disabled=selectedIds.size===0;
+        const selectAll=element.querySelector('#notes-bulk-select-visible');
+        if(selectAll)selectAll.disabled=visible.length===0;
+      }
     };
-    searchInput.addEventListener('input', () => {search=searchInput.value; renderList();});
-    scopeInput.addEventListener('change',()=>{scope=scopeInput.value;renderList();});
+    searchInput.addEventListener('input', () => {search=searchInput.value;selectedIds.clear();renderList();});
+    scopeInput.addEventListener('change',()=>{scope=scopeInput.value;selectedIds.clear();renderList();});
     orderInput.addEventListener('change',()=>{order=orderInput.value;renderList();});
-    categoryInput?.addEventListener('change',()=>{categoryFilter=categoryInput.value;renderList();});
+    categoryInput?.addEventListener('change',()=>{categoryFilter=categoryInput.value;selectedIds.clear();renderList();});
     element.querySelector('#create-text').addEventListener('click',()=>{void create('text');});
     element.querySelector('#create-checklist').addEventListener('click',()=>{void create('checklist');});
     element.querySelector('#open-notes-trash').addEventListener('click',()=>trashList());
+    element.querySelector('#toggle-notes-bulk').addEventListener('click',()=>{
+      bulkMode=!bulkMode;selectedIds.clear();list();
+    });
+    if(bulkMode){
+      resultList.addEventListener('change',event=>{
+        const checkbox=event.target.closest('[data-select-note]');
+        if(!checkbox)return;
+        const id=checkbox.dataset.selectNote;
+        if(checkbox.checked){
+          if(selectedIds.size>=MAX_BULK_NOTES){checkbox.checked=false;notify(t('notesBulkLimit'));return;}
+          selectedIds.add(id);
+        }else selectedIds.delete(id);
+        const counter=element.querySelector('#notes-bulk-count');
+        if(counter)counter.textContent=t('notesBulkCount').replace('{n}',String(selectedIds.size));
+        element.querySelector('#notes-bulk-apply').disabled=selectedIds.size===0;
+      });
+      element.querySelector('#notes-bulk-select-visible').addEventListener('click',()=>{
+        const visible=selectNotes(notes,{query:search,scope,order,locale,category:categoryFilter});
+        selectedIds.clear();
+        for(const n of visible.slice(0,MAX_BULK_NOTES))selectedIds.add(n.id);
+        if(visible.length>MAX_BULK_NOTES)notify(t('notesBulkLimit'));
+        renderList();
+      });
+      element.querySelector('#notes-bulk-apply').addEventListener('click',async event=>{
+        const snapshots=notes.filter(n=>selectedIds.has(n.id)).map(safeClone);
+        if(!snapshots.length)return;
+        const rawCategory=element.querySelector('#notes-bulk-category').value;
+        const destination=categoryName(rawCategory);
+        if(rawCategory.trim() && !destination){notify(t('notesBulkBadCategory'));return;}
+        const question=t(destination?'notesBulkConfirm':'notesBulkClearConfirm')
+          .replace('{n}',String(snapshots.length)).replace('{category}',destination);
+        if(!confirmAction(question))return;
+        const button=event.currentTarget;button.disabled=true;
+        try{
+          const changed=await changeNotesCategories(snapshots,destination);
+          if(disposed)return;
+          const replacements=new Map(changed.map(n=>[n.id,n]));
+          notes=notes.map(n=>replacements.get(n.id)||n);
+          bulkMode=false;selectedIds.clear();
+          // Category filters may no longer have matching notes; return to All.
+          categoryFilter='*';
+          list();notify(t('notesBulkDone').replace('{n}',String(changed.length)));
+        }catch(error){
+          if(disposed)return;
+          button.disabled=false;
+          notify(`${t('notesBulkFailed')}: ${error.message}`);
+        }
+      });
+    }
+
     const undoBtn=element.querySelector('#undo-delete-note');
     if(undoBtn)undoBtn.addEventListener('click',async()=>{
       if(!lastDeleted)return;
@@ -114,7 +185,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     });
     resultList.addEventListener('click',event=>{
       const btn=event.target.closest('[data-note-id]');
-      if(btn) editor(btn.dataset.noteId);
+      if(btn && !bulkMode) editor(btn.dataset.noteId);
     });
     renderList();
   };

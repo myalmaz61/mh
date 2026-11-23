@@ -2,6 +2,7 @@ import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES
 import { safeClone } from './utils.js';
 import { MAX_TRASH_NOTES, emptyNotesTrash, validNotesTrash, validStoredNote } from './notes-trash-core.js';
 import {validNoteCategory} from './notes-category-core.js';
+import {planBulkCategoryChange} from './notes-bulk-core.js';
 import { emptyCalendar, validCalendarData, MAX_CALENDAR_EVENTS } from './calendar-core.js';
 import { emptyTasks, validTasksData, validTask, MAX_TASKS } from './tasks-core.js';
 import { completeTodayTaskData } from './today-actions-core.js';
@@ -80,6 +81,40 @@ async function request(storeName, mode, run) {
 export async function getNotes() { return await request('notes','readonly',store => store.getAll()) || []; }
 export async function putNote(note) { return request('notes','readwrite',store => store.put(safeClone(note))); }
 export async function deleteNote(id) { return request('notes','readwrite',store => store.delete(id)); }
+/** All-or-nothing category update for 1–100 notes.
+ * Each record must still equal its original snapshot. A stale tab, missing note
+ * or failed write ABORTS the whole transaction; no partial update can commit.
+ */
+export async function changeNotesCategories(expectedNotes, category) {
+  const updatedAt=new Date().toISOString();
+  const updates=planBulkCategoryChange(expectedNotes, category, updatedAt);
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('notes','readwrite');
+    const store=tx.objectStore('notes');
+    let remaining=updates.length, failure=null;
+    const fail=error=>{failure=error;try{tx.abort();}catch{/* already aborted */}};
+    for(let i=0;i<updates.length;i++){
+      const expected=expectedNotes[i], next=updates[i];
+      const req=store.get(expected.id);
+      req.onsuccess=()=>{
+        if(failure)return;
+        const found=req.result;
+        if(!validStoredNote(found) || JSON.stringify(found)!==JSON.stringify(expected)){
+          const error=Error('Note was changed in another tab');error.code='stale-note';fail(error);return;
+        }
+        if(--remaining===0){
+          try{for(const update of updates)store.put(safeClone(update));}
+          catch(error){fail(error);}
+        }
+      };
+    }
+    tx.oncomplete=()=>resolve(updates);
+    tx.onerror=()=>reject(failure||tx.error||Error('Bulk category change failed'));
+    tx.onabort=()=>reject(failure||tx.error||Error('Bulk category change aborted'));
+  });
+}
+
 /** One-click undo for a just-deleted note, only while Notes is open.
  * Use add (never put) so another tab's note with the same ID is NEVER overwritten.
  */
