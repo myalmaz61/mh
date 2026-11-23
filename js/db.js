@@ -3,6 +3,7 @@ import { safeClone } from './utils.js';
 import { MAX_TRASH_NOTES, emptyNotesTrash, validNotesTrash, validStoredNote } from './notes-trash-core.js';
 import {validNoteCategory} from './notes-category-core.js';
 import {planBulkCategoryChange} from './notes-bulk-core.js';
+import {planNoteQuickToggle} from './note-quick-core.js';
 import { emptyCalendar, validCalendarData, MAX_CALENDAR_EVENTS } from './calendar-core.js';
 import { emptyTasks, validTasksData, validTask, MAX_TASKS } from './tasks-core.js';
 import { completeTodayTaskData } from './today-actions-core.js';
@@ -81,6 +82,30 @@ async function request(storeName, mode, run) {
 export async function getNotes() { return await request('notes','readonly',store => store.getAll()) || []; }
 export async function putNote(note) { return request('notes','readwrite',store => store.put(safeClone(note))); }
 export async function deleteNote(id) { return request('notes','readwrite',store => store.delete(id)); }
+/** Atomic compare-and-swap: a stale note can NEVER overwrite an updated note.
+ * Only the flag and updatedAt are modified on the original snapshot. */
+export async function toggleNoteQuickFlag(expectedNote, flag) {
+  const proposed=planNoteQuickToggle(expectedNote,flag,new Date().toISOString());
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('notes','readwrite');
+    const store=tx.objectStore('notes');
+    let failure=null;
+    const read=store.get(expectedNote.id);
+    read.onsuccess=()=>{
+      const actual=read.result;
+      if(!validStoredNote(actual)||JSON.stringify(actual)!==JSON.stringify(expectedNote)){
+        failure=Error('Note changed in another tab');failure.code='stale-note';tx.abort();return;
+      }
+      try { store.put(safeClone(proposed)); }
+      catch(err) { failure=err;tx.abort(); }
+    };
+    tx.oncomplete=()=>resolve(proposed);
+    tx.onerror=()=>reject(failure||tx.error||Error('Quick action failed'));
+    tx.onabort=()=>reject(failure||tx.error||Error('Quick action aborted'));
+  });
+}
+
 /** All-or-nothing category update for 1–100 notes.
  * Each record must still equal its original snapshot. A stale tab, missing note
  * or failed write ABORTS the whole transaction; no partial update can commit.

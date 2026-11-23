@@ -1,4 +1,4 @@
-import { getNotes, putNote, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever, changeNotesCategories } from './db.js';
+import { getNotes, putNote, toggleNoteQuickFlag, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever, changeNotesCategories } from './db.js';
 import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
@@ -25,6 +25,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let order = 'newest';
   let categoryFilter = '*';
   let bulkMode = false;
+  let quickActionBusy = false;
   const selectedIds = new Set();
   let timer = null;
   let dirty = false;
@@ -79,6 +80,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         <button type="button" class="primary-btn" id="notes-bulk-apply" disabled>${t('notesBulkApply')}</button>
       </div>`:''}</div>
       ${lastDeleted ? `<div class="notes-undo" role="status"><span>${t('notesDeletedUndo')}</span><button type="button" class="secondary-btn" id="undo-delete-note">${t('notesUndo')}</button></div>` : ''}
+      <div class="notes-filter-reset"><button type="button" class="text-link" id="notes-reset-filters" hidden>${t('notesResetFilters')}</button></div>
       <div id="notes-list" class="notes-grid"></div>`;
     const searchInput=element.querySelector('#note-search');
     const resultList=element.querySelector('#notes-list');
@@ -91,6 +93,9 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     const renderList=() => {
       const visible=selectNotes(notes,{query:search,scope,order,locale,category:categoryFilter});
       element.querySelector('#notes-count').textContent=t('notesCount').replace('{shown}',String(visible.length)).replace('{total}',String(notes.length));
+      const hasFilters=Boolean(search.trim())||scope!=='all'||order!=='newest'||categoryFilter!=='*';
+      const reset=element.querySelector('#notes-reset-filters');
+      if(reset)reset.hidden=!hasFilters;
       resultList.innerHTML=visible.length ? visible.map(n => {
         const summary=n.kind==='checklist' ? `${n.items.filter(i=>i.done).length}/${n.items.length} ✓ · ${n.items.slice(0,2).map(i=>i.text).join(', ')}` : n.body.slice(0,110);
         const label=n.title.trim() || (n.kind==='checklist' ? t('newChecklist') : t('newNote'));
@@ -98,7 +103,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
           <strong>${escapeHtml(label)}</strong>${categoryName(n.category) ? `<span class="note-category-chip">${escapeHtml(categoryName(n.category))}</span>` : ''}<span class="note-preview">${escapeHtml(summary) || '—'}</span>
           <small>${new Intl.DateTimeFormat(locale,{day:'numeric',month:'short'}).format(new Date(n.updatedAt))}</small>`;
         return bulkMode ? `<label class="note-card notes-select-card"><span class="notes-select-control"><input type="checkbox" data-select-note="${escapeHtml(n.id)}" ${selectedIds.has(n.id)?'checked':''}><span>${t('notesBulkSelect')}</span></span>${content}</label>`
-          : `<button class="note-card" type="button" data-note-id="${escapeHtml(n.id)}">${content}</button>`;
+          : `<div class="notes-card-shell"><button class="note-card" type="button" data-note-id="${escapeHtml(n.id)}">${content}</button><div class="notes-quick-actions"><button type="button" data-quick-id="${escapeHtml(n.id)}" data-quick-flag="pinned" aria-label="${n.pinned?t('unpin'):t('pin')}" title="${n.pinned?t('unpin'):t('pin')}" aria-pressed="${Boolean(n.pinned)}" ${quickActionBusy?'disabled':''}>📌</button><button type="button" data-quick-id="${escapeHtml(n.id)}" data-quick-flag="favourite" aria-label="${n.favourite?t('unfavourite'):t('favourite')}" title="${n.favourite?t('unfavourite'):t('favourite')}" aria-pressed="${Boolean(n.favourite)}" ${quickActionBusy?'disabled':''}>${n.favourite?'★':'☆'}</button></div></div>`;
       }).join('') : `<div class="empty-state">${search ? t('notesNoResults') : t('notesEmpty')}</div>`;
       if(bulkMode){
         const counter=element.querySelector('#notes-bulk-count');
@@ -113,6 +118,12 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     scopeInput.addEventListener('change',()=>{scope=scopeInput.value;selectedIds.clear();renderList();});
     orderInput.addEventListener('change',()=>{order=orderInput.value;renderList();});
     categoryInput?.addEventListener('change',()=>{categoryFilter=categoryInput.value;selectedIds.clear();renderList();});
+    element.querySelector('#notes-reset-filters').addEventListener('click',()=>{
+      search='';scope='all';order='newest';categoryFilter='*';selectedIds.clear();
+      searchInput.value='';scopeInput.value=scope;orderInput.value=order;
+      if(categoryInput)categoryInput.value=categoryFilter;
+      renderList();searchInput.focus();
+    });
     element.querySelector('#create-text').addEventListener('click',()=>{void create('text');});
     element.querySelector('#create-checklist').addEventListener('click',()=>{void create('checklist');});
     element.querySelector('#open-notes-trash').addEventListener('click',()=>trashList());
@@ -184,9 +195,32 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         notify(`${t('notesUndoFailed')}: ${error.message}`);
       }
     });
-    resultList.addEventListener('click',event=>{
+    resultList.addEventListener('click',async event=>{
+      const quick=event.target.closest('[data-quick-id][data-quick-flag]');
+      if(quick){
+        if(bulkMode||quickActionBusy)return;
+        const note=notes.find(n=>n.id===quick.dataset.quickId);
+        if(!note)return;
+        const flag=quick.dataset.quickFlag;
+        quickActionBusy=true;
+        resultList.querySelectorAll('[data-quick-flag]').forEach(btn=>{btn.disabled=true;});
+        try{
+          const updated=await toggleNoteQuickFlag(safeClone(note),flag);
+          if(disposed)return;
+          notes=notes.map(n=>n.id===updated.id?updated:n);
+          renderList();
+        }catch(error){
+          if(disposed)return;
+          // A stale tab must be refreshed; do not retry an unsafe write.
+          try { notes=(await getNotes()).filter(valid); }catch{/* keep old in-memory view */}
+          if(disposed)return;
+          notify(`${t('notesQuickFailed')}: ${error.message}`);
+          renderList();
+        }finally{quickActionBusy=false; if(!disposed)resultList.querySelectorAll('[data-quick-flag]').forEach(btn=>{btn.disabled=false;});}
+        return;
+      }
       const btn=event.target.closest('[data-note-id]');
-      if(btn && !bulkMode) editor(btn.dataset.noteId);
+      if(btn && !bulkMode && !quickActionBusy) editor(btn.dataset.noteId);
     });
     renderList();
   };
