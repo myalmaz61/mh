@@ -1,6 +1,6 @@
 /** Read-only Restore preview. Never places archive contents in the page. */
 const MODULES = Object.freeze([
-  ['notes','notes'], ['tasksData','tasks'], ['calendarData','events'],
+  ['notes','notes'], ['notesTrashData','trashedNotes'], ['tasksData','tasks'], ['calendarData','events'],
   ['quickListsData','lists'], ['bookmarksData','bookmarks'],
   ['rssData','rssArticles'], ['footballData','leagues']
 ]);
@@ -9,6 +9,7 @@ export function previewBackup(source, validated){
   if(!p||!validated||!Array.isArray(validated.notes))throw Error('Validate backup first');
   const counts={
     notes:validated.notes.length,
+    trashedNotes:validated.notesTrashData.items.length,
     tasks:validated.tasksData.tasks.length,
     events:validated.calendarData.events.length,
     lists:validated.quickListsData.lists.length,
@@ -31,6 +32,7 @@ export function compareBackupContents(current, incoming){
   if(!current || !incoming || !Array.isArray(current.notes) || !Array.isArray(incoming.notes))throw Error('Validate both datasets before comparison');
   const sections=[
     ['notes',current.notes,incoming.notes,'id'],
+    ['trashedNotes',current.notesTrashData.items.map(x=>({...x,id:x.note.id})),incoming.notesTrashData.items.map(x=>({...x,id:x.note.id})),'id'],
     ['tasks',current.tasksData.tasks,incoming.tasksData.tasks,'id'],
     ['events',current.calendarData.events,incoming.calendarData.events,'id'],
     ['lists',current.quickListsData.lists,incoming.quickListsData.lists,'id'],

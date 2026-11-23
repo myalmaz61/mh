@@ -1,5 +1,6 @@
 import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
 import { safeClone } from './utils.js';
+import { MAX_TRASH_NOTES, emptyNotesTrash, validNotesTrash, validStoredNote } from './notes-trash-core.js';
 import { emptyCalendar, validCalendarData, MAX_CALENDAR_EVENTS } from './calendar-core.js';
 import { emptyTasks, validTasksData, validTask, MAX_TASKS } from './tasks-core.js';
 import { completeTodayTaskData } from './today-actions-core.js';
@@ -19,7 +20,7 @@ const DB_VERSION = 1;
 const BACKUP_META_KEYS = [
   'settings','calcHistory','weatherCache','timerData','calendarData',
   'tasksData','quickListsData','footballData','rssData','bookmarksData',
-  'unitFavouritesData','recentTools'
+  'unitFavouritesData','recentTools','notesTrashData'
 ];
 let dbPromise;
 
@@ -100,6 +101,122 @@ export async function restoreDeletedNote(note) {
     tx.oncomplete=()=>resolve(note.id);
     tx.onerror=()=>reject(reason||tx.error||Error('Restore failed'));
     tx.onabort=()=>reject(reason||tx.error||Error('Restore aborted'));
+  });
+}
+
+
+/** Move a note to trash as one atomic transaction: it is never deleted unless
+ * its exact contents have been saved in the same commit. Stale tabs abort. */
+export async function moveNoteToTrash(expectedNote) {
+  if (!validStoredNote(expectedNote)) throw Error('Invalid note');
+  const db = await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(['notes','meta'],'readwrite');
+    const notesStore=tx.objectStore('notes'), metaStore=tx.objectStore('meta');
+    let failure=null, ready=0;
+    const foundNote=notesStore.get(expectedNote.id);
+    const foundTrash=metaStore.get('notesTrashData');
+    function proceed(){
+      if(++ready!==2)return;
+      try{
+        const current=foundNote.result;
+        const trash=foundTrash.result ? foundTrash.result.value : emptyNotesTrash();
+        if(!validNotesTrash(trash))throw Error('Trash contains invalid data');
+        if(!current || !validStoredNote(current) || JSON.stringify(current)!==JSON.stringify(expectedNote)){
+          const e=Error('Note changed in another tab'); e.code='stale-note';throw e;
+        }
+        if(trash.items.length>=MAX_TRASH_NOTES){const e=Error('Trash is full');e.code='trash-full';throw e;}
+        if(trash.items.some(entry=>entry.note.id===current.id))throw Error('Duplicate trash ID');
+        const next={schema:1,items:[...trash.items,{note:safeClone(current),deletedAt:new Date().toISOString()}]};
+        metaStore.put({key:'notesTrashData',value:next});
+        notesStore.delete(current.id);
+      }catch(e){failure=e;tx.abort();}
+    }
+    foundNote.onsuccess=proceed;
+    foundTrash.onsuccess=proceed;
+    tx.oncomplete=()=>resolve(expectedNote.id);
+    tx.onerror=()=>reject(failure||tx.error||Error('Unable to delete note'));
+    tx.onabort=()=>reject(failure||tx.error||Error('Unable to move note to trash'));
+  });
+}
+
+export async function getNotesTrash() {
+  const value=await getMeta('notesTrashData');
+  const trash=value===undefined?emptyNotesTrash():value;
+  if(!validNotesTrash(trash))throw Error('Trash data is damaged');
+  return trash;
+}
+
+/** Restore with add (never put) and remove from trash within ONE transaction.
+ * An existing ID or the note limit aborts without losing the trashed item. */
+export async function restoreTrashedNote(id) {
+  if(typeof id!=='string'||!id)throw Error('Invalid trash ID');
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(['notes','meta'],'readwrite');
+    const noteStore=tx.objectStore('notes'),metaStore=tx.objectStore('meta');
+    let failure=null, ready=0, restored=null;
+    const count=noteStore.count(), current=noteStore.get(id), row=metaStore.get('notesTrashData');
+    function proceed(){
+      if(++ready!==3)return;
+      try{
+        const trash=row.result?row.result.value:emptyNotesTrash();
+        if(!validNotesTrash(trash))throw Error('Trash data is damaged');
+        const item=trash.items.find(x=>x.note.id===id);
+        if(!item)throw Error('Note missing from trash');
+        if(current.result){const e=Error('Note ID already exists');e.code='duplicate';throw e;}
+        if(count.result>=MAX_NOTES){const e=Error('Notes limit reached');e.code='limit';throw e;}
+        restored=safeClone(item.note);
+        noteStore.add(restored);
+        metaStore.put({key:'notesTrashData',value:{schema:1,items:trash.items.filter(x=>x.note.id!==id)}});
+      }catch(e){failure=e;tx.abort();}
+    }
+    count.onsuccess=proceed;current.onsuccess=proceed;row.onsuccess=proceed;
+    tx.oncomplete=()=>resolve(restored);
+    tx.onerror=()=>reject(failure||tx.error||Error('Unable to restore note'));
+    tx.onabort=()=>reject(failure||tx.error||Error('Unable to restore note'));
+  });
+}
+
+/** Erase one item only with explicit UI confirmation, no automatic pruning. */
+export async function purgeTrashedNote(id) {
+  if(typeof id!=='string'||!id)throw Error('Invalid trash ID');
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite'); const store=tx.objectStore('meta');
+    let failure=null;
+    const req=store.get('notesTrashData');
+    req.onsuccess=()=>{
+      try{
+        const trash=req.result?req.result.value:emptyNotesTrash();
+        if(!validNotesTrash(trash))throw Error('Trash data is damaged');
+        if(!trash.items.some(x=>x.note.id===id))throw Error('Item is no longer in trash');
+        store.put({key:'notesTrashData',value:{schema:1,items:trash.items.filter(x=>x.note.id!==id)}});
+      }catch(e){failure=e;tx.abort();}
+    };
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(failure||tx.error||Error('Delete failed'));
+    tx.onabort=()=>reject(failure||tx.error||Error('Delete aborted'));
+  });
+}
+
+/** Clear only the trash. Active Notes are never opened or modified. */
+export async function emptyNotesTrashForever() {
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite');const store=tx.objectStore('meta');
+    let failure=null;
+    const req=store.get('notesTrashData');
+    req.onsuccess=()=>{
+      try{
+        const trash=req.result?req.result.value:emptyNotesTrash();
+        if(!validNotesTrash(trash))throw Error('Trash data is damaged');
+        store.put({key:'notesTrashData',value:emptyNotesTrash()});
+      }catch(e){failure=e;tx.abort();}
+    };
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(failure||tx.error||Error('Unable to empty trash'));
+    tx.onabort=()=>reject(failure||tx.error||Error('Unable to empty trash'));
   });
 }
 
@@ -295,6 +412,10 @@ export function validateBackup(data) {
       seenItems.add(item.id);
     }
   }
+  // v3: old archives have no trash; a missing section means an empty trash after Restore.
+  if(payload.notesTrashData!==undefined && !validNotesTrash(payload.notesTrashData,[...seen]))
+    throw Error('Невалидно кошче за бележки / invalid notes trash');
+  const notesTrashData=payload.notesTrashData===undefined?emptyNotesTrash():safeClone(payload.notesTrashData);
   const settings = payload.settings;
   if (!['auto','light','dark'].includes(settings.theme) || !['bg','en'].includes(settings.language) ||
     !Array.isArray(settings.favourites) || !Array.isArray(settings.timeZones) ||
@@ -347,7 +468,7 @@ export function validateBackup(data) {
   if(payload.recentTools!==undefined && !validRecentTools(payload.recentTools))throw Error('Невалидни последни инструменти / invalid recent tools');
   const unitFavouritesData=payload.unitFavouritesData===undefined?emptyUnitFavourites():safeClone(payload.unitFavouritesData);
   const recentTools=payload.recentTools===undefined?[]:safeClone(payload.recentTools);
-  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData,footballData,rssData,bookmarksData,unitFavouritesData,recentTools };
+  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData,footballData,rssData,bookmarksData,unitFavouritesData,recentTools,notesTrashData };
 }
 export async function createBackup(snapshot = null) {
   const raw = snapshot ?? await readBackupSnapshot();
@@ -355,7 +476,7 @@ export async function createBackup(snapshot = null) {
   const {settings:s,calcHistory:h,weatherCache:weather,timerData:timer,
     calendarData:calendar,tasksData:tasks,quickListsData:quickLists,
     footballData:football,rssData:rss,bookmarksData:bookmarks,
-    unitFavouritesData:unitFavs,recentTools:recent} = raw.meta;
+    unitFavouritesData:unitFavs,recentTools:recent,notesTrashData:trash} = raw.meta;
   if(calendar!==undefined && !validCalendarData(calendar))throw Error('Calendar data is damaged. Backup was stopped to avoid losing events.');
   if(tasks!==undefined && !validTasksData(tasks))throw Error('Task data is damaged. Backup was stopped to avoid losing tasks.');
   if(quickLists!==undefined && !validQuickListsData(quickLists))throw Error('Quick checklist data is damaged. Backup was stopped to avoid losing lists.');
@@ -364,6 +485,7 @@ export async function createBackup(snapshot = null) {
   if(bookmarks!==undefined && !validBookmarks(bookmarks))throw Error('Bookmarks data is damaged. Backup stopped to avoid losing links.');
   if(unitFavs!==undefined && !validUnitFavourites(unitFavs))throw Error('Unit favourites are damaged. Backup stopped.');
   if(recent!==undefined && !validRecentTools(recent))throw Error('Recent tools are damaged. Backup stopped.');
+  if(trash!==undefined && !validNotesTrash(trash,notes.map(n=>n.id)))throw Error('Notes trash is damaged. Backup stopped.');
   const cleanSettings=normaliseSettings(s);
   const cleanCache={};
   // Never silently drop a malformed forecast for a city the user still has.
@@ -382,7 +504,8 @@ export async function createBackup(snapshot = null) {
       rssData:rss===undefined?emptyRssData():safeClone(rss),
       bookmarksData:bookmarks===undefined?emptyBookmarks():safeClone(bookmarks),
       unitFavouritesData:unitFavs===undefined?emptyUnitFavourites():safeClone(unitFavs),
-      recentTools:recent===undefined?[]:safeClone(recent) } };
+      recentTools:recent===undefined?[]:safeClone(recent),
+      notesTrashData:trash===undefined?emptyNotesTrash():safeClone(trash) } };
   // Verify both raw stored fields and the final export. Normalisation must not
   // conceal damaged user settings, timer or calculator history.
   const preflight=structuredClone(backup);
@@ -419,7 +542,8 @@ export async function replaceFromBackup(payload, expectedSnapshot = null) {
           calendarData:data.calendarData, tasksData:data.tasksData,
           quickListsData:data.quickListsData, footballData:data.footballData,
           rssData:data.rssData, bookmarksData:data.bookmarksData,
-          unitFavouritesData:data.unitFavouritesData, recentTools:data.recentTools
+          unitFavouritesData:data.unitFavouritesData, recentTools:data.recentTools,
+          notesTrashData:data.notesTrashData
         };
         for (const key of BACKUP_META_KEYS) metaStore.put({key,value:values[key]});
         // An export prepared BEFORE this Restore no longer covers these data.

@@ -1,4 +1,4 @@
-import { getNotes, putNote, deleteNote, restoreDeletedNote } from './db.js';
+import { getNotes, putNote, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever } from './db.js';
 import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
@@ -12,6 +12,8 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     note.items.every(item => item && typeof item.text === 'string' && typeof item.done === 'boolean') &&
     typeof note.updatedAt === 'string' && Number.isFinite(Date.parse(note.updatedAt));
   let notes = stored.filter(valid);
+  let trash;
+  try { trash = await getNotesTrash(); } catch { trash = null; notify(t('trashCorrupt')); }
   if(notes.length !== stored.length) notify(t('corruptRecords'));
   let currentId = null;
   let search = '';
@@ -19,7 +21,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let order = 'newest';
   let timer = null;
   let dirty = false;
-  let lastDeleted = null; // private, temporary; not a hidden backup or persistent trash
+  let lastDeleted = null; // quick Undo stays temporary; the Trash itself persists
   let queue = Promise.resolve();
   let disposed = false;
   const locale = lang === 'en' ? 'en-GB' : 'bg-BG';
@@ -59,7 +61,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <div class="notes-toolbar"><input id="note-search" class="text-field" type="search" maxlength="200" placeholder="${t('notesSearch')}" value="${escapeHtml(search)}">
       <div class="notes-filters"><label for="note-scope">${t('notesFilter')}<select class="input-select" id="note-scope"><option value="all">${t('notesAll')}</option><option value="pinned">${t('notesPinned')}</option><option value="favourites">${t('notesFavourites')}</option></select></label>
       <label for="note-order">${t('notesSort')}<select class="input-select" id="note-order"><option value="newest">${t('notesNewest')}</option><option value="oldest">${t('notesOldest')}</option><option value="title">${t('notesTitleSort')}</option></select></label></div>
-      <div class="notes-actions"><button class="primary-btn" id="create-text">+ ${t('newNote')}</button><button class="secondary-btn" id="create-checklist">☑ ${t('newChecklist')}</button></div><p class="notes-count" id="notes-count" aria-live="polite"></p></div>
+      <div class="notes-actions"><button class="primary-btn" id="create-text">+ ${t('newNote')}</button><button class="secondary-btn" id="create-checklist">☑ ${t('newChecklist')}</button><button type="button" class="secondary-btn" id="open-notes-trash">🗑 ${t('trashTitle')} (${trash?.items.length ?? '?'})</button></div><p class="notes-count" id="notes-count" aria-live="polite"></p></div>
       ${lastDeleted ? `<div class="notes-undo" role="status"><span>${t('notesDeletedUndo')}</span><button type="button" class="secondary-btn" id="undo-delete-note">${t('notesUndo')}</button></div>` : ''}
       <div id="notes-list" class="notes-grid"></div>`;
     const searchInput=element.querySelector('#note-search');
@@ -83,15 +85,16 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     orderInput.addEventListener('change',()=>{order=orderInput.value;renderList();});
     element.querySelector('#create-text').addEventListener('click',()=>{void create('text');});
     element.querySelector('#create-checklist').addEventListener('click',()=>{void create('checklist');});
+    element.querySelector('#open-notes-trash').addEventListener('click',()=>trashList());
     const undoBtn=element.querySelector('#undo-delete-note');
     if(undoBtn)undoBtn.addEventListener('click',async()=>{
       if(!lastDeleted)return;
       undoBtn.disabled=true;
-      const candidate=safeClone(lastDeleted);
       try{
-        await restoreDeletedNote(candidate);
+        const restored=await restoreTrashedNote(lastDeleted);
         if(disposed)return;
-        notes.push(candidate);
+        notes.push(restored);
+        trash=await getNotesTrash();
         lastDeleted=null;
         list();
         notify(t('notesUndoSuccess'));
@@ -106,6 +109,65 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       if(btn) editor(btn.dataset.noteId);
     });
     renderList();
+  };
+  // Trash is an explicit, independent view. No autosave in it, and no
+  // automatic permanent deletion, expiration or pruning.
+  const trashList = () => {
+    currentId=null;
+    const items=trash?.items ?? [];
+    const rows=[...items].reverse().map(({note,deletedAt})=>{
+      const label=note.title.trim() || t(note.kind==='text'?'newNote':'newChecklist');
+      const description=note.kind==='text' ? note.body.slice(0,140) : note.items.slice(0,3).map(row=>(row.done?'☑ ':'☐ ')+row.text).join(' · ');
+      const date=new Intl.DateTimeFormat(locale,{dateStyle:'medium'}).format(new Date(deletedAt));
+      return `<div class="surface trash-card"><div class="row-between"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(date)}</small></div><p class="note-preview">${escapeHtml(description)||'—'}</p><div class="editor-actions"><button type="button" class="secondary-btn" data-restore-trash="${escapeHtml(note.id)}">${t('trashRestore')}</button><button type="button" class="danger-btn" data-purge-trash="${escapeHtml(note.id)}">${t('trashPurge')}</button></div></div>`;
+    }).join('');
+    element.innerHTML=`<div class="editor-top"><button class="back-btn" type="button" id="back-trash-notes">‹ ${t('backToNotes')}</button></div>
+      <section class="tool-head"><span class="eyebrow">NOTES / TRASH</span><h1>${t('trashTitle')}</h1><p>${t('trashInfo')}</p></section>
+      ${trash===null?`<p class="warning-text" role="alert">${t('trashCorrupt')}</p>`:
+        items.length?`<div class="notes-trash-list">${rows}</div><div class="notes-trash-footer"><button type="button" class="danger-btn" id="empty-notes-trash">${t('trashEmptyAll')} (${items.length})</button></div>`:
+        `<div class="empty-state">${t('trashEmpty')}</div>`}`;
+    element.querySelector('#back-trash-notes').addEventListener('click',()=>list());
+    element.querySelector('.notes-trash-list')?.addEventListener('click',async event=>{
+      const restore=event.target.closest('[data-restore-trash]');
+      const purge=event.target.closest('[data-purge-trash]');
+      const button=restore||purge;
+      if(!button || button.disabled)return;
+      const id=restore?.dataset.restoreTrash ?? purge?.dataset.purgeTrash;
+      if(purge && !confirmAction(t('trashPurgeConfirm')))return;
+      button.disabled=true;
+      try{
+        if(restore){
+          const note=await restoreTrashedNote(id);
+          if(disposed)return;
+          notes.push(note);
+          notify(t('trashRestored'));
+        }else{
+          await purgeTrashedNote(id);
+          if(disposed)return;
+          notify(t('trashPurged'));
+        }
+        trash=await getNotesTrash();
+        if(lastDeleted===id)lastDeleted=null;
+        trashList();
+      }catch(error){
+        if(disposed)return;
+        button.disabled=false;
+        notify(`${t('error')}: ${error.message}`);
+      }
+    });
+    element.querySelector('#empty-notes-trash')?.addEventListener('click',async event=>{
+      if(!confirmAction(t('trashEmptyConfirm')))return;
+      const button=event.currentTarget;button.disabled=true;
+      try{
+        await emptyNotesTrashForever();
+        if(disposed)return;
+        trash=await getNotesTrash();lastDeleted=null;
+        trashList();notify(t('trashPurged'));
+      }catch(error){
+        if(disposed)return;
+        button.disabled=false;notify(`${t('error')}: ${error.message}`);
+      }
+    });
   };
   const create=async kind => {
     if(notes.length>=MAX_NOTES){notify(t('notesLimit'));return;}
@@ -207,14 +269,15 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       n.favourite=!n.favourite;event.currentTarget.textContent=(n.favourite?'★ ':'☆ ')+t(n.favourite?'unfavourite':'favourite');update();
     });
     element.querySelector('#delete-note').addEventListener('click', async()=>{
-      if(!confirmAction(t('deleteConfirm'))) return;
+      if(!confirmAction(t('trashMoveConfirm'))) return;
       await flush();
       try {
-        const deleted=safeClone(n);
-        await deleteNote(n.id);
+        await moveNoteToTrash(safeClone(n));
         notes=notes.filter(note=>note.id!==n.id);
-        lastDeleted=deleted;
+        trash=await getNotesTrash();
+        lastDeleted=n.id;
         list();
+        notify(t('trashMoved'));
       }catch(err){notify(`${t('error')}: ${err.message}`);}
     });
     element.querySelector('#back-notes').addEventListener('click',async()=>{await flush();list();});
