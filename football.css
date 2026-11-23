@@ -46,3 +46,8 @@
 /* v2.6 — named SportScore competition, without enlarging the home screen */
 .football-second-league-label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:650;margin:10px 0 0}
 .football-second-league-label select{min-height:44px;width:100%;margin:0}
+
+/* v2.7: compact, opt-in API diagnostics. */
+.football-second-diagnostic{margin-top:.75rem;font-size:.85rem}
+.football-second-diagnostic summary{cursor:pointer;min-height:40px;display:flex;align-items:center;color:var(--text-muted,#667085)}
+.football-second-debug{font-size:.72rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:190px;overflow:auto}

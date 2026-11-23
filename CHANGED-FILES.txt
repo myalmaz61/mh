@@ -1,7 +1,8 @@
-# MyHub v2.6.0 — Files to update from v2.5.0
-# Keep all other files unchanged. Do not delete or clear PWA data.
+# MyHub v2.7.0 — Update from v2.6.0
+# Only these files are new or changed. Keep all others unchanged.
 
 API-SOURCES-BG.md
+CHANGED-FILES.txt
 README.md
 START-HERE-BG.md
 football.css
@@ -36,4 +37,3 @@ tests/utilities.test.mjs
 tests/v2-stability.test.mjs
 tests/visibility.test.mjs
 tests/weather.test.mjs
-CHANGED-FILES.txt
