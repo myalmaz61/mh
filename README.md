@@ -1,47 +1,32 @@
-# MyHub — Personal Tools v2.9.0
+# MyHub — Personal Tools v3.0.0
 
-Безплатна local-first PWA за Android Chrome и GitHub Pages. **Надгражда v2.8.0**, без промяна на формата на базата или данните.
+Local-first Bulgarian/English Android-friendly PWA for GitHub Pages. No account, paid API, server or build step required for deployment.
 
-## Какво е новото
+## New in 3.0.0: persistent Notes Trash
 
-### Notes — Върни последно изтритата бележка
+- **Notes → Кошче / Trash**: keeps deleted notes and checklists after closing or restarting the PWA.
+- Restore the **original record**, including checklist ticks, pinned/favourite flags, timestamps and ID.
+- One-tap Undo remains immediately after deletion, but deleted notes now also remain in Trash.
+- **Delete forever** (one record) and **Empty Trash** (all records) require explicit confirmation. Trash is never emptied automatically.
+- Maximum 100 deleted notes. When full, deleting another note is refused; no automatic eviction.
+- Deletion/restore use one IndexedDB transaction across `notes` and `meta`; invalid/corrupt data and stale-editor edits abort without writes. Restore never overwrites an existing ID.
+- JSON Backup **format 1** now includes `notesTrashData`. Existing older archives remain valid; restoring an older archive will replace the current trash with an empty one, after a preview warning.
+- Restore preview compares deleted notes as a separate category.
 
-- След обичайното потвърждение за изтриване Notes показва **„Върни“** над списъка.
-- Възстановяването запазва съдържанието, редовете на checklist, любимата/закрепената позиция и оригиналния идентификатор.
-- Защитава от презаписване на бележка със същия идентификатор в друг таб (`IndexedDB.add`, не `put`).
-- **Важно:** Възстановяване е възможно само докато оставаш в отворения Notes инструмент. Няма постоянна кошница (Trash). След затваряне, обновяване на страницата или изтриване на следваща бележка, предишната възможност за Undo се губи. JSON Backup остава най-сигурната защита.
-- Няма промяна на останалите действия в Notes.
+## Technical choices
 
-### Weather — Почасови вероятности с ленти
+- Same IndexedDB name `myhub-local`, **version 1**; no database upgrade or migration.
+- New meta key `notesTrashData` with `{schema:1,items:[{note,deletedAt}]}`.
+- New module `js/notes-trash-core.js` validates every deleted record.
+- Service worker cache `myhub-shell-v3.0.0` precaches the new module.
+- Football (including SportScore), Weather, and all other existing modules are **unchanged**.
 
-- Съществуващите 12 почасови прогнози вече показват и малки хоризонтални ленти за вероятност за валежи, заедно с процента.
-- Всички стойности идват от вече заредения Open-Meteo кеш. Не се правят допълнителни API заявки.
-- Липсващи стойности остават „–“, а не погрешно 0%.
-- Това е **вероятност**, не гаранция за валежи. За чужд град часът е в неговата местна часова зона, а актуалността на кеша е показана над прогнозата.
+## Testing
 
-### Останалото
+Run `npm test` using Node 22+ to exercise all old and new tests (no npm install needed). The new tests include a transactional fake IndexedDB and cover atomic deletion, restoration, corrupt data, ID collisions, old JSON files, and trash in the restore preview.
 
-- Football / SportScore и всички други модули **не са променяни**.
-- `myhub-local`, IndexedDB schema v1, JSON Backup format 1 остават непроменени.
-- Версията е `2.9.0`; нов PWA cache `myhub-shell-v2.9.0`.
-- Няма нови зависимости, сървър, ключове или разрешения.
+The automated tests do not substitute for manually checking the installed PWA on Android Chrome. See `START-HERE-BG.md` for a safe test using a disposable note.
 
-## Двата архива
+## Files
 
-- `MyHub-v2.9.0-UPDATE-ONLY.zip` — само създадените и променените файлове за надграждане от **точно v2.8.0**.
-- `MyHub-v2.9.0.zip` — целият проект за ново публикуване.
-- `CHANGED-FILES.txt` — файлове за обновяването; `APP-FILES-ONLY.txt` — по-краткият списък на файловете, необходими на GitHub Pages (без тестовете и документацията).
-- `MyHub-v2.9.0-FULL-SOURCE.md` — **пълният код на всеки нов или променен текстов файл**.
-
-## Проверки
-
-- Пусни `npm test`, ако имаш Node.js чрез GitHub Actions или друг инструмент (няма нужда от Node.js на Android телефона).
-- Всички 323 автоматизирани теста преминават, включително новите тестове за Undo и почасовите ленти.
-- Проверени са JavaScript синтаксис, Service Worker активи и ZIP overlay съвпадение.
-- **Пълна интеграционна проверка на публикувана PWA в Android Chrome не е извършена.** Нужни са пробите от `START-HERE-BG.md`.
-
-## Ограничения
-
-- Инсталираната PWA и Chrome могат да имат отделен контекст от други браузъри; не деинсталирай MyHub и не трий Chrome site data, ако пазиш лични данни там.
-- „Undo“ не е архив или Trash. За продължителна защита запазвай и проверявай JSON файловете.
-- Прогнозата може да закъснява при недостъпност на Open-Meteo. Използва се последната налична прогноза със статус за актуалност.
+Use `MyHub-v3.0.0-UPDATE-ONLY.zip` only when upgrading the existing v2.9.0 files. Use the complete ZIP for a new repository. `APP-FILES-ONLY.txt` lists the minimal files to publish via Android + GitHub. Other modules and data must not be deleted.

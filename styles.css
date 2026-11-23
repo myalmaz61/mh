@@ -65,3 +65,11 @@
 /* v2.9 — one-shot note deletion undo (never stored in personal backup). */
 .notes-undo{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--stroke);border-radius:13px;background:var(--surface-alt);padding:10px 13px;margin:-5px 0 17px;color:var(--muted);font-size:12px;line-height:1.4}
 .notes-undo .secondary-btn{min-height:40px}
+
+/* Notes permanent Trash, v3.0.0 */
+.notes-trash-list{display:grid;gap:12px;margin:18px 0;}
+.trash-card{padding:16px;overflow-wrap:anywhere;}
+.trash-card .row-between{gap:12px;align-items:start;}
+.trash-card .note-preview{margin:10px 0;color:var(--text-muted,inherit);white-space:pre-wrap;}
+.notes-trash-footer{display:flex;justify-content:flex-end;margin:16px 0 30px;}
+@media (max-width:480px){.trash-card .row-between{flex-wrap:wrap;}.notes-trash-footer .danger-btn{width:100%;}}

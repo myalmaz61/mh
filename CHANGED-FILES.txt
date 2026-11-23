@@ -1,16 +1,18 @@
-# MyHub v2.9.0 — update from v2.8.0
-# Put each file at the EXACT same path as before.
+# MyHub v3.0.0 — обновяване от v2.9.0
+# Пълният списък, включително документация и тестове.
 
 APP-FILES-ONLY.txt
 CHANGED-FILES.txt
 README.md
+RELEASE-NOTES-BG.md
 START-HERE-BG.md
+js/app.js
+js/backup-preview-core.js
 js/config.js
 js/db.js
 js/i18n.js
+js/notes-trash-core.js
 js/notes.js
-js/weather-hour-core.js
-js/weather.js
 package.json
 styles.css
 sw.js
@@ -22,6 +24,7 @@ tests/favourites.test.mjs
 tests/football-recovery.test.mjs
 tests/football.test.mjs
 tests/mini-tools.test.mjs
+tests/notes-trash.test.mjs
 tests/notes-undo.test.mjs
 tests/quick-add.test.mjs
 tests/quick-calendar.test.mjs
@@ -39,4 +42,3 @@ tests/v2-stability.test.mjs
 tests/visibility.test.mjs
 tests/weather-hour.test.mjs
 tests/weather.test.mjs
-weather.css
