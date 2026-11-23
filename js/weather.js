@@ -3,6 +3,7 @@ import { getMeta, setMeta } from './db.js';
 import { escapeHtml } from './utils.js';
 import { upcomingRainSummary, rainChanceWindow } from './weather-rain-core.js';
 import { hourlyProbabilityBar } from './weather-hour-core.js';
+import {weatherDayComparison} from './weather-day-compare-core.js';
 
 const REFRESH_MS = 30 * 60 * 1000;
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -52,7 +53,7 @@ export function parseForecast(json) {
   const hours=[];
   if(h && Array.isArray(h.time) && Array.isArray(h.precipitation_probability) && Array.isArray(h.temperature_2m)){
     const target=c.time.slice(0,13);
-    for(let i=0;i<h.time.length && hours.length<12;i++){
+    for(let i=0;i<h.time.length && hours.length<48;i++){
       const time=h.time[i],prob=h.precipitation_probability[i],temp=h.temperature_2m[i];
       if(typeof time!=='string'||time.slice(0,13)<target)continue;
       if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(time)||!optionalNumber(prob,0,100)||!optionalNumber(temp,-100,80))continue;
@@ -95,7 +96,7 @@ export function validSnapshot(entry) {
   if(!c || typeof c.time!=='string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(c.time) ||
       !finiteNumber(c.temp,-100,80)||!finiteNumber(c.feels,-120,90)||!finiteNumber(c.humidity,0,100)||
       !finiteNumber(c.wind,0,500)||!finiteNumber(c.rain,0,10000)||!finiteNumber(c.code,0,100)||typeof c.isDay!=='boolean')return false;
-  if(!Array.isArray(entry.daily)||entry.daily.length<1||entry.daily.length>7||!Array.isArray(entry.hours)||entry.hours.length>12)return false;
+  if(!Array.isArray(entry.daily)||entry.daily.length<1||entry.daily.length>7||!Array.isArray(entry.hours)||entry.hours.length>48)return false;
   for(const d of entry.daily){if(!validDay(d.date)||!finiteNumber(d.min,-100,80)||!finiteNumber(d.max,-100,80)||
     !optionalNumber(d.rain,0,10000)||!optionalNumber(d.prob,0,100)||!optionalNumber(d.wind,0,500)||!finiteNumber(d.code,0,100))return false;}
   for(const h of entry.hours){if(typeof h.time!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(h.time)||
@@ -152,6 +153,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     const stale=age>REFRESH_MS;
     const rainSummary=upcomingRainSummary(snapshot.hours);
     const rainWindow=rainChanceWindow(snapshot.hours);
+    const dayComparison=weatherDayComparison(snapshot.hours,snapshot.current.time);
     content.innerHTML=`<div class="weather-condition">
       <div class="weather-condition-row"><span class="weather-emblem" aria-hidden="true">${condition.symbol}</span><div><div class="weather-temp">${concise(current.temp)}°</div><div class="weather-description">${escapeHtml(condition.text)}</div></div></div>
       <span class="weather-status ${stale?'stale':''}">${stale?t('weatherStored'):t('weatherRecent')}</span>
@@ -166,13 +168,14 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       ${rainWindow ? `<div class="weather-rain-window">${rainWindow.firstTime
         ? `${t('weatherRainFirstHigh')}: <strong>${escapeHtml(rainWindow.firstTime.slice(8,10)+'.'+rainWindow.firstTime.slice(5,7)+' '+rainWindow.firstTime.slice(11,16))} (${t('weatherLocalTime')}) · ${concise(rainWindow.firstProbability)}%</strong>`
         : `${t('weatherRainBelowThreshold').replace('{n}',String(rainWindow.count))}`}</div>` : ''}</div>`:''}
+    ${dayComparison ? `<div class="weather-day-comparison"><h3 class="weather-subtitle">${t('weatherCompareDays')}</h3><p class="weather-hour-hint">${t('weatherCompareHint')}</p><div class="weather-compare-grid">${dayComparison.map((day,index)=>`<details class="weather-compare-card"><summary><span><strong>${t(index===0?'weatherToday':'weatherTomorrow')}</strong><small>${escapeHtml(day.date)}</small></span><span>${day.maxProbability===null?'—':`${Math.round(day.maxProbability)}%`} ☔</span></summary>${day.hours.length?`<div class="weather-compare-rows">${day.hours.map(hour=>`<div class="weather-compare-row"><span>${escapeHtml(hour.time.slice(11,16))}</span><span>${hour.temp===null?'—':`${concise(hour.temp)}°`}</span><strong>${hour.prob===null?'—':`${Math.round(hour.prob)}%`}</strong></div>`).join('')}</div>`:`<p class="muted">${t('weatherNoHourlyForDay')}</p>`}</details>`).join('')}</div></div>`:''}
     <h3 class="weather-subtitle">${t('weatherNextDays')}</h3><div class="weather-week">${snapshot.daily.map(day=>{
       const w=weatherDescription(day.code,lang);
       return `<div class="weather-day"><div class="weather-day-title">${escapeHtml(fmtDay(day.date,lang))}</div><span class="weather-day-icon" aria-label="${escapeHtml(w.text)}" role="img">${w.symbol}</span>
         <div class="weather-day-temp">${concise(day.max)}° <span>${concise(day.min)}°</span></div>
         <div class="weather-day-rain">☔ ${concise(day.prob)}% <small>· ${concise(day.rain,1)} mm</small></div></div>`;
     }).join('')}</div>
-    ${snapshot.hours.length?`<h3 class="weather-subtitle">${t('weatherComingHours')}</h3><p class="weather-hour-hint">${t('weatherHoursHint')}</p><div class="weather-hours">${snapshot.hours.map(hour=>{
+    ${snapshot.hours.length?`<h3 class="weather-subtitle">${t('weatherComingHours')}</h3><p class="weather-hour-hint">${t('weatherHoursHint')}</p><div class="weather-hours">${snapshot.hours.slice(0,12).map(hour=>{
       const probability=hourlyProbabilityBar(hour.prob);
       return `<div class="weather-hour"><strong>${escapeHtml(hour.time.slice(11,16))}</strong><span>${concise(hour.temp)}°</span><small>☔ ${probability === null ? '–' : `${probability}%`}</small><div class="weather-rain-track" aria-hidden="true"><div class="weather-rain-fill" style="width:${probability === null ? 0 : probability}%"></div></div></div>`;
     }).join('')}</div>`:''}

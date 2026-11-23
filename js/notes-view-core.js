@@ -1,5 +1,6 @@
 /** Pure, non-mutating list organisation for Notes. Pins remain first in every order. */
-export function selectNotes(notes, {query = '', scope = 'all', order = 'newest', locale = 'bg-BG'} = {}) {
+import {categoryName} from './notes-category-core.js';
+export function selectNotes(notes, {query = '', scope = 'all', order = 'newest', locale = 'bg-BG', category = '*'} = {}) {
   if (!Array.isArray(notes)) return [];
   const text = String(query).trim().toLocaleLowerCase();
   const selectedScope = ['all', 'pinned', 'favourites'].includes(scope) ? scope : 'all';
@@ -8,7 +9,8 @@ export function selectNotes(notes, {query = '', scope = 'all', order = 'newest',
     if (!note || typeof note.title !== 'string' || typeof note.body !== 'string' || !Array.isArray(note.items)) return false;
     if (selectedScope === 'pinned' && !note.pinned) return false;
     if (selectedScope === 'favourites' && !note.favourite) return false;
-    return !text || [note.title, note.body, ...note.items.map(item => typeof item?.text === 'string' ? item.text : '')]
+    if (category!=='*' && categoryName(note.category).toLocaleLowerCase() !== String(category).toLocaleLowerCase()) return false;
+    return !text || [note.title, note.body, categoryName(note.category), ...note.items.map(item => typeof item?.text === 'string' ? item.text : '')]
       .join(' ').toLocaleLowerCase().includes(text);
   });
   const changedAt = note => Number.isFinite(Date.parse(note.updatedAt)) ? Date.parse(note.updatedAt) : 0;

@@ -4,13 +4,15 @@ import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
 import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
 import { selectNotes } from './notes-view-core.js';
+import { categoryName, noteCategories } from './notes-category-core.js';
 
 export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
   const valid = note => note && typeof note.id === 'string' && ['text','checklist'].includes(note.kind) &&
     typeof note.title === 'string' && typeof note.body === 'string' && Array.isArray(note.items) &&
     note.items.every(item => item && typeof item.text === 'string' && typeof item.done === 'boolean') &&
-    typeof note.updatedAt === 'string' && Number.isFinite(Date.parse(note.updatedAt));
+    typeof note.updatedAt === 'string' && Number.isFinite(Date.parse(note.updatedAt)) &&
+    (note.category===undefined || (typeof note.category==='string' && note.category.length<=40 && !/[\u0000-\u001f\u007f]/.test(note.category)));
   let notes = stored.filter(valid);
   let trash;
   try { trash = await getNotesTrash(); } catch { trash = null; notify(t('trashCorrupt')); }
@@ -19,6 +21,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let search = '';
   let scope = 'all';
   let order = 'newest';
+  let categoryFilter = '*';
   let timer = null;
   let dirty = false;
   let lastDeleted = null; // quick Undo stays temporary; the Trash itself persists
@@ -60,7 +63,8 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     element.innerHTML=`<section class="tool-head"><span class="eyebrow">03 / MYHUB</span><h1>${t('notes')}</h1><p>${t('notesDesc')}</p></section>
       <div class="notes-toolbar"><input id="note-search" class="text-field" type="search" maxlength="200" placeholder="${t('notesSearch')}" value="${escapeHtml(search)}">
       <div class="notes-filters"><label for="note-scope">${t('notesFilter')}<select class="input-select" id="note-scope"><option value="all">${t('notesAll')}</option><option value="pinned">${t('notesPinned')}</option><option value="favourites">${t('notesFavourites')}</option></select></label>
-      <label for="note-order">${t('notesSort')}<select class="input-select" id="note-order"><option value="newest">${t('notesNewest')}</option><option value="oldest">${t('notesOldest')}</option><option value="title">${t('notesTitleSort')}</option></select></label></div>
+      <label for="note-order">${t('notesSort')}<select class="input-select" id="note-order"><option value="newest">${t('notesNewest')}</option><option value="oldest">${t('notesOldest')}</option><option value="title">${t('notesTitleSort')}</option></select></label>
+      ${noteCategories(notes,locale).length ? `<label class="notes-category-filter" for="note-category-filter">${t('notesCategory')}<select class="input-select" id="note-category-filter"><option value="*">${t('notesAllCategories')}</option><option value="">${t('notesNoCategory')}</option>${noteCategories(notes,locale).map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select></label>` : ''}</div>
       <div class="notes-actions"><button class="primary-btn" id="create-text">+ ${t('newNote')}</button><button class="secondary-btn" id="create-checklist">☑ ${t('newChecklist')}</button><button type="button" class="secondary-btn" id="open-notes-trash">🗑 ${t('trashTitle')} (${trash?.items.length ?? '?'})</button></div><p class="notes-count" id="notes-count" aria-live="polite"></p></div>
       ${lastDeleted ? `<div class="notes-undo" role="status"><span>${t('notesDeletedUndo')}</span><button type="button" class="secondary-btn" id="undo-delete-note">${t('notesUndo')}</button></div>` : ''}
       <div id="notes-list" class="notes-grid"></div>`;
@@ -68,21 +72,25 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     const resultList=element.querySelector('#notes-list');
     const scopeInput=element.querySelector('#note-scope');
     const orderInput=element.querySelector('#note-order');
+    const categoryInput=element.querySelector('#note-category-filter');
     scopeInput.value=scope;orderInput.value=order;
+    if(categoryFilter!=='*' && categoryFilter!=='' && !noteCategories(notes,locale).some(c=>c.toLocaleLowerCase()===categoryFilter.toLocaleLowerCase()))categoryFilter='*';
+    if(categoryInput)categoryInput.value=categoryFilter;
     const renderList=() => {
-      const visible=selectNotes(notes,{query:search,scope,order,locale});
+      const visible=selectNotes(notes,{query:search,scope,order,locale,category:categoryFilter});
       element.querySelector('#notes-count').textContent=t('notesCount').replace('{shown}',String(visible.length)).replace('{total}',String(notes.length));
       resultList.innerHTML=visible.length ? visible.map(n => {
         const summary=n.kind==='checklist' ? `${n.items.filter(i=>i.done).length}/${n.items.length} ✓ · ${n.items.slice(0,2).map(i=>i.text).join(', ')}` : n.body.slice(0,110);
         const label=n.title.trim() || (n.kind==='checklist' ? t('newChecklist') : t('newNote'));
         return `<button class="note-card" type="button" data-note-id="${escapeHtml(n.id)}"><div class="row-between"><span class="note-type">${n.kind==='checklist'?'☑':'✎'} ${n.kind==='checklist' ? t('newChecklist') : t('newNote')}</span><span>${n.pinned?'📌 ':''}${n.favourite?'★':''}</span></div>
-          <strong>${escapeHtml(label)}</strong><span class="note-preview">${escapeHtml(summary) || '—'}</span>
+          <strong>${escapeHtml(label)}</strong>${categoryName(n.category) ? `<span class="note-category-chip">${escapeHtml(categoryName(n.category))}</span>` : ''}<span class="note-preview">${escapeHtml(summary) || '—'}</span>
           <small>${new Intl.DateTimeFormat(locale,{day:'numeric',month:'short'}).format(new Date(n.updatedAt))}</small></button>`;
       }).join('') : `<div class="empty-state">${search ? t('notesNoResults') : t('notesEmpty')}</div>`;
     };
     searchInput.addEventListener('input', () => {search=searchInput.value; renderList();});
     scopeInput.addEventListener('change',()=>{scope=scopeInput.value;renderList();});
     orderInput.addEventListener('change',()=>{order=orderInput.value;renderList();});
+    categoryInput?.addEventListener('change',()=>{categoryFilter=categoryInput.value;renderList();});
     element.querySelector('#create-text').addEventListener('click',()=>{void create('text');});
     element.querySelector('#create-checklist').addEventListener('click',()=>{void create('checklist');});
     element.querySelector('#open-notes-trash').addEventListener('click',()=>trashList());
@@ -181,6 +189,8 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     if(!n){list();return;}
     element.innerHTML=`<div class="editor-top"><button class="back-btn" type="button" id="back-notes">‹ ${t('backToNotes')}</button><span class="save-status" id="note-status">${t('saved')}</span></div>
       <article class="surface note-editor"><input class="note-title-input" id="note-title" maxlength="200" placeholder="${t('titlePlaceholder')}" value="${escapeHtml(n.title)}" aria-label="${t('titlePlaceholder')}">
+      <label class="note-category-editor" for="note-category">${t('notesCategory')} <small>(${t('notesOptional')})</small><input class="text-field" id="note-category" type="text" maxlength="40" list="note-category-suggestions" autocomplete="off" placeholder="${t('notesCategoryPlaceholder')}" value="${escapeHtml(n.category || '')}"></label>
+      <datalist id="note-category-suggestions">${noteCategories(notes,locale).map(c=>`<option value="${escapeHtml(c)}"></option>`).join('')}</datalist>
       ${n.kind==='text' ? `<textarea id="note-body" maxlength="100000" rows="11" class="note-body" placeholder="${t('textPlaceholder')}" aria-label="${t('textPlaceholder')}">${escapeHtml(n.body)}</textarea>` :
       `<div id="checklist-items" class="checklist-items"></div><div class="form-row"><input class="text-field" id="new-item" maxlength="2000" placeholder="${t('checklistPlaceholder')}"><button type="button" class="primary-btn" id="add-item">+ ${t('add')}</button></div>`}
       <div class="editor-actions"><button type="button" class="secondary-btn" id="copy-note">⧉ ${t('copy')}</button><button type="button" class="secondary-btn" id="duplicate-note">${t('notesDuplicate')}</button><button type="button" class="secondary-btn" id="share-note">${t('notesShare')}</button><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
@@ -189,6 +199,9 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     const update = () => {n.updatedAt=new Date().toISOString();schedule();};
     const title=element.querySelector('#note-title');
     title.addEventListener('input',()=>{n.title=title.value;update();});
+    const categoryEditor=element.querySelector('#note-category');
+    categoryEditor.addEventListener('input',()=>{n.category=categoryEditor.value;update();});
+    categoryEditor.addEventListener('change',()=>{n.category=categoryName(categoryEditor.value);categoryEditor.value=n.category;update();});
     const body=element.querySelector('#note-body');
     if(body) body.addEventListener('input',()=>{n.body=body.value;update();});
     const checklist=element.querySelector('#checklist-items');

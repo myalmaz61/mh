@@ -1,6 +1,7 @@
 /** Persistent, local-only Notes trash. Kept as one validated meta record.
  * Never prune automatically: users must explicitly make space before deleting.
  */
+import {validNoteCategory} from './notes-category-core.js';
 export const MAX_TRASH_NOTES = 100;
 export const emptyNotesTrash = () => ({schema:1,items:[]});
 const goodIso = x => typeof x === 'string' && x.length <= 32 && Number.isFinite(Date.parse(x));
@@ -11,7 +12,7 @@ export function validStoredNote(n) {
       !['text','checklist'].includes(n.kind) ||
       typeof n.title !== 'string' || n.title.length > 200 ||
       typeof n.body !== 'string' || n.body.length > 100000 ||
-      typeof n.pinned !== 'boolean' || typeof n.favourite !== 'boolean' ||
+      typeof n.pinned !== 'boolean' || typeof n.favourite !== 'boolean' || !validNoteCategory(n.category) ||
       !goodIso(n.createdAt) || !goodIso(n.updatedAt) ||
       !Array.isArray(n.items) || n.items.length > 300) return false;
   const ids=new Set();

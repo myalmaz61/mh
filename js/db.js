@@ -1,6 +1,7 @@
 import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
 import { safeClone } from './utils.js';
 import { MAX_TRASH_NOTES, emptyNotesTrash, validNotesTrash, validStoredNote } from './notes-trash-core.js';
+import {validNoteCategory} from './notes-category-core.js';
 import { emptyCalendar, validCalendarData, MAX_CALENDAR_EVENTS } from './calendar-core.js';
 import { emptyTasks, validTasksData, validTask, MAX_TASKS } from './tasks-core.js';
 import { completeTodayTaskData } from './today-actions-core.js';
@@ -351,7 +352,7 @@ function validWeatherCacheEntry(entry) {
   if(!c || !goodTime(c.time) || !goodNumber(c.temp,-100,80) || !goodNumber(c.feels,-120,90) ||
     !goodNumber(c.humidity,0,100)||!goodNumber(c.wind,0,500)||!goodNumber(c.rain,0,10000)||
     !goodNumber(c.code,0,100)||typeof c.isDay!=='boolean')return false;
-  if(!Array.isArray(entry.daily)||entry.daily.length<1||entry.daily.length>7||!Array.isArray(entry.hours)||entry.hours.length>12)return false;
+  if(!Array.isArray(entry.daily)||entry.daily.length<1||entry.daily.length>7||!Array.isArray(entry.hours)||entry.hours.length>48)return false;
   if(entry.daily.some(d=>!d || !goodDay(d.date)||!goodNumber(d.min,-100,80)||!goodNumber(d.max,-100,80)||
     !maybeNumber(d.rain,0,10000)||!maybeNumber(d.prob,0,100)||!maybeNumber(d.wind,0,500)||!goodNumber(d.code,0,100)))return false;
   if(entry.hours.some(h=>!h || !goodTime(h.time)||!maybeNumber(h.temp,-100,80)||!maybeNumber(h.prob,0,100)))return false;
@@ -401,7 +402,7 @@ export function validateBackup(data) {
       typeof note.id !== 'string' || note.id.length < 1 || note.id.length > 100 || seen.has(note.id) ||
       !['text','checklist'].includes(note.kind) || typeof note.title !== 'string' || note.title.length > 200 ||
       typeof note.body !== 'string' || note.body.length > 100_000 ||
-      typeof note.pinned !== 'boolean' || typeof note.favourite !== 'boolean' ||
+      typeof note.pinned !== 'boolean' || typeof note.favourite !== 'boolean' || !validNoteCategory(note.category) ||
       !validIso(note.createdAt) || !validIso(note.updatedAt) ||
       !Array.isArray(note.items) || note.items.length > 300) throw Error('Невалидна бележка / invalid note');
     seen.add(note.id);

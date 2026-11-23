@@ -13,6 +13,6 @@ export function humanDate(date, language) {
 export function safeClone(value) { return JSON.parse(JSON.stringify(value)); }
 export function makeNote(kind) {
   const timestamp = new Date().toISOString();
-  return { id:uid(), kind, title:'', body:'', items:[], pinned:false, favourite:false, createdAt:timestamp, updatedAt:timestamp };
+  return { id:uid(), kind, title:'', body:'', items:[], category:'', pinned:false, favourite:false, createdAt:timestamp, updatedAt:timestamp };
 }
 export function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }

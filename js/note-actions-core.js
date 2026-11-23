@@ -16,6 +16,7 @@ export function duplicateNoteData(note, newId, newItemId, timestamp, suffix = ' 
   return {
     id:newId,kind:note.kind,title:(note.title.slice(0,Math.max(0,200-suffix.length))+suffix).slice(0,200),
     body:note.body,items:note.items.map(row => ({id:newItemId(),text:row.text,done:row.done})),
+    category:typeof note.category==='string' ? note.category : '',
     pinned:false,favourite:false,createdAt:timestamp,updatedAt:timestamp,
   };
 }

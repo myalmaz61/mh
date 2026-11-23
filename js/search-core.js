@@ -16,7 +16,7 @@ export function makeSearchIndex({notes=[],tasks=[],events=[],lists=[],bookmarks=
   for(const note of notes) {
     if(!validRecord(note) || typeof note.title !== 'string' || typeof note.body !== 'string' || !Array.isArray(note.items)) continue;
     const body=[note.body,...note.items.filter(item=>item&&typeof item.text==='string').map(item=>item.text)].join(' ');
-    rows.push(entry('note',note.id,note.title||'—',body,note.updatedAt,'notes'));
+    rows.push(entry('note',note.id,note.title||'—',body,note.updatedAt,'notes',typeof note.category==='string'?note.category:''));
   }
   for(const task of tasks) {
     if(!validRecord(task) || typeof task.title!=='string') continue;
