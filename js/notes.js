@@ -2,6 +2,7 @@ import { getNotes, putNote, deleteNote } from './db.js';
 import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
+import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
 
 export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
@@ -91,7 +92,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <article class="surface note-editor"><input class="note-title-input" id="note-title" maxlength="200" placeholder="${t('titlePlaceholder')}" value="${escapeHtml(n.title)}" aria-label="${t('titlePlaceholder')}">
       ${n.kind==='text' ? `<textarea id="note-body" maxlength="100000" rows="11" class="note-body" placeholder="${t('textPlaceholder')}" aria-label="${t('textPlaceholder')}">${escapeHtml(n.body)}</textarea>` :
       `<div id="checklist-items" class="checklist-items"></div><div class="form-row"><input class="text-field" id="new-item" maxlength="2000" placeholder="${t('checklistPlaceholder')}"><button type="button" class="primary-btn" id="add-item">+ ${t('add')}</button></div>`}
-      <div class="editor-actions"><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
+      <div class="editor-actions"><button type="button" class="secondary-btn" id="copy-note">⧉ ${t('copy')}</button><button type="button" class="secondary-btn" id="duplicate-note">${t('notesDuplicate')}</button><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
       <button type="button" class="secondary-btn" id="star-note">${n.favourite?'★ '+t('unfavourite'):'☆ '+t('favourite')}</button>
       <button type="button" class="danger-btn" id="delete-note">${t('delete')}</button></div></article>`;
     const update = () => {n.updatedAt=new Date().toISOString();schedule();};
@@ -133,6 +134,21 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       itemInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addItem();}});
       renderItems();
     }
+    element.querySelector('#copy-note').addEventListener('click',async()=>{
+      await flush();
+      if(dirty){notify(t('crossSaveFirst'));return;}
+      try {await navigator.clipboard.writeText(plainNoteText(n));notify(t('copied'));}
+      catch {notify(t('copyFailed'));}
+    });
+    element.querySelector('#duplicate-note').addEventListener('click',async()=>{
+      await flush();
+      if(dirty){notify(t('crossSaveFirst'));return;}
+      if(notes.length>=MAX_NOTES){notify(t('notesLimit'));return;}
+      try {
+        const clone=duplicateNoteData(n,uid(),uid,new Date().toISOString(),t('notesCopySuffix'));
+        await putNote(clone);notes.push(clone);editor(clone.id);notify(t('notesDuplicated'));
+      }catch(err){notify(`${t('error')}: ${err.message}`);}
+    });
     element.querySelector('#note-to-task').addEventListener('click',async()=>{
       await flush();
       if(dirty){notify(t('crossSaveFirst'));return;}

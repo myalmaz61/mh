@@ -1,6 +1,7 @@
 import { MAX_WEATHER_CITIES } from './config.js';
 import { getMeta, setMeta } from './db.js';
 import { escapeHtml } from './utils.js';
+import { upcomingRainSummary } from './weather-rain-core.js';
 
 const REFRESH_MS = 30 * 60 * 1000;
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -148,6 +149,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     const condition=weatherDescription(current.code,lang);
     const age=Date.now()-Date.parse(snapshot.fetchedAt);
     const stale=age>REFRESH_MS;
+    const rainSummary=upcomingRainSummary(snapshot.hours);
     content.innerHTML=`<div class="weather-condition">
       <div class="weather-condition-row"><span class="weather-emblem" aria-hidden="true">${condition.symbol}</span><div><div class="weather-temp">${concise(current.temp)}°</div><div class="weather-description">${escapeHtml(condition.text)}</div></div></div>
       <span class="weather-status ${stale?'stale':''}">${stale?t('weatherStored'):t('weatherRecent')}</span>
@@ -158,6 +160,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       <div><small>${t('weatherHumidity')}</small><strong>${concise(current.humidity)}%</strong></div>
       <div><small>${t('weatherRainNow')}</small><strong>${concise(current.rain,1)} mm</strong></div>
     </div>
+    ${rainSummary?`<div class="weather-rain-overview"><span>☔ ${t('weatherRainNextHours').replace('{n}',String(rainSummary.count))}</span><strong>${t('weatherMaxRainChance')}: ${concise(rainSummary.maxProbability)}%</strong></div>`:''}
     <h3 class="weather-subtitle">${t('weatherNextDays')}</h3><div class="weather-week">${snapshot.daily.map(day=>{
       const w=weatherDescription(day.code,lang);
       return `<div class="weather-day"><div class="weather-day-title">${escapeHtml(fmtDay(day.date,lang))}</div><span class="weather-day-icon" aria-label="${escapeHtml(w.text)}" role="img">${w.symbol}</span>

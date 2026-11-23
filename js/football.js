@@ -2,9 +2,9 @@ import {getMeta,setMeta} from './db.js';
 import {escapeHtml} from './utils.js';
 import {FOOTBALL_BASE,MAX_LEAGUES,emptyFootballData,validFootballData,leagueListFromAPI,
   matchURL,parseMatches,matchStatus,visibleMatches,hasPossibleMatch} from './football-core.js';
+import {footballRefreshDelay} from './football-refresh-core.js';
 
-const AUTO_AFTER=2*60*60*1000; // only a few updates per day, when screen is visible
-const MANUAL_AFTER=30*60*1000;
+// Match-aware TTLs keep quiet leagues on a light schedule.
 const LIVE_AFTER=90*1000;
 const CATALOG_AFTER=24*60*60*1000;
 const locale=lang=>lang==='en'?'en-GB':'bg-BG';
@@ -138,8 +138,8 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     if(isBusy){needReload=true;currentController?.abort();return;}
     const current=league();if(!current)return;
     const snapshot=activeSnapshot();
-    const minDelay=hasPossibleMatch(snapshot?.matches||[])?LIVE_AFTER:MANUAL_AFTER;
-    if(snapshot&&ageMs(snapshot.fetchedAt)<(force?minDelay:AUTO_AFTER)){
+    const minDelay=footballRefreshDelay(snapshot?.matches||[],force);
+    if(snapshot&&ageMs(snapshot.fetchedAt)<minDelay){
       if(force)displayMessage(t('footballRefreshLimited'));
       render();return;
     }
@@ -223,8 +223,10 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   });
   const tick=()=>{if(dead||document.hidden||!navigator.onLine)return;
     const snap=activeSnapshot();
+    // Always check the TTL, including matches that started recently or ended late.
+    // The inexpensive change-date poll supplements, but never blocks, refresh.
     if(snap&&hasPossibleMatch(snap.matches))void pollLive();
-    else void loadMatches();
+    void loadMatches();
   };
   const interval=setInterval(tick,LIVE_AFTER);
   const onFocus=()=>tick();document.addEventListener('visibilitychange',onFocus);

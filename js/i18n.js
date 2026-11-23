@@ -1,5 +1,7 @@
 const labels = {
   bg: {
+    notesDuplicate:'⧉ Дублирай',notesCopySuffix:' (копие)',notesDuplicated:'Създадено е копие на бележката.',
+    weatherRainNextHours:'Следващите {n} часа',weatherMaxRainChance:'Най-висока вероятност за валежи',
     crossToCalendar:'В календар',crossToTask:'Нова задача',crossTruncated:'Текстът е съкратен до допустимата дължина. Провери го преди запис.',crossSaveFirst:'Бележката не успя да се запази. Опитай отново.',
     manageTools:'Скриване на инструменти',hiddenCount:'Скрити',tapToManage:'Натисни за управление',hiddenToolsHint:'Изключи инструмент, за да го скриеш от Начало, Всички инструменти и Последно използвани. Любимите и личните данни се запазват. Инструментът може да се отвори от търсене в личните записи.',showAllTools:'Покажи всички',allToolsHidden:'Всички инструменти са скрити. Можеш да ги върнеш от Настройки.',
     recentTools:'Последно използвани',clearRecent:'Изчисти историята на инструментите',recentCleared:'Историята на инструментите е изчистена.',recentCorrupt:'Историята е повредена. Няма да бъде презаписана автоматично.',
@@ -157,6 +159,8 @@ const labels = {
     noMoreCities:'Всички налични градове вече са добавени.',
   },
   en: {
+    notesDuplicate:'⧉ Duplicate',notesCopySuffix:' (copy)',notesDuplicated:'A copy of the note was created.',
+    weatherRainNextHours:'Next {n} hours',weatherMaxRainChance:'Highest rain probability',
     crossToCalendar:'To Calendar',crossToTask:'New task',crossTruncated:'Some text was shortened to fit. Review before saving.',crossSaveFirst:'The note could not be saved. Try again.',
     manageTools:'Hide tools',hiddenCount:'Hidden',tapToManage:'Tap to manage',hiddenToolsHint:'Turn off a tool to hide it from Home, All tools and Recently used. Your favourites and personal records are kept. Records remain accessible through search.',showAllTools:'Show all tools',allToolsHidden:'All tools are hidden. You can restore them in Settings.',
     recentTools:'Recently used',clearRecent:'Clear tool history',recentCleared:'Tool history cleared.',recentCorrupt:'Tool history is damaged and will not be automatically overwritten.',
