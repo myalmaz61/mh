@@ -1,12 +1,10 @@
-# MyHub v2.5.0 — файлове за обновяване от v2.4.0
-
-Нови или променени: 36 файла
+# MyHub v2.6.0 — Files to update from v2.5.0
+# Keep all other files unchanged. Do not delete or clear PWA data.
 
 API-SOURCES-BG.md
 README.md
 START-HERE-BG.md
 football.css
-index.html
 js/config.js
 js/football-second-source-core.js
 js/football-second-source.js
@@ -38,5 +36,4 @@ tests/utilities.test.mjs
 tests/v2-stability.test.mjs
 tests/visibility.test.mjs
 tests/weather.test.mjs
-
-Всички останали файлове от v2.4.0 остават непроменени.
+CHANGED-FILES.txt
