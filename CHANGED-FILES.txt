@@ -1,17 +1,16 @@
-# MyHub v2.7.0 — Update from v2.6.0
-# Only these files are new or changed. Keep all others unchanged.
+# MyHub v2.8.0 — update from v2.7.0
+# Copy each file to the SAME path; do not delete other files.
 
-API-SOURCES-BG.md
-CHANGED-FILES.txt
 README.md
 START-HERE-BG.md
-football.css
 js/config.js
-js/football-second-source-core.js
-js/football-second-source.js
-js/football.js
 js/i18n.js
+js/notes-view-core.js
+js/notes.js
+js/weather-rain-core.js
+js/weather.js
 package.json
+styles.css
 sw.js
 tests/backup-integrity.test.mjs
 tests/backup-safety.test.mjs
@@ -19,9 +18,9 @@ tests/calendar.test.mjs
 tests/cross-actions.test.mjs
 tests/favourites.test.mjs
 tests/football-recovery.test.mjs
-tests/football-second-source.test.mjs
 tests/football.test.mjs
 tests/mini-tools.test.mjs
+tests/notes-view.test.mjs
 tests/quick-add.test.mjs
 tests/quick-calendar.test.mjs
 tests/reliability.test.mjs
@@ -36,4 +35,6 @@ tests/tool-order.test.mjs
 tests/utilities.test.mjs
 tests/v2-stability.test.mjs
 tests/visibility.test.mjs
+tests/weather-outlook.test.mjs
 tests/weather.test.mjs
+weather.css

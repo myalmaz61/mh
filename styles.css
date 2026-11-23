@@ -54,3 +54,10 @@
 .backup-acknowledge{display:flex;gap:12px;align-items:flex-start;margin-top:17px;font-size:12px;line-height:1.5;cursor:pointer}
 .backup-acknowledge input{margin-top:3px;flex-shrink:0;width:19px;height:19px;accent-color:var(--accent)}
 .backup-preview .danger-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* v2.8.0: compact Notes filters for small Android screens. */
+.notes-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:10px 0 0}
+.notes-filters label{display:grid;gap:5px;color:var(--muted);font-size:12px;font-weight:650;min-width:0}
+.notes-filters select{min-width:0;width:100%;min-height:44px;padding:8px 7px;font-size:13px}
+.notes-count{font-size:11px;color:var(--muted);margin:12px 0 0}
+@media(max-width:350px){.notes-filters{grid-template-columns:1fr}}
