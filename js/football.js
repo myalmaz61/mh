@@ -46,7 +46,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
       <p class="muted">${t('footballSecondHint')}</p>
       <label class="football-second-league-label" for="football-second-competition">${t('footballSecondCompetition')}
         <select class="input-select" id="football-second-competition">
-          <option value="premier-league">English Premier League</option>
+          <option value="english-premier-league">English Premier League</option>
           <option value="">${t('footballSecondAllLeagues')}</option>
         </select>
       </label>
@@ -59,6 +59,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
       <label class="sr-only" for="football-second-search">${t('footballSecondFilter')}</label>
       <input class="text-field football-second-search" id="football-second-search" type="search" maxlength="80" placeholder="${t('footballSecondFilter')}">
       <p id="football-second-message" class="muted" role="status" aria-live="polite"></p>
+      <details class="football-second-diagnostic"><summary>${t('footballSecondDiagnostic')}</summary><pre id="football-second-debug" class="football-second-debug" aria-live="polite"></pre><a id="football-second-api-link" href="https://sportscore.com/api/v1/fixtures/" target="_blank" rel="noopener noreferrer">${t('footballSecondOpenApi')}</a></details>
       <div id="football-second-results" aria-live="polite"></div>
       <p class="football-source"><a href="https://sportscore.com/football/competition/england/english-premier-league/jednm9whz0ryox8/" rel="noopener noreferrer" target="_blank">${t('footballSecondOpenEpl')}</a></p>
       <p class="football-source"><a href="https://sportscore.com/" rel="dofollow" title="Sports data by SportScore" target="_blank">Powered by SportScore</a> · ${t('footballSecondDisclaimer')}</p>
