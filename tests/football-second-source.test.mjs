@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {translate} from '../js/i18n.js';
-import {isValidFootballDay,dayUtc,sportScoreDayUrl,parseSportScoreFixtures,sportScoreFiltered,sportScoreShownScore,SECOND_SOURCE_MIN_REFRESH_MS} from '../js/football-second-source-core.js';
+import {isValidFootballDay,dayUtc,sportScoreDayUrl,parseSportScoreFixtures,sportScoreFiltered,sportScoreShownScore,SECOND_SOURCE_MIN_REFRESH_MS,lastSaturdayUtc,validSportScoreCompetition,sportScoreForCompetition,SECOND_SOURCE_PREMIER_LEAGUE,SECOND_SOURCE_PREMIER_LEAGUE_WEB} from '../js/football-second-source-core.js';
 const match=(extra={})=>({home:'Team A',away:'Team B',home_score:2,away_score:1,status:'finished',time:'2026-11-22T16:00:00Z',competition:'Example League',...extra});
 test('SportScore date is strict and cannot contain paths or query parameters',()=>{
   assert.equal(isValidFootballDay('2026-11-22'),true);assert.equal(isValidFootballDay('2026-02-29'),false);
@@ -56,7 +56,7 @@ test('second provider panel is opt-in, attributed and does not save over OpenLig
   const football=readFileSync(new URL('../js/football.js',import.meta.url),'utf8');
   const page=readFileSync(new URL('../index.html',import.meta.url),'utf8');
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  assert.ok(js.includes('sportScoreDayUrl(day)'));
+  assert.ok(js.includes('sportScoreDayUrl(day,competition.value)'));
   assert.ok(!js.includes('setMeta('));
   assert.ok(football.includes('football-second-details'));
   assert.ok(page.includes('rel="dofollow"'));
@@ -70,4 +70,48 @@ test('Bulgarian and English language strings exist for second source',()=>{
     'footballSecondFinal','footballSecondLive','footballSecondUnknown','footballSecondError',
     'footballSecondOffline','footballSecondDisclaimer'];
   for(const lang of ['bg','en'])for(const key of keys)assert.notEqual(translate(lang)(key),key);
+});
+
+test('SportScore Premier League is a named, validated competition, not a local text search',()=>{
+  assert.equal(SECOND_SOURCE_PREMIER_LEAGUE,'premier-league');
+  assert.equal(validSportScoreCompetition('premier-league'),true);
+  assert.equal(validSportScoreCompetition(''),true);
+  assert.equal(validSportScoreCompetition('premier-league&limit=500'),false);
+  const epl=new URL(sportScoreDayUrl('2026-11-21','premier-league'));
+  assert.equal(epl.searchParams.get('competition'),'premier-league');
+  assert.equal(epl.searchParams.get('limit'),'200');
+  const all=new URL(sportScoreDayUrl('2026-11-21',''));
+  assert.equal(all.searchParams.has('competition'),false);
+  assert.throws(()=>sportScoreDayUrl('2026-11-21','../../evil'));
+  assert.match(SECOND_SOURCE_PREMIER_LEAGUE_WEB,/sportscore\.com\/football\/competition\/england\//);
+});
+test('Saturday shortcut includes the previous Saturday from Monday',()=>{
+  assert.equal(lastSaturdayUtc(new Date('2026-11-23T16:00:00Z')),'2026-11-21');
+  assert.equal(lastSaturdayUtc(new Date('2026-11-21T20:00:00Z')),'2026-11-21');
+  assert.equal(lastSaturdayUtc(new Date('2026-11-22T00:00:00Z')),'2026-11-21');
+});
+test('Premier League results exclude explicitly unrelated competitions',()=>{
+  const rows=[
+    {home:'A',away:'B',competition:'English Premier League'},
+    {home:'C',away:'D',competition:'Premier League'},
+    {home:'E',away:'F',competition:'Women Premier League'},
+    {home:'G',away:'H',competition:'La Liga'},
+    {home:'I',away:'J',competition:''},
+    {home:'K',away:'L',competition:'english-premier-league'},
+  ];
+  assert.equal(sportScoreForCompetition(rows,'premier-league').length,4);
+  assert.equal(sportScoreForCompetition(rows,'').length,6);
+  assert.deepEqual(sportScoreForCompetition(rows,'x'),[]);
+});
+test('SportScore parser handles one additional documented-style data array envelope',()=>{
+  const parsed=parseSportScoreFixtures({data:[match({competition:'English Premier League'})]});
+  assert.equal(parsed.length,1);
+  assert.equal(sportScoreShownScore(parsed[0]),'2 : 1');
+});
+test('Premier League selector and official results link are visible in football UI',()=>{
+  const js=readFileSync(new URL('../js/football-second-source.js',import.meta.url),'utf8');
+  const football=readFileSync(new URL('../js/football.js',import.meta.url),'utf8');
+  for(const s of ['football-second-competition','premier-league','football-second-saturday','footballSecondOpenEpl']) assert.ok(football.includes(s),s);
+  assert.ok(js.includes('competition.value'));
+  assert.ok(!js.includes('setMeta('));
 });
