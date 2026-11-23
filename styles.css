@@ -109,3 +109,15 @@
 .checklist-move-btn:disabled{opacity:.28;cursor:default}
 .checklist-move-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(max-width:400px){.checklist-row{gap:4px}.checklist-move-btn{width:34px;min-height:44px}.checklist-row .icon-btn.subtle{width:32px;min-width:32px;padding:0}}
+
+/* v3.6: quick Notes actions stay INSIDE Notes, with separate accessible controls.
+   Never nest buttons: the note opens separately from pin/favourite toggles. */
+.notes-card-shell{min-width:0;display:flex;flex-direction:column;gap:5px}
+.notes-card-shell>.note-card{width:100%;flex:1;cursor:pointer}
+.notes-quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.notes-quick-actions button{border:1px solid var(--stroke);border-radius:11px;background:var(--surface);color:var(--ink);min-height:44px;font-size:20px;cursor:pointer}
+.notes-quick-actions button[aria-pressed="true"]{border-color:var(--accent);background:var(--surface-alt);color:var(--accent)}
+.notes-quick-actions button:disabled{opacity:.5;cursor:wait}
+.notes-quick-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.notes-filter-reset{display:flex;justify-content:flex-end;margin:0 0 10px}
+.notes-filter-reset [hidden]{display:none}
