@@ -93,7 +93,7 @@ test('backup restores older files and validates new bookmark section',()=>{
   const malformed=structuredClone(b);malformed.data.bookmarksData.items[0].favourite='true';assert.throws(()=>validateBackup(malformed));
 });
 test('new routes, translation, worker and local database remain integrated',()=>{
-  assert.equal(VERSION,'2.8.0');
+  assert.equal(VERSION,'2.9.0');
   for(const id of ['unit','datecalc','percentage','bookmarks'])assert.ok(TOOLS.some(x=>x.id===id));
   const app=readFileSync(new URL('../js/app.js',import.meta.url),'utf8'),sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
   const db=readFileSync(new URL('../js/db.js',import.meta.url),'utf8');

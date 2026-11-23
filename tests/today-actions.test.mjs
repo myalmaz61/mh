@@ -69,9 +69,9 @@ test('Today actions remain in collapsed details with explicit user interaction',
   assert.match(source,/await completeTodayTask\(/);
 });
 test('v2.2 PWA contains its new independent module',()=>{
-  assert.equal(VERSION,'2.8.0');
+  assert.equal(VERSION,'2.9.0');
   const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-  assert.match(sw,/myhub-shell-v2\.8\.0/);
+  assert.match(sw,/myhub-shell-v2\.9\.0/);
   assert.ok(sw.includes('./js/today-actions-core.js'));
 });
 
