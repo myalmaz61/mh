@@ -57,7 +57,7 @@ test('v0.1–v0.6 JSON backups remain accepted, RSS defaults empty',()=>{
   assert.throws(()=>validateBackup(bad),/RSS/);
 });
 test('v0.7 integration and translations exist without changing IndexedDB version',()=>{
-  assert.equal(VERSION,'2.4.0');assert.ok(TOOLS.some(item=>item.id==='rss'));
+  assert.equal(VERSION,'2.5.0');assert.ok(TOOLS.some(item=>item.id==='rss'));
   for(const f of ['js/rss.js','js/rss-core.js','rss.css']){
     assert.ok(readFileSync(new URL('../sw.js',import.meta.url),'utf8').includes(f));
   }
