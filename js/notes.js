@@ -1,4 +1,4 @@
-import { getNotes, putNote, putNoteIfUnchanged, toggleNoteQuickFlag, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever, changeNotesCategories } from './db.js';
+import { getNotes, putNote, putNoteIfUnchanged, toggleNoteQuickFlag, restoreDeletedNote, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever, changeNotesCategories } from './db.js';
 import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
@@ -9,6 +9,7 @@ import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
 import { parseChecklistBatch, setChecklistCompletion, checklistProgress, moveChecklistRow } from './notes-checklist-core.js';
 import { createNoteSaveManager } from './notes-save-core.js';
+import { createNotesDraftStore, notesMatch } from './notes-draft-core.js';
 
 export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
@@ -34,6 +35,13 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let dirty = false;
   let lastDeleted = null; // quick Undo stays temporary; the Trash itself persists
   let disposed = false;
+  // Each editor has its own synchronous recovery snapshot, outside IndexedDB.
+  let localDraftStorage=null;
+  try { localDraftStorage=window.localStorage; } catch { /* storage blocked */ }
+  const draftStore=createNotesDraftStore(localDraftStorage);
+  let editorDraftKey=null;
+  let recoveryOrigin=null; // Cleared only after a successful guarded commit.
+  let draftWarningShown=false;
   const locale = lang === 'en' ? 'en-GB' : 'bg-BG';
   const current = () => notes.find(n=>n.id===currentId);
   const updateSaveStatus = state => {
@@ -58,8 +66,15 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   const saveManager=createNoteSaveManager({
     write:async snapshot=>{
       if(!expectedSavedNote || expectedSavedNote.id!==snapshot.id)throw Error('Invalid editor baseline');
+      const writingKey=editorDraftKey;
+      const writingOrigin=recoveryOrigin;
       await putNoteIfUnchanged(snapshot,expectedSavedNote);
       expectedSavedNote=safeClone(snapshot); // Advance ONLY after committed transaction.
+      draftStore.clearIfCommitted(writingKey,snapshot);
+      if(writingOrigin){
+        draftStore.removeIfUnchanged(writingOrigin.key,writingOrigin.raw);
+        if(recoveryOrigin===writingOrigin)recoveryOrigin=null;
+      }
     },onChange:updateSaveStatus
   });
   const flush = async () => {
@@ -70,12 +85,24 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     return ok;
   };
   const schedule = () => {
-    saveManager.mark(safeClone(current()));
+    const snapshot=safeClone(current());
+    // Write synchronously before debounce/async IndexedDB. A sudden Android
+    // process kill then leaves a recoverable copy whenever storage allows it.
+    const result=draftStore.write(editorDraftKey,expectedSavedNote,snapshot);
+    if(!result.ok && !draftWarningShown){
+      draftWarningShown=true;
+      notify(t(result.reason==='too-large'?'notesDraftTooLarge':'notesDraftUnavailable'));
+    }
+    saveManager.mark(snapshot);
     if(timer)clearTimeout(timer);
     timer=setTimeout(()=>{void flush();},350);
   };
   const list = () => {
     currentId=null;
+    // Do not auto-delete even seemingly already saved drafts: this list may
+    // be stale if another browser tab has changed IndexedDB.
+    const recovery=draftStore.list();
+    const pending=recovery.drafts;
     element.innerHTML=`<section class="tool-head"><span class="eyebrow">03 / MYHUB</span><h1>${t('notes')}</h1><p>${t('notesDesc')}</p></section>
       <div class="notes-toolbar"><input id="note-search" class="text-field" type="search" maxlength="200" placeholder="${t('notesSearch')}" value="${escapeHtml(search)}">
       <div class="notes-filters"><label for="note-scope">${t('notesFilter')}<select class="input-select" id="note-scope"><option value="all">${t('notesAll')}</option><option value="pinned">${t('notesPinned')}</option><option value="favourites">${t('notesFavourites')}</option></select></label>
@@ -90,9 +117,60 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         <p class="notes-bulk-hint">${t('notesBulkHint')}</p>
         <button type="button" class="primary-btn" id="notes-bulk-apply" disabled>${t('notesBulkApply')}</button>
       </div>`:''}</div>
+      ${pending.length?`<section class="notes-draft-panel" aria-label="${t('notesDraftPanel')}"><h2>↶ ${t('notesDraftPanel')} (${pending.length})</h2><p>${t('notesDraftHint')}</p><div class="notes-draft-list">${pending.map(entry=>{
+        const draft=entry.draft;
+        const title=draft.title.trim()||t(draft.kind==='checklist'?'newChecklist':'newNote');
+        const date=new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short'}).format(new Date(entry.editedAt));
+        return `<div class="notes-draft-card"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(date)}</small><div class="notes-draft-actions"><button type="button" class="primary-btn" data-draft-restore="${escapeHtml(entry.key)}">${t('notesDraftRestore')}</button><button type="button" class="secondary-btn" data-draft-copy="${escapeHtml(entry.key)}">${t('notesDraftSaveCopy')}</button><button type="button" class="secondary-btn" data-draft-discard="${escapeHtml(entry.key)}">${t('notesDraftDiscard')}</button></div></div>`;
+      }).join('')}</div></section>`:''}
+      ${recovery.corrupt?`<p class="warning-text" role="alert">${t('notesDraftCorrupt')}</p>`:''}
       ${lastDeleted ? `<div class="notes-undo" role="status"><span>${t('notesDeletedUndo')}</span><button type="button" class="secondary-btn" id="undo-delete-note">${t('notesUndo')}</button></div>` : ''}
       <div class="notes-filter-reset"><button type="button" class="text-link" id="notes-reset-filters" hidden>${t('notesResetFilters')}</button></div>
       <div id="notes-list" class="notes-grid"></div><div class="notes-pagination"><span id="notes-page-count" class="muted" aria-live="polite"></span><button type="button" class="secondary-btn" id="notes-show-more" hidden>${t('notesShowMore')}</button></div>`;
+    element.querySelector('.notes-draft-list')?.addEventListener('click',async event=>{
+      const action=event.target.closest('[data-draft-restore],[data-draft-copy],[data-draft-discard]');
+      if(!action || action.disabled)return;
+      const key=action.dataset.draftRestore||action.dataset.draftCopy||action.dataset.draftDiscard;
+      const recovered=draftStore.read(key);
+      if(!recovered){notify(t('notesDraftUnavailable'));list();return;}
+      if(action.hasAttribute('data-draft-discard')){
+        if(!confirmAction(t('notesDraftDiscardConfirm')))return;
+        if(!draftStore.removeIfUnchanged(key,recovered.raw))notify(t('notesDraftUnavailable'));
+        list();return;
+      }
+      action.disabled=true;
+      try{
+        // Refresh the saved baseline before any decision. The list may be stale
+        // because another tab edited or deleted the same note.
+        const fresh=(await getNotes()).filter(valid);
+        if(disposed)return;
+        const saved=fresh.find(n=>n.id===recovered.draft.id);
+        if(action.hasAttribute('data-draft-restore')){
+          if(saved && notesMatch(saved,recovered.draft)){
+            draftStore.removeIfUnchanged(key,recovered.raw);
+            notes=fresh;list();notify(t('notesDraftAlreadySaved'));return;
+          }
+          if(!saved || !notesMatch(saved,recovered.baseline)){
+            notify(t('notesDraftChangedUseCopy'));notes=fresh;list();return;
+          }
+          notes=fresh;
+          editor(saved.id,recovered);
+          notify(t('notesDraftLoaded'));
+        }else{
+          if(fresh.length>=MAX_NOTES){notify(t('notesLimit'));action.disabled=false;return;}
+          const stamp=new Date().toISOString();
+          const duplicate=safeClone(recovered.draft);
+          duplicate.id=uid();duplicate.title=(duplicate.title||t('newNote')).slice(0,200-t('notesDraftCopySuffix').length)+t('notesDraftCopySuffix');
+          duplicate.createdAt=stamp;duplicate.updatedAt=stamp;
+          await restoreDeletedNote(duplicate); // Uses IDB add; never overwrites.
+          if(disposed)return;
+          draftStore.removeIfUnchanged(key,recovered.raw);
+          notes=[...fresh,duplicate];
+          editor(duplicate.id);
+          notify(t('notesDraftCopySaved'));
+        }
+      }catch(error){notify(`${t('error')}: ${error.message}`);if(action.isConnected)action.disabled=false;}
+    });
     const searchInput=element.querySelector('#note-search');
     const resultList=element.querySelector('#notes-list');
     const showMore=element.querySelector('#notes-show-more');
@@ -320,11 +398,15 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     try { await putNote(note); notes.push(note); editor(note.id); }
     catch(err){notify(`${t('error')}: ${err.message}`);}
   };
-  const editor = id => {
+  const editor = (id,recovered=null) => {
     currentId=id;
     const n=current();
     if(!n){list();return;}
     expectedSavedNote=safeClone(n);
+    editorDraftKey=draftStore.makeKey(uid());
+    recoveryOrigin=recovered;
+    draftWarningShown=false;
+    if(recovered)Object.assign(n,safeClone(recovered.draft));
     element.innerHTML=`<div class="editor-top"><button class="back-btn" type="button" id="back-notes">‹ ${t('backToNotes')}</button><span class="save-status" id="note-status" role="status" aria-live="polite">${t('saved')}</span></div>
       <div class="notes-save-recovery" id="notes-save-recovery" role="alert" hidden><strong>${t('notesSaveFailed')}</strong><p id="notes-save-message">${t('notesSaveHelp')}</p><div class="notes-save-recovery-actions"><button type="button" class="primary-btn" id="notes-save-retry">${t('notesSaveRetry')}</button><button type="button" class="secondary-btn" id="notes-save-copy">${t('notesSaveCopy')}</button></div></div>
       <article class="surface note-editor"><input class="note-title-input" id="note-title" maxlength="200" placeholder="${t('titlePlaceholder')}" value="${escapeHtml(n.title)}" aria-label="${t('titlePlaceholder')}">
@@ -336,6 +418,9 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <button type="button" class="secondary-btn" id="star-note">${n.favourite?'★ '+t('unfavourite'):'☆ '+t('favourite')}</button>
       <button type="button" class="danger-btn" id="delete-note">${t('delete')}</button></div></article>`;
     const update = () => {n.updatedAt=new Date().toISOString();schedule();};
+    // A recovered draft is still unsaved until the CAS IndexedDB transaction
+    // commits. Mirror it to this new editor session before autosave begins.
+    if(recovered)schedule();
     element.querySelector('#notes-save-retry').addEventListener('click',async event=>{
       event.currentTarget.disabled=true;
       const ok=await flush();
