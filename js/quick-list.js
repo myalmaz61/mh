@@ -1,6 +1,7 @@
 import {getMeta,setMetaIfUnchanged} from './db.js';
 import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
-import {snapshotFormValues,hasOtherUnsavedForms} from './unsaved-form-core.js';
+import {snapshotFormValues,hasOtherUnsavedForms,hasUnsavedFormChanges} from './unsaved-form-core.js';
+import {createQuickRecoveryStore,quickDraftDestination,applyQuickDraftValue} from './quick-list-recovery-core.js';
 import {escapeHtml,uid} from './utils.js';
 import {emptyQuickLists,validQuickListsData,quickProgress,resetQuickTicks,duplicateQuickList,MAX_QUICK_LISTS,MAX_QUICK_ITEMS} from './quick-list-core.js';
 
@@ -15,10 +16,53 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
   let selected=data.lists.some(list=>list.id===initialId)?initialId:(data.lists[0]?.id||''),renameMode=false,busy=false,disposed=false;
   const formIds=['quick-new-form','quick-add-item','quick-rename-form'];
   let formBaselines={};
+  const recovery=createQuickRecoveryStore((()=>{try{return window.localStorage;}catch{return null;}})());
+  const activeDraftKeys=new Map();
+  let warnedStorage=false, pendingOrphanItem=null;
+  function clearDraft(id){
+    const key=activeDraftKeys.get(id);if(key)recovery.remove(key);
+    activeDraftKeys.delete(id);
+  }
+  function clearOtherDrafts(exceptId=''){
+    for(const id of [...activeDraftKeys.keys()])if(id!==exceptId)clearDraft(id);
+    if(exceptId!=='quick-new-form')pendingOrphanItem=null;
+  }
+  function syncDraft(id){
+    const form=element.querySelector('#'+id);
+    if(!form)return false;
+    if(!hasUnsavedFormChanges(form,formBaselines[id])){clearDraft(id);return true;}
+    let key=activeDraftKeys.get(id);
+    if(!key){key=recovery.makeKey(uid());activeDraftKeys.set(id,key);}
+    const list=chosen(),isNew=id==='quick-new-form';
+    const result=recovery.write(key,{formId:id,listId:isNew?null:list?.id||null,
+      listName:isNew?'':list?.name||'',baselineName:isNew?'':list?.name||'',fields:snapshotFormValues(form)});
+    if(!result.ok&&!warnedStorage){warnedStorage=true;notify(t('formRecoveryFailed'));}
+    return result.ok;
+  }
+  function recoveryPanel(){
+    const {drafts,corrupt}=recovery.list();
+    const shown=drafts.filter(item=>item.key!==pendingOrphanItem?.key&&!([...activeDraftKeys.values()].includes(item.key)));
+    if(!shown.length&&!corrupt)return '';
+    return `<section class="surface form-recovery-panel"><h2>${t('formRecoveryTitle')}</h2>
+      <p class="muted">${t('formRecoveryHint')}</p>${corrupt?`<p class="warning-text">${t('formRecoveryCorrupt')} (${corrupt})</p>`:''}
+      ${shown.map(item=>{const kind=t(item.formId==='quick-add-item'?'quickRecoveryItem':item.formId==='quick-rename-form'?'quickRecoveryRename':'quickRecoveryNew');
+        return `<div class="form-recovery-row"><strong>${escapeHtml(kind)}</strong>
+          ${item.listName?`<small class="muted">${escapeHtml(item.listName)}</small>`:''}
+          <p>${escapeHtml(item.fields[0][1].slice(0,120))}</p><div class="hub-actions">
+          <button class="secondary-btn" type="button" data-quick-draft-restore="${escapeHtml(item.key)}">${t('formRecoveryRestore')}</button>
+          <button class="secondary-btn" type="button" data-quick-draft-discard="${escapeHtml(item.key)}">${t('formRecoveryDiscard')}</button></div></div>`;}).join('')}
+    </section>`;
+  }
   const forms=()=>Object.fromEntries(formIds.map(id=>[id,element.querySelector('#'+id)]));
   const dirtyForms=exceptId=>hasOtherUnsavedForms(forms(),formBaselines,exceptId);
-  const canDiscard=(exceptId='')=>mayLeaveAfterFailure(element,t,confirmAction) &&
-    (!dirtyForms(exceptId) || confirmAction(t('unsavedFormConfirm')));
+  const canDiscard=(exceptId='')=>{
+    if(!mayLeaveAfterFailure(element,t,confirmAction))return false;
+    if(dirtyForms(exceptId)){
+      if(!confirmAction(t('unsavedFormConfirm')))return false;
+      clearOtherDrafts(exceptId);
+    }
+    return true;
+  };
   const chosen=()=>data.lists.find(x=>x.id===selected);
   function render(){
     if(disposed)return;
@@ -47,21 +91,73 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
         <button class="secondary-btn" type="button" data-quick-action="clear">${t('quickClearDone')}</button>
         <button class="danger-btn" type="button" data-quick-action="delete">${t('quickDeleteList')}</button></div>
        </section>`:''}
-       <p class="muted hub-footer">${t('quickLocalHint')}</p>`;
+       ${recoveryPanel()}<p class="muted hub-footer">${t('quickLocalHint')}</p>`;
     formBaselines=Object.fromEntries(formIds.map(id=>[id,snapshotFormValues(element.querySelector('#'+id))]));
   }
   async function persist(next,success){
     if(busy||!validQuickListsData(next)){notify(t('quickInvalid'));return false;}
     busy=true;
+    // While an IndexedDB transaction is in progress, prevent new typing that
+    // would otherwise be erased by the successful re-render.
+    const editingFields=[...element.querySelectorAll('#quick-new-form input,#quick-add-item input,#quick-rename-form input')];
+    for(const field of editingFields)field.disabled=true;
     try{await setMetaIfUnchanged('quickListsData',savedSnapshot,next);savedSnapshot=next;data=next;success?.();render();return true;}
     catch(err){console.error(err);showMetaSaveError(element,t,err);notify(t('quickSaveError'));return false;}
-    finally{busy=false;}
+    finally{busy=false;for(const field of editingFields)if(field.isConnected)field.disabled=false;}
   }
   const replaceList=(id,change)=>({schema:1,lists:data.lists.map(x=>x.id===id?change(x):x)});
   async function click(event){
     const button=event.target.closest('button');
     if(!button||!element.contains(button)||busy)return;
     if(button.type==='submit')return; // The submit handler guards the other forms.
+    const draftKey=button.dataset.quickDraftRestore||button.dataset.quickDraftDiscard;
+    if(draftKey){
+      const candidate=recovery.read(draftKey);if(!candidate)return;
+      if(button.dataset.quickDraftDiscard){
+        if(!confirmAction(t('formRecoveryDiscardConfirm')))return;
+        if(recovery.removeIfUnchanged(draftKey,candidate.raw)){
+          button.closest('.form-recovery-row')?.remove();
+          const panel=element.querySelector('.form-recovery-panel');
+          if(panel&&!panel.querySelector('.form-recovery-row')&&!panel.querySelector('.warning-text'))panel.remove();
+        }
+        return;
+      }
+      if(!canDiscard())return;
+      const destination=quickDraftDestination(candidate,data.lists);
+      if(destination.mode==='invalid')return;
+      clearOtherDrafts();pendingOrphanItem=null;
+      let targetForm='quick-new-form';
+      if(destination.mode==='item'){
+        selected=destination.listId;renameMode=false;targetForm='quick-add-item';
+      }else if(destination.mode==='rename'){
+        selected=destination.listId;renameMode=true;targetForm='quick-rename-form';
+      }else if(destination.mode==='new-list'&&candidate.formId==='quick-add-item'){
+        // The original list was deleted. On Save we create a new list with this
+        // recovered item. Preserve the source draft until that save succeeds.
+        pendingOrphanItem={key:draftKey,raw:candidate.raw,text:candidate.fields[0][1]};
+      }
+      render();
+      const form=element.querySelector('#'+targetForm);
+      if(pendingOrphanItem){
+        const input=form?.querySelector('[name="name"]');if(input)input.value=candidate.listName;
+      }else if(targetForm===candidate.formId){
+        applyQuickDraftValue(form,candidate);
+      }else{
+        const input=form?.querySelector('[name="name"]');if(input)input.value=candidate.fields[0][1];
+      }
+      const copied=syncDraft(targetForm);
+      if(copied&&!pendingOrphanItem)recovery.removeIfUnchanged(draftKey,candidate.raw);
+      notify(destination.mode==='new-list'?t('quickRecoverySeparate'):t('formRecoveryRestored'));
+      element.querySelector('#'+targetForm+' input')?.focus();
+      // render() replaced the old DOM; remove the corresponding row in the
+      // CURRENT panel too, so a successfully restored draft is not offered twice.
+      for(const restoredButton of element.querySelectorAll('[data-quick-draft-restore]')){
+        if(restoredButton.dataset.quickDraftRestore===draftKey)restoredButton.closest('.form-recovery-row')?.remove();
+      }
+      const panel=element.querySelector('.form-recovery-panel');
+      if(panel&&!panel.querySelector('.form-recovery-row')&&!panel.querySelector('.warning-text'))panel.remove();
+      return;
+    }
     if(!canDiscard())return;
     if(button.dataset.quickSelect){selected=button.dataset.quickSelect;renameMode=false;render();return;}
     const list=chosen();if(!list)return;
@@ -114,27 +210,41 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
       const name=String(fd.get('name')||'').trim();
       if(!name||name.length>80){notify(t('quickInvalid'));return;}
       const stamp=now(),id=uid(),list={id,name,createdAt:stamp,updatedAt:stamp,items:[]};
-      await persist({schema:1,lists:[...data.lists,list]},()=>{selected=id;notify(t('quickCreated'));});
+      if(pendingOrphanItem){
+        const text=pendingOrphanItem.text.trim();
+        if(!text||text.length>250){notify(t('quickInvalid'));return;}
+        list.items.push({id:uid(),text,done:false});
+      }
+      await persist({schema:1,lists:[...data.lists,list]},()=>{
+        clearDraft(form.id);
+        if(pendingOrphanItem)recovery.removeIfUnchanged(pendingOrphanItem.key,pendingOrphanItem.raw);
+        pendingOrphanItem=null;selected=id;notify(t('quickCreated'));
+      });
     }else if(form.id==='quick-rename-form'){
       const list=chosen();if(!list)return;
       const name=String(fd.get('name')||'').trim();
       if(!name||name.length>80){notify(t('quickInvalid'));return;}
-      await persist(replaceList(list.id,x=>({...x,name,updatedAt:now()})),()=>{renameMode=false;notify(t('saved'));});
+      await persist(replaceList(list.id,x=>({...x,name,updatedAt:now()})),()=>{clearDraft(form.id);renameMode=false;notify(t('saved'));});
     }else{
       const list=chosen();if(!list)return;
       if(list.items.length>=MAX_QUICK_ITEMS){notify(t('quickItemLimit'));return;}
       const text=String(fd.get('text')||'').trim();
       if(!text||text.length>250){notify(t('quickInvalid'));return;}
-      await persist(replaceList(list.id,x=>({...x,items:[...x.items,{id:uid(),text,done:false}],updatedAt:now()})),()=>notify(t('quickAdded')));
+      await persist(replaceList(list.id,x=>({...x,items:[...x.items,{id:uid(),text,done:false}],updatedAt:now()})),()=>{clearDraft(form.id);notify(t('quickAdded'));});
       element.querySelector('#quick-item-text')?.focus();
     }
   }
+  const onInput=event=>{
+    const form=event.target?.closest?.('form');
+    if(form&&formIds.includes(form.id))syncDraft(form.id);
+  };
   const onUnload=event=>{if(dirtyForms() || element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
   window.addEventListener('beforeunload',onUnload);
+  element.addEventListener('input',onInput);
   element.addEventListener('click',click);
   element.addEventListener('change',change);
   element.addEventListener('submit',submit);
   render();
-  return ()=>{if(busy || !canDiscard())return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',click);
+  return ()=>{if(busy || !canDiscard())return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('input',onInput);element.removeEventListener('click',click);
     element.removeEventListener('change',change);element.removeEventListener('submit',submit);};
 }

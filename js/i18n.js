@@ -136,6 +136,8 @@ const labels = {
     quickListLimit:'Максимум 50 списъка.',quickItemLimit:'Максимум 100 реда в списък.',
     quickCorrupt:'Данните на бързите списъци са повредени. Не са изтрити или презаписани. Запази данните и потърси помощ.',
     quickLocalHint:'Списъците са отделни от Бележки и се включват в JSON архива.',
+    quickRecoveryNew:'Незавършен нов списък',quickRecoveryItem:'Незаписан ред',quickRecoveryRename:'Незавършено преименуване',
+    quickRecoverySeparate:'Оригиналният списък липсва или е преименуван. Подготвен е НОВ списък; провери текста и натисни Запази. Записаните списъци не се презаписват.',
 
     footballToday:'Днес',
     footballTodayEmpty:'Няма мачове за днес в наличните данни от избраното първенство. Виж всички срещи.',
@@ -340,6 +342,8 @@ const labels = {
     quickListLimit:'Maximum 50 lists.',quickItemLimit:'Maximum 100 items per list.',
     quickCorrupt:'Quick checklist data appears damaged. It has not been erased or overwritten. Preserve your data and seek assistance.',
     quickLocalHint:'Checklists are separate from Notes and are included in JSON backups.',
+    quickRecoveryNew:'Unfinished new list',quickRecoveryItem:'Unsaved list item',quickRecoveryRename:'Unfinished rename',
+    quickRecoverySeparate:'The original list is missing or has been renamed. A NEW list is prepared; check the text and press Save. Saved lists are not overwritten.',
 
     footballToday:'Today',
     footballTodayEmpty:'No matches for today in the available data for this league. View all fixtures.',
