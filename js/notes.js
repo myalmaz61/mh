@@ -3,7 +3,7 @@ import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
 import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
-import { selectNotes } from './notes-view-core.js';
+import { selectNotes, recentNotes } from './notes-view-core.js';
 import { NOTES_PAGE_SIZE, sliceNotesPage, nextNotesPageLimit } from './notes-list-core.js';
 import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
@@ -143,6 +143,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <details class="notes-templates-panel" id="notes-templates-panel"><summary>📋 ${t('notesTemplatesTitle')} (${templates.items.length})</summary><p>${t('notesTemplatesHint')}</p>
         <input id="notes-template-search" class="text-field" type="search" maxlength="100" placeholder="${t('notesTemplateSearch')}" aria-label="${t('notesTemplateSearch')}" ${templates.items.length?'':'hidden'}>
         <div class="notes-templates-list" id="notes-templates-list"></div></details>
+      ${!bulkMode&&notes.length>3?`<section class="notes-recent-strip" id="notes-recent-strip" aria-label="${t('notesRecentTitle')}"><strong>${t('notesRecentTitle')}</strong><div class="notes-recent-buttons">${recentNotes(notes).map(note=>`<button type="button" data-recent-note="${escapeHtml(note.id)}" title="${escapeHtml(note.title.trim()||t(note.kind==='checklist'?'newChecklist':'newNote'))}">${escapeHtml(note.title.trim()||t(note.kind==='checklist'?'newChecklist':'newNote'))}</button>`).join('')}</div></section>`:''}
       <div class="notes-filter-reset"><button type="button" class="text-link" id="notes-reset-filters" hidden>${t('notesResetFilters')}</button></div>
       <div id="notes-list" class="notes-grid"></div><div class="notes-pagination"><span id="notes-page-count" class="muted" aria-live="polite"></span><button type="button" class="secondary-btn" id="notes-show-more" hidden>${t('notesShowMore')}</button></div>`;
     element.querySelector('.notes-draft-list')?.addEventListener('click',async event=>{
@@ -241,6 +242,11 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     renderTemplates();
     const searchInput=element.querySelector('#note-search');
     const resultList=element.querySelector('#notes-list');
+    element.querySelector('#notes-recent-strip')?.addEventListener('click',event=>{
+      const button=event.target.closest('[data-recent-note]');
+      if(!button||!element.contains(button)||quickActionBusy)return;
+      if(notes.some(n=>n.id===button.dataset.recentNote))editor(button.dataset.recentNote);
+    });
     const showMore=element.querySelector('#notes-show-more');
     const pageCount=element.querySelector('#notes-page-count');
     const scopeInput=element.querySelector('#note-scope');
@@ -256,6 +262,8 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       const hasFilters=Boolean(search.trim())||scope!=='all'||order!=='newest'||categoryFilter!=='*';
       const reset=element.querySelector('#notes-reset-filters');
       if(reset)reset.hidden=!hasFilters;
+      const recentStrip=element.querySelector('#notes-recent-strip');
+      if(recentStrip)recentStrip.hidden=hasFilters;
       pageCount.textContent=visible.length>page.length ? t('notesShowingPage').replace('{shown}',String(page.length)).replace('{total}',String(visible.length)) : '';
       showMore.hidden=page.length>=visible.length;
       resultList.innerHTML=visible.length ? page.map(n => {

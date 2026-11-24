@@ -1,7 +1,7 @@
 /** Global Search: only reads the data stores; selection opens an existing module. */
 import {getNotes,getMeta} from './db.js';
 import {escapeHtml} from './utils.js';
-import {makeSearchIndex,findInIndex,SEARCH_CATEGORIES} from './search-core.js';
+import {makeSearchIndex,findInIndex,SEARCH_CATEGORIES,matchExcerpt} from './search-core.js';
 import {validTasksData} from './tasks-core.js';
 import {validCalendarData} from './calendar-core.js';
 import {validQuickListsData} from './quick-list-core.js';
@@ -55,7 +55,7 @@ export async function mountSearch({element,lang,t,tools,openResult}){
     if(!query){list.innerHTML=`<p class="muted hub-search-help">${l.start}</p>`;return;}
     list.innerHTML=currentResults.length?currentResults.map((row,i)=>`<button type="button" class="hub-search-result" data-search-index="${i}">
        <span class="hub-search-result-icon" aria-hidden="true">${icons[row.kind]}</span><span class="hub-search-result-text"><strong>${escapeHtml(row.title)}</strong>
-       <small>${l[row.kind]}${row.summary?` · ${escapeHtml(row.summary)}`:''}</small></span><span aria-hidden="true">›</span></button>`).join(''):`<p class="muted hub-search-help">${l.empty}</p>`;
+       <small>${l[row.kind]}${matchExcerpt(row,query)?` · ${escapeHtml(matchExcerpt(row,query))}`:''}</small></span><span aria-hidden="true">›</span></button>`).join(''):`<p class="muted hub-search-help">${l.empty}</p>`;
   }
   const onInput=()=>{query=input.value.trim().slice(0,120);clearTimeout(timer);timer=setTimeout(render,95);};
   const onClick=event=>{

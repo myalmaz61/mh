@@ -27,3 +27,16 @@ export function selectNotes(notes, {query = '', scope = 'all', order = 'newest',
     return String(a.id).localeCompare(String(b.id));
   });
 }
+
+/** Quick access to saved Notes, sorted only by modification time, not pin state.
+ * No persistent history, mutations or extra database reads.
+ */
+export function recentNotes(notes, max=3) {
+  if(!Array.isArray(notes))return [];
+  const cap=Number.isFinite(max)?Math.max(0,Math.min(5,Math.trunc(max))):3;
+  const time=n=>Date.parse(n.updatedAt);
+  return notes.filter(n=>n&&typeof n.id==='string'&&typeof n.title==='string'&&
+    typeof n.updatedAt==='string'&&Number.isFinite(time(n)))
+    .slice().sort((a,b)=>time(b)-time(a)||String(a.id).localeCompare(String(b.id)))
+    .slice(0,cap);
+}

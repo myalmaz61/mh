@@ -52,3 +52,27 @@ export function findInIndex(index, query, category='all', max=50){
   ranked.sort((a,b)=>b.score-a.score || (b.row.updatedAt||'').localeCompare(a.row.updatedAt||'') || a.index-b.index);
   return {total:selected.length,counts,results:ranked.slice(0,Math.max(0,Math.min(100,Math.trunc(max)||50))).map(x=>x.row)};
 }
+
+/** Return a short excerpt near a matching query word instead of the start of a long note.
+ * Matches in titles or indexed-only extras retain the original preview.
+ * No markup or user data is written anywhere. The UI must HTML-escape this.
+ */
+export function matchExcerpt(row, query, maxLength=160) {
+  if(!row||typeof row.body!=='string')return '';
+  const fallback=typeof row.summary==='string'?row.summary:'';
+  const clean=row.body.replace(/\s+/gu,' ').trim();
+  if(!clean)return fallback;
+  const max=Number.isFinite(maxLength)?Math.max(40,Math.min(200,Math.trunc(maxLength))):160;
+  const terms=String(query??'').trim().slice(0,120).split(/\s+/u).filter(Boolean).slice(0,12);
+  if(!terms.length)return fallback;
+  const lower=clean.toLocaleLowerCase();
+  // Prioritise first present term in the body; preserve result ordering.
+  const indices=terms.map(term=>lower.indexOf(term.toLocaleLowerCase())).filter(i=>i>=0);
+  if(!indices.length)return fallback;
+  const first=Math.min(...indices);
+  if(clean.length<=max)return clean;
+  let start=Math.max(0,first-40);
+  if(start>0){const wordBoundary=clean.lastIndexOf(' ',start);if(wordBoundary>0&&start-wordBoundary<15)start=wordBoundary+1;}
+  const end=Math.min(clean.length,start+max);
+  return `${start>0?'…':''}${clean.slice(start,end).trim()}${end<clean.length?'…':''}`;
+}
