@@ -41,15 +41,28 @@ export function makeSearchIndex({notes=[],tasks=[],events=[],lists=[],bookmarks=
   return rows;
 }
 /** Space separated words must all match; results sorted by title relevance and recency. */
-export function findInIndex(index, query, category='all', max=50){
+export function findInIndex(index, query, category='all', max=50, options={}){
   const q=norm(query).slice(0,120);
   if(!q) return {total:0, results:[], counts:Object.fromEntries(SEARCH_CATEGORIES.map(k=>[k,0]))};
   const terms=q.split(/\s+/u).filter(Boolean).slice(0,12);
-  const matched=(Array.isArray(index)?index:[]).filter(row=>row&&typeof row.haystack==='string'&&terms.every(term=>row.haystack.includes(term)));
+  const titlesOnly=options?.titlesOnly===true;
+  const matched=(Array.isArray(index)?index:[]).filter(row=>row&&typeof row.haystack==='string'&&terms.every(term=>(titlesOnly?norm(row.title):row.haystack).includes(term)));
   const counts=Object.fromEntries(SEARCH_CATEGORIES.map(k=>[k,k==='all'?matched.length:matched.filter(row=>row.kind===k).length]));
   const selected=category==='all'?matched:matched.filter(row=>row.kind===category);
   const ranked=selected.map((row,index)=>({row,index,score:norm(row.title).startsWith(q)?3:norm(row.title).includes(q)?2:1}));
-  ranked.sort((a,b)=>b.score-a.score || (b.row.updatedAt||'').localeCompare(a.row.updatedAt||'') || a.index-b.index);
+  const newestFirst=options?.sort==='newest';
+  const timestamp=value=>{
+    if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value))return -Infinity;
+    const parsed=Date.parse(value);
+    return Number.isFinite(parsed)?parsed:-Infinity;
+  };
+  ranked.sort((a,b)=>{
+    if(newestFirst){
+      const aTime=timestamp(a.row.updatedAt),bTime=timestamp(b.row.updatedAt);
+      return (aTime===bTime?0:bTime>aTime?1:-1) || b.score-a.score || a.index-b.index;
+    }
+    return b.score-a.score || (b.row.updatedAt||'').localeCompare(a.row.updatedAt||'') || a.index-b.index;
+  });
   return {total:selected.length,counts,results:ranked.slice(0,Math.max(0,Math.min(100,Math.trunc(max)||50))).map(x=>x.row)};
 }
 
@@ -75,4 +88,50 @@ export function matchExcerpt(row, query, maxLength=160) {
   if(start>0){const wordBoundary=clean.lastIndexOf(' ',start);if(wordBoundary>0&&start-wordBoundary<15)start=wordBoundary+1;}
   const end=Math.min(clean.length,start+max);
   return `${start>0?'…':''}${clean.slice(start,end).trim()}${end<clean.length?'…':''}`;
+}
+
+/** Split visible text into literal segments for safe highlighting.
+ * No HTML is produced here. The caller MUST escape each segment before rendering.
+ * Offset mapping keeps highlights aligned even for NFKC characters (e.g. fullwidth).
+ */
+export function highlightParts(text, query, maxMatches=48) {
+  const original=safeText(text);
+  const terms=[...new Set(norm(query).slice(0,120).split(/\s+/u).filter(Boolean).slice(0,12))];
+  if(!original||!terms.length)return [{text:original,matched:false}];
+  let normalized='';
+  const spans=[];
+  for(let offset=0;offset<original.length;){
+    const char=String.fromCodePoint(original.codePointAt(offset));
+    const folded=char.normalize('NFKC').toLocaleLowerCase();
+    normalized+=folded;
+    for(let i=0;i<folded.length;i++)spans.push({start:offset,end:offset+char.length});
+    offset+=char.length;
+  }
+  const ranges=[];
+  for(const term of terms){
+    let pos=0;
+    while(pos<normalized.length&&ranges.length<maxMatches){
+      const index=normalized.indexOf(term,pos);
+      if(index<0)break;
+      const a=spans[index],b=spans[index+term.length-1];
+      if(a&&b)ranges.push([a.start,b.end]);
+      pos=index+Math.max(1,term.length);
+    }
+  }
+  if(!ranges.length)return [{text:original,matched:false}];
+  ranges.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const merged=[];
+  for(const [start,end] of ranges){
+    const last=merged.at(-1);
+    if(last&&start<=last[1])last[1]=Math.max(last[1],end);
+    else merged.push([start,end]);
+  }
+  const parts=[];let pos=0;
+  for(const [start,end] of merged){
+    if(start>pos)parts.push({text:original.slice(pos,start),matched:false});
+    parts.push({text:original.slice(start,end),matched:true});
+    pos=end;
+  }
+  if(pos<original.length)parts.push({text:original.slice(pos),matched:false});
+  return parts;
 }
