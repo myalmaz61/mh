@@ -26,6 +26,7 @@ import { advanceRecentTools, validRecentTools } from './recent-core.js';
 import { visibleTools, toggleToolHidden } from './visibility-core.js';
 import { orderedTools, moveToolOrder, DEFAULT_TOOL_ORDER } from './tool-order-core.js';
 import { addEverydayFavourites } from './settings-layout-core.js';
+import { recentContinueTool, shouldCheckForAppUpdate } from './resume-core.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -37,6 +38,9 @@ let stopPwaHealth=()=>{};
 let navigation=Promise.resolve();
 let settingsQueue=Promise.resolve();
 let waitingWorker=null;
+let workerRegistration=null;
+let lastWorkerCheck=0;
+let workerCheckRunning=false;
 let applyingUpdate=false;
 let toastTimer=null;
 let quickAdd=null;
@@ -114,6 +118,31 @@ function updateIndicators(){
 }
 window.addEventListener('online',updateIndicators);
 window.addEventListener('offline',updateIndicators);
+// On Android, returning from another app must NOT remount the current tool:
+// Notes may contain text that has not finished saving.
+async function checkWorkerOnReturn(){
+  updateIndicators();
+  if(!workerRegistration || !shouldCheckForAppUpdate({
+    now:Date.now(),lastCheckedAt:lastWorkerCheck,online:navigator.onLine,
+    visible:!document.hidden,waiting:!!waitingWorker,inProgress:workerCheckRunning
+  }))return;
+  lastWorkerCheck=Date.now();
+  workerCheckRunning=true;
+  try{
+    await workerRegistration.update();
+    if(workerRegistration.waiting && navigator.serviceWorker.controller){
+      waitingWorker=workerRegistration.waiting;updateIndicators();
+    }
+  }catch(err){console.warn('Background PWA update check unavailable',err);}
+  finally{workerCheckRunning=false;}
+}
+function onAppReturn(){
+  updateIndicators();
+  if(!document.hidden)void checkWorkerOnReturn();
+}
+document.addEventListener('visibilitychange',onAppReturn);
+window.addEventListener('pageshow',onAppReturn);
+window.addEventListener('online',onAppReturn);
 function go(route, selection=null){
   navigation=navigation.then(()=>navigate(route,selection)).catch(handleError);
 }
@@ -168,10 +197,12 @@ function bindToolButtons(container){
 }
 function renderHome(main){
   const favorites=settings.favourites.map(id=>TOOLS.find(tool=>tool.id===id)).filter(tool=>tool&&!settings.hiddenTools.includes(tool.id));
+  const continueTool=recentContinueTool(recentTools,TOOLS,settings.hiddenTools);
   main.innerHTML=`<section class="home-hero"><div class="eyebrow">PERSONAL TOOLS · ${VERSION}</div>
     <h1>${t('welcome')}</h1><p>${t('welcomeSub')}</p>
     <div class="today-widget"><span class="today-symbol">☼</span><div><small>${t('dateCard')}</small><strong id="home-date"></strong></div><strong class="today-time" id="home-time"></strong></div></section>
     <div id="today-summary-slot"></div>
+    ${continueTool?`<div class="home-continue-wrap"><button type="button" class="home-continue" id="continue-last-tool" aria-label="${t('continueLastTool')}: ${t(continueTool.title)}"><span class="home-continue-icon" aria-hidden="true">${continueTool.icon}</span><span class="home-continue-copy"><small>${t('continueLastTool')}</small><strong>${t(continueTool.title)}</strong></span><span class="home-continue-arrow" aria-hidden="true">↗</span></button></div>`:''}
     <section class="section"><div class="row-between"><h2>${t('myFavourites')}</h2><button class="text-link" id="customise-home" type="button">${t('settings')} ›</button></div>
     <div id="home-favourites" class="tiles-grid">${favorites.map(tile).join('') || `<p class="muted">${t('noFavourites')}</p>`}</div></section>
     <section class="section"><div class="row-between"><h2>${t('allTools')}</h2><button class="text-link" id="all-tools-link" type="button">${t('tools')} ›</button></div>
@@ -187,6 +218,7 @@ function renderHome(main){
   const stopToday=mountToday({element:main.querySelector('#today-summary-slot'),lang:settings.language,openTool:go,notify:toast});
   cleanup=()=>{clearInterval(minuteTimer);stopToday();};
   bindToolButtons(main);
+  main.querySelector('#continue-last-tool')?.addEventListener('click',()=>go(continueTool.id));
   main.querySelector('#customise-home').addEventListener('click',()=>go('settings',{panel:'favourites'}));
   main.querySelector('#all-tools-link').addEventListener('click',()=>go('tools'));
   main.querySelector('#home-universal-search').addEventListener('click',()=>go('search'));
@@ -438,6 +470,7 @@ function registerWorker(){
     waitingWorker=null;updateIndicators();
   });
   navigator.serviceWorker.register('./sw.js').then(reg=>{
+    workerRegistration=reg;lastWorkerCheck=Date.now();
     if(reg.waiting && navigator.serviceWorker.controller){waitingWorker=reg.waiting;updateIndicators();}
     reg.addEventListener('updatefound',()=>{
       const worker=reg.installing;
