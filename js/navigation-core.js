@@ -1,4 +1,4 @@
-// MyHub v4.3 — browser history contains ONLY a route name and a scroll offset.
+// MyHub v4.4 — browser history contains ONLY a route name and a scroll offset.
 // Never place note text, record IDs, drafts or searches in URL/history state.
 export const NAV_MARKER='myhub-navigation-v1';
 export function safeScrollY(value){
@@ -16,4 +16,18 @@ export function readNavState(value,allowedRoutes){
 }
 export function shouldPushRoute(previous,next){
   return typeof previous==='string'&&typeof next==='string'&&previous!==next;
+}
+
+// Ignore delayed tap requests after a newer Android Back/Forward event.
+// A second tap on the already displayed tool must not remount its editor;
+// a specific record selection is a deliberate request to open that record.
+export function shouldRunNavigationRequest(queuedEpoch,currentEpoch,activeRoute,requestedRoute,hasSelection=false){
+  if(!Number.isSafeInteger(queuedEpoch)||!Number.isSafeInteger(currentEpoch)||queuedEpoch!==currentEpoch)return false;
+  if(activeRoute===requestedRoute&&!hasSelection)return false;
+  return true;
+}
+// A queued popstate event can become stale when Android Back is pressed twice.
+// Only the newest browser event is allowed to remount a view or restore scroll.
+export function isLatestBackEvent(eventEpoch,currentEpoch){
+  return Number.isSafeInteger(eventEpoch)&&eventEpoch===currentEpoch;
 }

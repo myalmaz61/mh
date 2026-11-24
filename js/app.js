@@ -27,7 +27,7 @@ import { visibleTools, toggleToolHidden } from './visibility-core.js';
 import { orderedTools, moveToolOrder, DEFAULT_TOOL_ORDER } from './tool-order-core.js';
 import { addEverydayFavourites } from './settings-layout-core.js';
 import { recentContinueTool, shouldCheckForAppUpdate } from './resume-core.js';
-import { makeNavState, readNavState, shouldPushRoute, safeScrollY } from './navigation-core.js';
+import { makeNavState, readNavState, shouldPushRoute, safeScrollY, shouldRunNavigationRequest, isLatestBackEvent } from './navigation-core.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -55,9 +55,10 @@ function restoreHistoryAfterRejectedBack(route){
 }
 function onBrowserBack(event){
   if(!appHistoryReady)return;
-  browserBackEpoch+=1; // A Back press overrides history updates queued by an older click.
+  const backEpoch=++browserBackEpoch; // Latest Back/Forward wins over delayed clicks or older popstate events.
   const destination=readNavState(event.state,allowedRoutes)||makeNavState('home');
   navigation=navigation.then(async()=>{
+    if(!isLatestBackEvent(backEpoch,browserBackEpoch))return;
     const previous=active;
     if(previous===destination.route){
       window.scrollTo(0,destination.scrollY);
@@ -68,10 +69,12 @@ function onBrowserBack(event){
       if(didNavigate){
         // This is a return to a previously visited tool, not a new navigation.
         // Browser already moved to the older history entry; do not push again.
-        window.requestAnimationFrame(()=>window.scrollTo(0,destination.scrollY));
-      }else restoreHistoryAfterRejectedBack(previous);
+        window.requestAnimationFrame(()=>{
+          if(isLatestBackEvent(backEpoch,browserBackEpoch))window.scrollTo(0,destination.scrollY);
+        });
+      }else if(isLatestBackEvent(backEpoch,browserBackEpoch))restoreHistoryAfterRejectedBack(previous);
     }catch(err){
-      restoreHistoryAfterRejectedBack(previous);
+      if(isLatestBackEvent(backEpoch,browserBackEpoch))restoreHistoryAfterRejectedBack(previous);
       handleError(err);
     }
   }).catch(handleError);
@@ -187,6 +190,9 @@ window.addEventListener('online',onAppReturn);
 function go(route, selection=null){
   const epochAtClick=browserBackEpoch;
   navigation=navigation.then(async()=>{
+    // Repeated taps on the active tool must not dismiss a draft or lose scroll.
+    // Back/Forward invalidates earlier queued clicks, but not newer user actions.
+    if(!shouldRunNavigationRequest(epochAtClick,browserBackEpoch,active,route,selection!==null&&selection!==undefined))return;
     const fromRoute=active;
     const fromScroll=safeScrollY(window.scrollY);
     const didNavigate=await navigate(route,selection);
