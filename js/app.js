@@ -27,6 +27,7 @@ import { visibleTools, toggleToolHidden } from './visibility-core.js';
 import { orderedTools, moveToolOrder, DEFAULT_TOOL_ORDER } from './tool-order-core.js';
 import { addEverydayFavourites } from './settings-layout-core.js';
 import { recentContinueTool, shouldCheckForAppUpdate } from './resume-core.js';
+import { makeNavState, readNavState, shouldPushRoute, safeScrollY } from './navigation-core.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -36,6 +37,46 @@ let cleanup=()=>{};
 let stopDiagnostics=()=>{};
 let stopPwaHealth=()=>{};
 let navigation=Promise.resolve();
+// Only a route identifier and scroll position enter browser history.
+// No note contents, draft IDs, search text or personal records are persisted.
+let appHistoryReady=false;
+let browserBackEpoch=0;
+const allowedRoutes=['home','tools','settings','search',...TOOLS.map(tool=>tool.id)];
+function updateBrowserHistory(fromRoute,fromScroll,toRoute){
+  if(!appHistoryReady || !shouldPushRoute(fromRoute,toRoute))return;
+  try{
+    window.history.replaceState(makeNavState(fromRoute,fromScroll),'');
+    window.history.pushState(makeNavState(toRoute,0),'');
+  }catch(err){console.warn('App navigation history is unavailable',err);appHistoryReady=false;}
+}
+function restoreHistoryAfterRejectedBack(route){
+  try{window.history.pushState(makeNavState(route,window.scrollY),'');}
+  catch(err){console.warn('Could not preserve navigation history',err);appHistoryReady=false;}
+}
+function onBrowserBack(event){
+  if(!appHistoryReady)return;
+  browserBackEpoch+=1; // A Back press overrides history updates queued by an older click.
+  const destination=readNavState(event.state,allowedRoutes)||makeNavState('home');
+  navigation=navigation.then(async()=>{
+    const previous=active;
+    if(previous===destination.route){
+      window.scrollTo(0,destination.scrollY);
+      return;
+    }
+    try{
+      const didNavigate=await navigate(destination.route);
+      if(didNavigate){
+        // This is a return to a previously visited tool, not a new navigation.
+        // Browser already moved to the older history entry; do not push again.
+        window.requestAnimationFrame(()=>window.scrollTo(0,destination.scrollY));
+      }else restoreHistoryAfterRejectedBack(previous);
+    }catch(err){
+      restoreHistoryAfterRejectedBack(previous);
+      handleError(err);
+    }
+  }).catch(handleError);
+}
+window.addEventListener('popstate',onBrowserBack);
 let settingsQueue=Promise.resolve();
 let waitingWorker=null;
 let workerRegistration=null;
@@ -144,12 +185,18 @@ document.addEventListener('visibilitychange',onAppReturn);
 window.addEventListener('pageshow',onAppReturn);
 window.addEventListener('online',onAppReturn);
 function go(route, selection=null){
-  navigation=navigation.then(()=>navigate(route,selection)).catch(handleError);
+  const epochAtClick=browserBackEpoch;
+  navigation=navigation.then(async()=>{
+    const fromRoute=active;
+    const fromScroll=safeScrollY(window.scrollY);
+    const didNavigate=await navigate(route,selection);
+    if(didNavigate && epochAtClick===browserBackEpoch)updateBrowserHistory(fromRoute,fromScroll,active);
+  }).catch(handleError);
 }
 async function navigate(route,selection=null){
-  if(await cleanup()===false)return;
+  if(await cleanup()===false)return false;
   cleanup=()=>{};
-  if(!['home','tools','settings','search',...TOOLS.map(a=>a.id)].includes(route))route='home';
+  if(!allowedRoutes.includes(route))route='home';
   active=route;
   shell();
   const main=app.querySelector('#main-content');
@@ -187,6 +234,7 @@ async function navigate(route,selection=null){
   await rememberTool(route);
   quickAdd?.setVisible(route);
   window.scrollTo(0,0);
+  return true;
 }
 function tile(tool){
   return `<button class="tool-tile" type="button" data-open="${tool.id}"><span class="tool-icon ${tool.color}">${tool.icon}</span>
@@ -502,6 +550,13 @@ async function boot(){
     }else{
       await navigate('home');
     }
+    // Browser Back inside the installed PWA returns to earlier MyHub screens.
+    // Safe cleanup is still required before any view can be abandoned.
+    try{
+      window.history.replaceState(makeNavState(active,0),'');
+      if('scrollRestoration' in window.history)window.history.scrollRestoration='manual';
+      appHistoryReady=true;
+    }catch(err){console.warn('In-app Back is not available',err);}
     registerWorker();
   }catch(err){
     console.error(err);
