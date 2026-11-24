@@ -16,13 +16,15 @@ export function mountFootballSecondSource({element,t,lang}){
   const apiLink=element.querySelector('#football-second-api-link');
   const toggle=element.querySelector('#football-second-details');
   const refresh=element.querySelector('#football-second-refresh');
-  let day=dayUtc(1),dead=false,busy=false,controller=null,current=[],loadedKey='',lastFetched=0,requestId=0,viaGlobal=false;
+  let day=dayUtc(0),dead=false,busy=false,controller=null,current=[],loadedKey='',lastFetched=0,requestId=0,viaGlobal=false;
   // Choose EPL by default: the user should not need to 'add' it via OpenLigaDB.
   competition.value=SECOND_SOURCE_PREMIER_LEAGUE;
   select.value=day;
   select.max=dayUtc(0);
   const selectionKey=()=>`${select.value}|${competition.value}`;
+  const checked=element.querySelector('#football-second-updated');
   function paint(){
+    checked.textContent=loadedKey&&lastFetched?`${t('footballSecondChecked')}: ${new Intl.DateTimeFormat(lang==='en'?'en-GB':'bg-BG',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(lastFetched))} · ${t('footballSecondSource')}`:'';
     if(!loadedKey){results.innerHTML='';return;}
     const filtered=sportScoreForCompetition(current,competition.value,viaGlobal);
     const found=sportScoreFiltered(filtered,search.value);
@@ -37,6 +39,7 @@ export function mountFootballSecondSource({element,t,lang}){
   }
   async function load(force=false){
     if(dead||busy)return;
+    select.max=dayUtc(0);
     day=select.value;
     if(!isValidFootballDay(day)||day>dayUtc(0)){message.textContent=t('footballSecondBadDay');return;}
     if(!validSportScoreCompetition(competition.value)){message.textContent=t('footballSecondError');return;}
@@ -82,7 +85,7 @@ export function mountFootballSecondSource({element,t,lang}){
       current=chosen;viaGlobal=chosenGlobal;
       // Failed attempts cannot be counted as a successful, fresh result.
       loadedKey=succeeded?key:'';lastFetched=succeeded?Date.now():0;
-      if(!succeeded){results.innerHTML='';message.textContent=t('footballSecondError')+' '+t('footballSecondSeeDiagnostic');return;}
+      if(!succeeded){results.innerHTML='';checked.textContent='';message.textContent=t('footballSecondError')+' '+t('footballSecondSeeDiagnostic');return;}
       paint();
       if(!found.length)message.textContent=t('footballSecondEmptyLeague')+' '+t('footballSecondSeeDiagnostic');
     }catch(err){
@@ -93,7 +96,7 @@ export function mountFootballSecondSource({element,t,lang}){
     }finally{clearTimeout(timeout);if(thisRequest===requestId){busy=false;if(!dead)refresh.disabled=false;}}
   }
   const onToggle=()=>{if(toggle.open&&!loadedKey)void load();};
-  const onSelection=()=>{requestId++;controller?.abort();busy=false;refresh.disabled=false;loadedKey='';current=[];viaGlobal=false;results.innerHTML='';message.textContent='';debug.textContent='';if(toggle.open)void load();};
+  const onSelection=()=>{requestId++;controller?.abort();busy=false;refresh.disabled=false;loadedKey='';current=[];viaGlobal=false;results.innerHTML='';message.textContent='';checked.textContent='';debug.textContent='';if(toggle.open)void load();};
   const onSearch=()=>{if(loadedKey)paint();};const onRefresh=()=>void load(true);
   const onToday=()=>{select.value=dayUtc();onSelection();};
   const onYesterday=()=>{select.value=dayUtc(1);onSelection();};
@@ -101,12 +104,18 @@ export function mountFootballSecondSource({element,t,lang}){
   const today=element.querySelector('#football-second-today');
   const yesterday=element.querySelector('#football-second-yesterday');
   const saturday=element.querySelector('#football-second-saturday');
+  // Poll conservatively only while SportScore is visible and its API says a match is live.
+  const activeCheck=setInterval(()=>{
+    if(dead||document.hidden||!navigator.onLine||!toggle.open||busy||!loadedKey)return;
+    if(loadedKey!==selectionKey()||Date.now()-lastFetched<SECOND_SOURCE_MIN_REFRESH_MS)return;
+    if(current.some(m=>m.status==='live'))void load();
+  },60_000);
   toggle.addEventListener('toggle',onToggle);select.addEventListener('change',onSelection);
   competition.addEventListener('change',onSelection);
   search.addEventListener('input',onSearch);refresh.addEventListener('click',onRefresh);
   today.addEventListener('click',onToday);yesterday.addEventListener('click',onYesterday);
   saturday.addEventListener('click',onSaturday);
-  return ()=>{dead=true;controller?.abort();toggle.removeEventListener('toggle',onToggle);
+  return ()=>{dead=true;clearInterval(activeCheck);controller?.abort();toggle.removeEventListener('toggle',onToggle);
     select.removeEventListener('change',onSelection);competition.removeEventListener('change',onSelection);
     search.removeEventListener('input',onSearch);refresh.removeEventListener('click',onRefresh);
     today.removeEventListener('click',onToday);yesterday.removeEventListener('click',onYesterday);

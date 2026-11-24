@@ -4,6 +4,7 @@ import {escapeHtml} from './utils.js';
 import {FOOTBALL_BASE,MAX_LEAGUES,emptyFootballData,validFootballData,leagueListFromAPI,
   matchURL,parseMatches,matchStatus,visibleMatches,hasPossibleMatch} from './football-core.js';
 import {footballRefreshDelay} from './football-refresh-core.js';
+import {footballTodayMatches,footballSnapshotRecency} from './football-today-core.js';
 import {footballResultHealth,hasConfirmedResult,needsResultCheck,mergeFootballMatches,singleFootballMatchURL,matchSearchURL,SINGLE_MATCH_COOLDOWN_MS} from './football-recovery-core.js';
 
 // Match-aware TTLs keep quiet leagues on a light schedule.
@@ -23,7 +24,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     return ()=>{}; // Never overwrite corrupt existing data.
   }
   let data=stored===undefined?emptyFootballData():stored;
-  let tab='all',catalog=null,catalogAt='',isBusy=false,isLoadingLeagues=false,dead=false;
+  let tab='today',catalog=null,catalogAt='',isBusy=false,isLoadingLeagues=false,dead=false;
   let currentController=null,catalogController=null,lastPoll=0,pollStamp='',nextRetry=0,needReload=false,failureCount=0;
   let pendingSave=Promise.resolve();
   let singleCheckId=0;const singleChecked=new Map();
@@ -34,9 +35,12 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
         <label class="sr-only" for="football-search">${t('footballSearchLeague')}</label><input id="football-search" class="text-field" type="search" maxlength="60" placeholder="${t('footballSearchLeague')}">
         <div id="football-league-results" class="football-league-results"></div></div>
       <div class="row-between gap-wrap football-refresh"><span id="football-updated" class="muted"></span><div class="football-actions"><button type="button" id="football-remove-league" class="text-link">${t('footballRemoveLeague')}</button><button type="button" id="football-refresh" class="secondary-btn">↻ ${t('weatherRefresh')}</button></div></div>
+      <button type="button" id="football-quick-sportscore" class="football-quick-source">⚽ ${t('footballQuickSportScore')}</button>
       <p id="football-message" class="football-message" role="status" aria-live="polite"></p>
-      <p id="football-health" class="football-health muted" role="status"></p></section>
+      <p id="football-health" class="football-health muted" role="status"></p>
+      <p id="football-freshness" class="football-freshness muted" role="status"></p></section>
     <section class="surface football-results"><div class="football-tabs" role="group" aria-label="${t('footballFilters')}">
+      <button type="button" data-football-tab="today">${t('footballToday')} <span id="football-today-count"></span></button>
       <button type="button" data-football-tab="all">${t('footballAll')}</button>
       <button type="button" data-football-tab="upcoming">${t('footballUpcoming')}</button>
       <button type="button" data-football-tab="finished">${t('footballFinished')}</button>
@@ -44,6 +48,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
       <div id="football-matches" aria-live="polite"></div></section>
     <details class="surface football-second-panel" id="football-second-details"><summary>${t('footballSecondTitle')}</summary>
       <p class="muted">${t('footballSecondHint')}</p>
+      <p class="muted football-second-note">${t('footballSecondDayNote')}</p>
       <label class="football-second-league-label" for="football-second-competition">${t('footballSecondCompetition')}
         <select class="input-select" id="football-second-competition">
           <option value="english-premier-league">English Premier League</option>
@@ -59,6 +64,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
       <label class="sr-only" for="football-second-search">${t('footballSecondFilter')}</label>
       <input class="text-field football-second-search" id="football-second-search" type="search" maxlength="80" placeholder="${t('footballSecondFilter')}">
       <p id="football-second-message" class="muted" role="status" aria-live="polite"></p>
+      <p id="football-second-updated" class="muted football-second-updated" role="status"></p>
       <details class="football-second-diagnostic"><summary>${t('footballSecondDiagnostic')}</summary><pre id="football-second-debug" class="football-second-debug" aria-live="polite"></pre><a id="football-second-api-link" href="https://sportscore.com/api/v1/fixtures/" target="_blank" rel="noopener noreferrer">${t('footballSecondOpenApi')}</a></details>
       <div id="football-second-results" aria-live="polite"></div>
       <p class="football-source"><a href="https://sportscore.com/football/competition/england/english-premier-league/jednm9whz0ryox8/" rel="noopener noreferrer" target="_blank">${t('footballSecondOpenEpl')}</a></p>
@@ -93,12 +99,17 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
       return all.filter(m=>ids.has(m.homeId)||ids.has(m.awayId))
         .sort((a,b)=>Math.abs(Date.parse(a.time)-Date.now())-Math.abs(Date.parse(b.time)-Date.now())).slice(0,42);
     }
+    if(tab==='today')return footballTodayMatches(activeSnapshot()?.matches||[]);
     return visibleMatches(activeSnapshot()?.matches||[],tab,data.favoriteTeams);
   }
   function paintMatches(){
     const snap=activeSnapshot();
     const list=matchesForTab();
-    one('#football-updated').textContent=snap?`${t('footballChecked')}: ${when(snap.fetchedAt,lang)}${!navigator.onLine?' · '+t('footballCached'):''}`:t('footballNeverChecked');
+    const recency=footballSnapshotRecency(snap);
+    const age=recency.minutes===null?'':` · ${t('footballMinutesAgo').replace('{n}',String(recency.minutes))}`;
+    one('#football-updated').textContent=snap?`${t('footballChecked')}: ${when(snap.fetchedAt,lang)}${age}${!navigator.onLine?' · '+t('footballCached'):''}`:t('footballNeverChecked');
+    one('#football-freshness').textContent=recency.stale?t('footballStaleNotice'):'';
+    one('#football-today-count').textContent=`(${footballTodayMatches(snap?.matches||[]).length})`;
     one('#football-refresh').disabled=isBusy||!navigator.onLine;
     one('#football-refresh').textContent=isBusy?t('weatherLoading'):`↻ ${t('weatherRefresh')}`;
     const health=footballResultHealth(snap?.matches||[]);
@@ -110,7 +121,9 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     if(!snap&&tab!=='favorites'){
       results.innerHTML=`<p class="muted football-empty">${navigator.onLine?t('footballNotLoaded'):t('footballOffline')}</p>`;return;
     }
-    if(!list.length){results.innerHTML=`<p class="muted football-empty">${tab==='favorites'?t('footballFavoriteEmpty'):t('footballNoMatches')}</p>`;return;}
+    if(!list.length){results.innerHTML=tab==='today'
+      ?`<p class="muted football-empty">${t('footballTodayEmpty')}</p><button type="button" class="secondary-btn football-show-all" id="football-show-all">${t('footballShowAll')}</button>`
+      :`<p class="muted football-empty">${tab==='favorites'?t('footballFavoriteEmpty'):t('footballNoMatches')}</p>`;return;}
     results.innerHTML=list.map(m=>{
       const status=m.finished&&!hasConfirmedResult(m)?'unconfirmed':matchStatus(m),score=m.homeScore===null?'– : –':`${m.homeScore} : ${m.awayScore}`;
       const homeFav=data.favoriteTeams.includes(m.homeId),awayFav=data.favoriteTeams.includes(m.awayId);
@@ -131,7 +144,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     const item=catalog?.find(l=>l.key===key);
     if(!item||data.leagues.some(l=>l.key===key))return;
     await save({...data,leagues:[...data.leagues,item],selected:item.key});
-    one('#football-add-panel').hidden=true;tab='all';render();
+    one('#football-add-panel').hidden=true;tab='today';render();
     await loadMatches(false);
   }
   function paintCatalog(){
@@ -246,15 +259,19 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     }finally{clearTimeout(timeout);singleCheckId=0;render();}
   }
   select.addEventListener('change',safeAction(async()=>{
-    currentController?.abort();pollStamp='';lastPoll=0;tab='all';
+    currentController?.abort();pollStamp='';lastPoll=0;tab='today';
     await save({...data,selected:select.value});displayMessage('');await loadMatches();
   }));
   one('#football-refresh').addEventListener('click',safeAction(()=>loadMatches(true)));
+  one('#football-quick-sportscore').addEventListener('click',()=>{
+    const panel=one('#football-second-details');panel.open=true;
+    panel.scrollIntoView?.({behavior:'smooth',block:'start'});
+  });
   one('#football-remove-league').addEventListener('click',safeAction(async()=>{
     if(data.leagues.length<=1||!confirmAction(t('footballRemoveConfirm')))return;
     const selected=data.selected,leagues=data.leagues.filter(l=>l.key!==selected),cache={...data.cache};delete cache[selected];
     currentController?.abort();pollStamp='';lastPoll=0;
-    await save({...data,leagues,cache,selected:leagues[0].key});tab='all';
+    await save({...data,leagues,cache,selected:leagues[0].key});tab='today';
     await loadMatches();
   }));
   one('#football-manage').addEventListener('click',safeAction(async()=>{
@@ -267,6 +284,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   });
   element.querySelectorAll('[data-football-tab]').forEach(btn=>btn.addEventListener('click',()=>{tab=btn.dataset.footballTab;render();}));
   results.addEventListener('click',event=>{
+    if(event.target.closest('#football-show-all')){tab='all';render();return;}
     const check=event.target.closest('[data-football-check]');
     if(check){void safeAction(()=>checkSingleMatch(Number(check.dataset.footballCheck)))();return;}
     const btn=event.target.closest('[data-football-team]');if(!btn)return;
