@@ -92,6 +92,8 @@ let workerRegistration=null;
 let lastWorkerCheck=0;
 let workerCheckRunning=false;
 let applyingUpdate=false;
+let needsRefresh=false;
+let hadWorkerController=Boolean(navigator.serviceWorker?.controller);
 let toastTimer=null;
 let quickAdd=null;
 let recentTools=[];
@@ -154,8 +156,23 @@ function shell(){
   app.querySelector('#quick-settings').addEventListener('click',()=>go('settings'));
   app.querySelectorAll('[data-nav]').forEach(button=>button.addEventListener('click',()=>go(button.dataset.nav)));
   app.querySelector('#update-now').addEventListener('click',async()=>{
-    if(!waitingWorker)return;
-    try {if(await cleanup()===false)return; applyingUpdate=true; waitingWorker.postMessage({type:'SKIP_WAITING'});}catch(err){handleError(err);}
+    const button=app.querySelector('#update-now');
+    if(applyingUpdate||(!waitingWorker&&!needsRefresh))return;
+    button.disabled=true;
+    try{
+      // In-progress editors may reject departure. Never force a reload here.
+      if(await cleanup()===false)return;
+      if(needsRefresh){applyingUpdate=true;location.reload();return;}
+      // A newer worker might have been replaced while cleanup was running.
+      const candidate=workerRegistration?.waiting;
+      if(!candidate||candidate!==waitingWorker||candidate.state!=='installed'){
+        waitingWorker=candidate?.state==='installed'?candidate:null;
+        updateIndicators();return;
+      }
+      applyingUpdate=true;
+      candidate.postMessage({type:'SKIP_WAITING'});
+    }catch(err){applyingUpdate=false;handleError(err);}
+    finally{if(!applyingUpdate)button.disabled=false;}
   });
   quickAdd=mountQuickAdd({element:app,t,notify:toast,openRecord:go});
   updateIndicators();
@@ -164,7 +181,7 @@ function updateIndicators(){
   const banner=app.querySelector('#offline-banner');
   if(banner)banner.hidden=navigator.onLine;
   const update=app.querySelector('#update-banner');
-  if(update) update.hidden=!waitingWorker;
+  if(update) update.hidden=!waitingWorker&&!needsRefresh;
 }
 window.addEventListener('online',updateIndicators);
 window.addEventListener('offline',updateIndicators);
@@ -172,7 +189,7 @@ window.addEventListener('offline',updateIndicators);
 // Notes may contain text that has not finished saving.
 async function checkWorkerOnReturn(){
   updateIndicators();
-  if(!workerRegistration || !shouldCheckForAppUpdate({
+  if(needsRefresh || !workerRegistration || !shouldCheckForAppUpdate({
     now:Date.now(),lastCheckedAt:lastWorkerCheck,online:navigator.onLine,
     visible:!document.hidden,waiting:!!waitingWorker,inProgress:workerCheckRunning
   }))return;
@@ -570,8 +587,14 @@ function renderSettings(main,openHidden=false,openOrder=false,openFavourites=fal
 function registerWorker(){
   if(!('serviceWorker' in navigator))return;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    const previousController=hadWorkerController;
+    hadWorkerController=Boolean(navigator.serviceWorker.controller);
     if(applyingUpdate){location.reload();return;}
-    waitingWorker=null;updateIndicators();
+    waitingWorker=null;
+    // A different tab can activate a new worker. Do not mix its assets
+    // with the code in this tab or reload and discard unfinished edits.
+    if(previousController&&hadWorkerController)needsRefresh=true;
+    updateIndicators();
   });
   navigator.serviceWorker.register('./sw.js').then(reg=>{
     workerRegistration=reg;lastWorkerCheck=Date.now();
