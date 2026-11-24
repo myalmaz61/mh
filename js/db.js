@@ -347,12 +347,12 @@ export async function getMeta(key) {
 export async function setMeta(key, value) {
   return request('meta','readwrite',store => store.put({ key, value:safeClone(value) }));
 }
-/** Atomic compare-and-swap for Tasks, Calendar and Quick Lists.
+/** Atomic compare-and-swap for Tasks, Calendar, Quick Lists, templates and Bookmarks.
  * Read and write happen in ONE readwrite transaction; concurrent changes
  * (including Quick Add, Today and Restore) must not be silently overwritten.
  */
 export async function setMetaIfUnchanged(key, expectedValue, nextValue) {
-  if (!['tasksData','calendarData','quickListsData','notesTemplatesData'].includes(key)) throw Error('Unsupported guarded meta key');
+  if (!['tasksData','calendarData','quickListsData','notesTemplatesData','bookmarksData'].includes(key)) throw Error('Unsupported guarded meta key');
   const snapshot=safeClone(nextValue);
   const db=await openDatabase();
   return new Promise((resolve,reject)=>{

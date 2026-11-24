@@ -88,3 +88,20 @@ export function calendarDuplicateDraft(original,selectedDate){
   return {title:original.title,details:original.details,date:selectedDate,time:original.time,
     repeat:'none',repeatUntil:''};
 }
+
+/** Shift the entire series by the difference from the visible occurrence.
+ * For single events the occurrence must be the event date. No single-occurrence edits.
+ * The recurrence end moves by the same number of calendar days, not milliseconds. */
+export function calendarMoveEvent(original,occurrenceDate,targetDate,updatedAt){
+  if(!validCalendarEvent(original)||!parseYmd(targetDate)||!occursOn(original,occurrenceDate)||
+    !validISO(updatedAt))throw Error('Invalid event move');
+  const from=parseYmd(occurrenceDate),to=parseYmd(targetDate);
+  const delta=utcDay(to)-utcDay(from);
+  if(delta===0)throw Error('Event already on this day');
+  const date=shiftDay(original.date,delta);
+  const repeatUntil=original.repeatUntil?shiftDay(original.repeatUntil,delta):'';
+  if(!date || (original.repeatUntil&&!repeatUntil))throw Error('Event move outside supported years');
+  const changed={...original,date,repeatUntil,updatedAt};
+  if(!validCalendarEvent(changed))throw Error('Invalid moved event');
+  return changed;
+}

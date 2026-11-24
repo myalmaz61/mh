@@ -3,7 +3,7 @@ import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
 import { escapeHtml, uid } from './utils.js';
 import { draftTaskFromEvent } from './cross-actions-core.js';
 import { CALENDAR_REPEATS, MAX_CALENDAR_EVENTS, emptyCalendar, validCalendarData,
-  parseYmd, formatYmd, shiftDay, todayLocal, monthCells, monthEventCounts, eventsForDay, occursOn, calendarDuplicateDraft } from './calendar-core.js';
+  parseYmd, formatYmd, shiftDay, todayLocal, monthCells, monthEventCounts, eventsForDay, occursOn, calendarDuplicateDraft, calendarMoveEvent } from './calendar-core.js';
 
 const displayDate=(value,lang,options={})=>{
   const p=parseYmd(value);
@@ -37,7 +37,7 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
       if(!showDay){editId=initialEvent.id;draft={...initialEvent};}
     }
   }
-  let disposed=false, pending=false;
+  let disposed=false, pending=false, moveId=null;
   let highlightId=showDay&&initialEvent?.id || null;
   const dayEvents=date=>eventsForDay(data.events,date);
   const displayTitle=title=>escapeHtml(title);
@@ -46,11 +46,19 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     const entries=dayEvents(date);
     return `<div class="cal-agenda-head"><h2>${displayDate(date,lang)}</h2><button class="secondary-btn" type="button" data-cal-action="new">+ ${t('calendarNew')}</button></div>
       ${entries.length?`<div class="cal-events">${entries.map(e=>`<div class="cal-event ${highlightId===e.id?'cal-event-highlight':''}">
-        <span class="cal-event-time">${e.time||t('calendarAllDay')}</span><div class="cal-event-info"><strong>${displayTitle(e.title)}</strong>
+        <div class="cal-event-main"><span class="cal-event-time">${e.time||t('calendarAllDay')}</span>
+        <div class="cal-event-info"><strong>${displayTitle(e.title)}</strong>
         ${e.details?`<p>${escapeHtml(e.details)}</p>`:''}${e.repeat!=='none'?`<small>↻ ${t('calendarRepeat'+e.repeat[0].toUpperCase()+e.repeat.slice(1))}</small>`:''}</div>
         ${!draft?`<button class="secondary-btn cross-shortcut" type="button" data-cal-action="to-task" data-cal-id="${escapeHtml(e.id)}" aria-label="${t('crossToTask')} ${displayTitle(e.title)}">${t('crossToTask')}</button>`:''}
         <button class="secondary-btn cal-edit" type="button" data-cal-action="duplicate" data-cal-id="${escapeHtml(e.id)}" aria-label="${t('calendarDuplicate')} ${displayTitle(e.title)}" title="${t('calendarDuplicate')}">⧉</button>
         <button class="secondary-btn cal-edit" type="button" data-cal-action="edit" data-cal-id="${escapeHtml(e.id)}" aria-label="${t('calendarEdit')} ${displayTitle(e.title)}">✎</button>
+        ${!draft?`<button class="secondary-btn cal-move-btn" type="button" data-cal-action="move" data-cal-id="${escapeHtml(e.id)}" aria-expanded="${moveId===e.id}" aria-label="${t('calendarMove')} ${displayTitle(e.title)}">${t('calendarMove')}</button>`:''}
+        </div>
+        ${moveId===e.id&&!draft?`<form class="cal-move-form" data-cal-move-form="${escapeHtml(e.id)}">
+          <label>${t('calendarMoveTo')}<input type="date" name="targetDate" class="text-field" value="${escapeHtml(selected)}" min="1900-01-01" max="2100-12-31" required></label>
+          ${e.repeat!=='none'?`<p class="muted">${t('calendarMoveSeriesHint')}</p>`:''}
+          <div class="cal-actions"><button class="primary-btn" type="submit">${t('calendarMoveSave')}</button><button class="secondary-btn" type="button" data-cal-action="move-cancel">${t('cancel')}</button></div>
+        </form>`:''}
         </div>`).join('')}</div>`:`<p class="muted cal-empty">${t('calendarNoEvents')}</p>`}`;
   }
   function editor(){
@@ -108,18 +116,25 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
   const click=async event=>{
     const cell=event.target.closest('[data-cal-day]');
     if(cell&&element.contains(cell)){if(!mayLeaveAfterFailure(element,t,confirmAction))return;selected=cell.dataset.calDay;const p=parseYmd(selected);if(!p)return;
-      highlightId=null;year=p.year;month=p.month;draft=null;editId=null;render();return;}
+      highlightId=null;year=p.year;month=p.month;draft=null;editId=null;moveId=null;render();return;}
     const button=event.target.closest('[data-cal-action]');
     if(!button||!element.contains(button)||pending)return;
     const action=button.dataset.calAction;
     if(!mayLeaveAfterFailure(element,t,confirmAction))return;
-    if(action==='month-view'||action==='day-view'){highlightId=null;view=action==='day-view'?'day':'month';draft=null;editId=null;render();}
-    else if(action==='today'){highlightId=null;selected=todayLocal();const p=parseYmd(selected);year=p.year;month=p.month;draft=null;editId=null;render();}
-    else if(action==='prev'||action==='next'){movePeriod(action==='prev'?-1:1);draft=null;editId=null;render();}
+    if(action==='month-view'||action==='day-view'){highlightId=null;view=action==='day-view'?'day':'month';draft=null;editId=null;moveId=null;render();}
+    else if(action==='today'){highlightId=null;selected=todayLocal();const p=parseYmd(selected);year=p.year;month=p.month;draft=null;editId=null;moveId=null;render();}
+    else if(action==='prev'||action==='next'){movePeriod(action==='prev'?-1:1);draft=null;editId=null;moveId=null;render();}
     else if(action==='new'){
       if(data.events.length>=MAX_CALENDAR_EVENTS){notify(t('calendarLimit'));return;}
       editId=null;draft=startDraft(selected);render();element.querySelector('#cal-title')?.focus();
     }
+    else if(action==='move'&&!draft){
+      const original=data.events.find(e=>e.id===button.dataset.calId);
+      if(!original||!occursOn(original,selected))return;
+      moveId=moveId===original.id?null:original.id;render();
+      if(moveId)element.querySelector('[data-cal-move-form] input[name="targetDate"]')?.focus();
+    }
+    else if(action==='move-cancel'){moveId=null;render();}
     else if(action==='to-task'&&!draft){
       // The selected date is the current occurrence for a repeating event.
       const original=data.events.find(e=>e.id===button.dataset.calId);
@@ -136,7 +151,7 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
       const original=data.events.find(e=>e.id===button.dataset.calId);
       if(!original)return;editId=original.id;draft={...original};render();element.querySelector('#cal-title')?.focus();
     }
-    else if(action==='cancel'){draft=null;editId=null;render();}
+    else if(action==='cancel'){draft=null;editId=null;moveId=null;render();}
     else if(action==='delete'&&editId){
       if(!confirmAction(t('calendarDeleteConfirm')))return;
       pending=true;
@@ -155,6 +170,28 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     }
   };
   const submit=async event=>{
+    const moveForm=event.target?.closest?.('[data-cal-move-form]');
+    if(moveForm){
+      event.preventDefault();if(pending||draft)return;
+      const original=data.events.find(e=>e.id===moveForm.dataset.calMoveForm);
+      if(!original||moveId!==original.id)return;
+      const target=String(new FormData(moveForm).get('targetDate')||'');
+      let changed;
+      try{changed=calendarMoveEvent(original,selected,target,new Date().toISOString());}
+      catch(error){notify(t('calendarInvalid'));return;}
+      if(original.repeat!=='none'&&!confirmAction(t('calendarMoveSeriesConfirm')))return;
+      const next={schema:1,events:data.events.map(e=>e.id===original.id?changed:e)};
+      if(!validCalendarData(next)){notify(t('calendarInvalid'));return;}
+      pending=true;
+      try{
+        await setMetaIfUnchanged('calendarData',savedSnapshot,next);
+        savedSnapshot=next;data=next;selected=target;
+        const p=parseYmd(selected);year=p.year;month=p.month;
+        moveId=null;highlightId=null;notify(t('calendarMoved'));render();
+      }catch(error){console.error(error);showMetaSaveError(element,t,error);notify(t('calendarSaveError'));}
+      finally{pending=false;}
+      return;
+    }
     if(event.target?.id!=='cal-form')return;
     event.preventDefault();if(pending)return;
     const form=event.target;

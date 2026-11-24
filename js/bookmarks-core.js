@@ -21,3 +21,29 @@ export function validBookmarks(data){
   }
   return true;
 }
+
+/** Case-insensitive category grouping for filtering. Never mutates saved categories. */
+export function bookmarkCategories(items){
+  if(!Array.isArray(items))throw Error('Invalid bookmarks');
+  const counts=new Map();let uncategorized=0;
+  for(const item of items){
+    const raw=typeof item?.category==='string'?item.category.trim():'';
+    if(!raw){uncategorized++;continue;}
+    const key=raw.toLocaleLowerCase();
+    const prior=counts.get(key);
+    if(prior)prior.count++;
+    else counts.set(key,{key,name:raw,count:1});
+  }
+  return {named:[...counts.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'})),uncategorized};
+}
+export function filterBookmarks(items,{category='all',favourites=false,query=''}={}){
+  if(!Array.isArray(items))throw Error('Invalid bookmarks');
+  const needle=String(query).toLocaleLowerCase().trim();
+  return items.filter(item=>{
+    if(favourites&&!item.favourite)return false;
+    const raw=item.category.trim().toLocaleLowerCase();
+    if(category==='uncategorized'&&raw)return false;
+    if(category!=='all'&&category!=='uncategorized'&&category!==`category:${raw}`)return false;
+    return `${item.title} ${item.url} ${item.category}`.toLocaleLowerCase().includes(needle);
+  }).sort((a,b)=>Number(b.favourite)-Number(a.favourite)||b.updatedAt.localeCompare(a.updatedAt));
+}
