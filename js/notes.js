@@ -3,7 +3,7 @@ import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
 import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
-import { selectNotes, recentNotes } from './notes-view-core.js';
+import { createNotesSelector, recentNotes } from './notes-view-core.js';
 import { NOTES_PAGE_SIZE, sliceNotesPage, nextNotesPageLimit } from './notes-list-core.js';
 import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
@@ -255,8 +255,18 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     scopeInput.value=scope;orderInput.value=order;
     if(categoryFilter!=='*' && categoryFilter!=='' && !noteCategories(notes,locale).some(c=>c.toLocaleLowerCase()===categoryFilter.toLocaleLowerCase()))categoryFilter='*';
     if(categoryInput)categoryInput.value=categoryFilter;
+    // Reuse normalised search text and timestamps while this list is open.
+    // Notes mutations in this view replace the array; returning from an editor
+    // creates a new view and index, so no stale note text is retained.
+    let indexedNotes=notes;
+    let selector=createNotesSelector(notes);
+    const visibleNotes=()=>{
+      if(notes!==indexedNotes){indexedNotes=notes;selector=createNotesSelector(notes);}
+      return selector.select({query:search,scope,order,locale,category:categoryFilter});
+    };
+    const noteDateFormatter=new Intl.DateTimeFormat(locale,{day:'numeric',month:'short'});
     const renderList=() => {
-      const visible=selectNotes(notes,{query:search,scope,order,locale,category:categoryFilter});
+      const visible=visibleNotes();
       const page=sliceNotesPage(visible,displayedLimit);
       element.querySelector('#notes-count').textContent=t('notesCount').replace('{shown}',String(visible.length)).replace('{total}',String(notes.length));
       const hasFilters=Boolean(search.trim())||scope!=='all'||order!=='newest'||categoryFilter!=='*';
@@ -271,7 +281,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         const label=n.title.trim() || (n.kind==='checklist' ? t('newChecklist') : t('newNote'));
         const content=`<div class="row-between"><span class="note-type">${n.kind==='checklist'?'☑':'✎'} ${n.kind==='checklist' ? t('newChecklist') : t('newNote')}</span><span>${n.pinned?'📌 ':''}${n.favourite?'★':''}</span></div>
           <strong>${escapeHtml(label)}</strong>${categoryName(n.category) ? `<span class="note-category-chip">${escapeHtml(categoryName(n.category))}</span>` : ''}<span class="note-preview">${escapeHtml(summary) || '—'}</span>
-          <small>${new Intl.DateTimeFormat(locale,{day:'numeric',month:'short'}).format(new Date(n.updatedAt))}</small>`;
+          <small>${noteDateFormatter.format(new Date(n.updatedAt))}</small>`;
         return bulkMode ? `<label class="note-card notes-select-card"><span class="notes-select-control"><input type="checkbox" data-select-note="${escapeHtml(n.id)}" ${selectedIds.has(n.id)?'checked':''}><span>${t('notesBulkSelect')}</span></span>${content}</label>`
           : `<div class="notes-card-shell"><button class="note-card" type="button" data-note-id="${escapeHtml(n.id)}">${content}</button><div class="notes-quick-actions"><button type="button" data-quick-id="${escapeHtml(n.id)}" data-quick-flag="pinned" aria-label="${n.pinned?t('unpin'):t('pin')}" title="${n.pinned?t('unpin'):t('pin')}" aria-pressed="${Boolean(n.pinned)}" ${quickActionBusy?'disabled':''}>📌</button><button type="button" data-quick-id="${escapeHtml(n.id)}" data-quick-flag="favourite" aria-label="${n.favourite?t('unfavourite'):t('favourite')}" title="${n.favourite?t('unfavourite'):t('favourite')}" aria-pressed="${Boolean(n.favourite)}" ${quickActionBusy?'disabled':''}>${n.favourite?'★':'☆'}</button></div></div>`;
       }).join('') : `<div class="empty-state">${search ? t('notesNoResults') : t('notesEmpty')}</div>`;
@@ -285,7 +295,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       }
     };
     showMore.addEventListener('click',()=>{
-      const count=selectNotes(notes,{query:search,scope,order,locale,category:categoryFilter}).length;
+      const count=visibleNotes().length;
       displayedLimit=nextNotesPageLimit(displayedLimit,count);
       renderList();
     });
@@ -329,7 +339,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         element.querySelector('#notes-bulk-apply').disabled=selectedIds.size===0;
       });
       element.querySelector('#notes-bulk-select-visible').addEventListener('click',()=>{
-        const visible=selectNotes(notes,{query:search,scope,order,locale,category:categoryFilter});
+        const visible=visibleNotes();
         selectedIds.clear();
         for(const n of visible.slice(0,MAX_BULK_NOTES))selectedIds.add(n.id);
         if(visible.length>MAX_BULK_NOTES)notify(t('notesBulkLimit'));
