@@ -1,4 +1,4 @@
-const CACHE='myhub-shell-v6.5.0';
+const CACHE='myhub-shell-v6.6.0';
 const PREFIX='myhub-shell-';
 // Separate from shell cache: incoming shares are private, temporary, and never deployed.
 const SHARE_INBOX='myhub-share-inbox-v1';
@@ -26,6 +26,12 @@ self.addEventListener('activate',event=>{
   })());
 });
 self.addEventListener('message',event=>{
+  if(event.data?.type==='SHELL_STATUS'){
+    // A read-only reply sent through the requesting page's MessageChannel.
+    // Never expose personal data, caches contents or incoming shares.
+    event.ports?.[0]?.postMessage({type:'SHELL_STATUS',version:CACHE.slice(PREFIX.length+1),cacheName:CACHE});
+    return;
+  }
   if(event.data?.type==='SKIP_WAITING')self.skipWaiting();
 });
 self.addEventListener('fetch',event=>{
