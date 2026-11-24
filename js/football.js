@@ -1,5 +1,6 @@
 import {getMeta,setMeta} from './db.js';
 import {mountFootballSecondSource} from './football-second-source.js';
+import {mountFootballLive} from './football-live.js';
 import {escapeHtml} from './utils.js';
 import {FOOTBALL_BASE,MAX_LEAGUES,emptyFootballData,validFootballData,leagueListFromAPI,
   matchURL,parseMatches,matchStatus,visibleMatches,hasPossibleMatch} from './football-core.js';
@@ -36,7 +37,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
         <label class="sr-only" for="football-search">${t('footballSearchLeague')}</label><input id="football-search" class="text-field" type="search" maxlength="60" placeholder="${t('footballSearchLeague')}">
         <div id="football-league-results" class="football-league-results"></div></div>
       <div class="row-between gap-wrap football-refresh"><span id="football-updated" class="muted"></span><div class="football-actions"><button type="button" id="football-remove-league" class="text-link">${t('footballRemoveLeague')}</button><button type="button" id="football-refresh" class="secondary-btn">↻ ${t('weatherRefresh')}</button></div></div>
-      <button type="button" id="football-quick-sportscore" class="football-quick-source">⚽ ${t('footballQuickSportScore')}</button>
+      <button type="button" id="football-quick-sportscore" class="football-quick-source">⚡ ${t('footballQuickSportScore')}</button>
       <p id="football-message" class="football-message" role="status" aria-live="polite"></p>
       <p id="football-health" class="football-health muted" role="status"></p>
       <p id="football-freshness" class="football-freshness muted" role="status"></p></section>
@@ -47,6 +48,17 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
       <button type="button" data-football-tab="finished">${t('footballFinished')}</button>
       <button type="button" data-football-tab="favorites">★ ${t('footballFavorites')}</button></div>
       <div id="football-matches" aria-live="polite"></div></section>
+    <details class="surface football-live-panel" id="football-live-details"><summary>⚡ ${t('footballLiveTitle')}</summary>
+      <p class="muted">${t('footballLiveHint')}</p>
+      <div class="football-live-actions"><button type="button" id="football-live-refresh" class="secondary-btn">↻ ${t('weatherRefresh')}</button>
+        <button type="button" id="football-live-only" class="secondary-btn" aria-pressed="false">${t('footballLiveOnly')}</button></div>
+      <input id="football-live-search" class="text-field football-second-search" type="search" maxlength="80" placeholder="${t('footballSecondFilter')}" aria-label="${t('footballSecondFilter')}">
+      <p id="football-live-message" class="muted football-live-message" role="status" aria-live="polite"></p>
+      <p id="football-live-updated" class="muted" role="status"></p>
+      <p id="football-live-count" class="muted" role="status"></p>
+      <div id="football-live-results" aria-live="polite"></div>
+      <p class="football-source"><a href="https://sportscore.com/" rel="dofollow" title="Sports data by SportScore" target="_blank">Powered by SportScore</a> · ${t('footballSecondDisclaimer')}</p>
+    </details>
     <details class="surface football-second-panel" id="football-second-details"><summary>${t('footballSecondTitle')}</summary>
       <p class="muted">${t('footballSecondHint')}</p>
       <p class="muted football-second-note">${t('footballSecondDayNote')}</p>
@@ -73,6 +85,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     </details>
     <p class="football-source">${t('footballSource')}: <a href="https://www.openligadb.de/" target="_blank" rel="noopener noreferrer">OpenLigaDB</a> (<a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener noreferrer">ODbL 1.0</a>) · ${t('footballCaution')}</p>`;
   const releaseSecondSource=mountFootballSecondSource({element,t,lang});
+  const releaseLive=mountFootballLive({element,t,lang});
   const one=sel=>element.querySelector(sel);
   const select=one('#football-league'),results=one('#football-matches');
   const league=()=>data.leagues.find(l=>l.key===data.selected);
@@ -271,7 +284,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   }));
   one('#football-refresh').addEventListener('click',safeAction(()=>loadMatches(true)));
   one('#football-quick-sportscore').addEventListener('click',()=>{
-    const panel=one('#football-second-details');panel.open=true;
+    const panel=one('#football-live-details');panel.open=true;
     panel.scrollIntoView?.({behavior:'smooth',block:'start'});
   });
   one('#football-remove-league').addEventListener('click',safeAction(async()=>{
@@ -322,6 +335,6 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   const onOnline=()=>{render();tick();},onOffline=()=>render();
   window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);
   render();void loadMatches();
-  return ()=>{dead=true;releaseSecondSource();clearInterval(interval);document.removeEventListener('visibilitychange',onFocus);
+  return ()=>{dead=true;releaseLive();releaseSecondSource();clearInterval(interval);document.removeEventListener('visibilitychange',onFocus);
     window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);currentController?.abort();catalogController?.abort();};
 }
