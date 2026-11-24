@@ -113,10 +113,14 @@ const concise=(n,digits=0)=>n==null?'–':new Intl.NumberFormat('en-GB',{maximum
 const fmtDay=(day,lang)=>new Intl.DateTimeFormat(lang==='en'?'en-GB':'bg-BG',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(day+'T12:00:00Z'));
 const fmtUpdate=(iso,lang)=>new Intl.DateTimeFormat(lang==='en'?'en-GB':'bg-BG',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(iso));
 
-export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,saveWeather,notify}){
+export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,viewState=null,saveWeather,notify}){
   let cities=weatherCities.map(item=>({...item}));
   let selected=cities.some(c=>c.id===weatherSelectedId)?weatherSelectedId:(cities[0]?.id||'');
   let cache={};let destroyed=false;let fetching=null;let fetchingCity=null;let searching=null;let requestSequence=0;
+  // Reapply saved disclosure panels when the first forecast appears. No weather
+  // results or private city queries are persisted in this ephemeral snapshot.
+  const initialOpenFolds=new Set(viewState?.folds||[]);
+  let firstForecastPainted=false;
   element.innerHTML=`<section class="tool-head"><span class="eyebrow">04 / MYHUB</span><h1>${t('weather')}</h1><p>${t('weatherDesc')}</p></section>
     <section class="surface weather-main">
       <div class="row-between gap-wrap"><h2>${t('weatherPlaces')}</h2><button type="button" class="text-link" id="weather-refresh">↻ ${t('weatherRefresh')}</button></div>
@@ -130,6 +134,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       <div id="weather-saved-cities" class="weather-saved-cities"></div></div>
     </details>
     <p class="weather-source">${t('weatherSource')} <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></p>`;
+  element.querySelector('.weather-manage').open=viewState?.manageOpen===true;
   const picker=element.querySelector('#weather-city');
   const content=element.querySelector('#weather-content');
   const results=element.querySelector('#weather-search-results');
@@ -150,6 +155,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     // Keep the user's open details open across automatic refreshes / cached paints.
     const openFolds=new Set([...content.querySelectorAll('details[data-weather-fold]')]
       .filter(item=>item.open).map(item=>item.dataset.weatherFold));
+    if(!firstForecastPainted)for(const key of initialOpenFolds)openFolds.add(key);
     const expanded=key=>openFolds.has(key)?' open':'';
     paintCities();const city=cities.find(c=>c.id===selected);
     refreshButton.disabled=!city;
@@ -181,6 +187,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     const practicalRain=practical ? phrase(`weatherPracticalRain_${practical.rain.kind}`, {p:concise(practical.rain.peak),time:practical.rain.firstHighTime??''}) : '';
     const practicalWind=practical ? phrase(`weatherPracticalWind_${practical.wind.kind}`, {speed:concise(practical.wind.peak)}) : '';
     const practicalTemp=practical ? phrase(`weatherPracticalTemp_${practical.temperature.kind}`, {change:concise(practical.temperature.change,1)}) : '';
+    firstForecastPainted=true;
     content.innerHTML=`<div class="weather-condition">
       <div class="weather-condition-row"><span class="weather-emblem" aria-hidden="true">${condition.symbol}</span><div><div class="weather-temp">${concise(current.temp)}°</div><div class="weather-description">${escapeHtml(condition.text)}</div></div></div>
       <span class="weather-status ${stale?'stale':''}">${stale?t('weatherStored'):t('weatherRecent')}</span>
@@ -340,5 +347,9 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     }catch{if(!destroyed){paint();notify(t('weatherCacheError'));}}
   })();
   paint();
-  return ()=>{destroyed=true;requestSequence++;abortCurrent();searching?.abort();clearInterval(refreshTimer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('online',onOnline);};
+  const release=()=>{destroyed=true;requestSequence++;abortCurrent();searching?.abort();clearInterval(refreshTimer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('online',onOnline);};
+  release.getViewState=()=>({manageOpen:element.querySelector('.weather-manage')?.open===true,
+    folds:[...content.querySelectorAll('details[data-weather-fold]')]
+      .filter(item=>item.open).map(item=>item.dataset.weatherFold)});
+  return release;
 }

@@ -22,7 +22,7 @@ function markedText(text,query){
     : escapeHtml(part.text)).join('');
 }
 
-export async function mountSearch({element,lang,t,tools,openResult}){
+export async function mountSearch({element,lang,t,tools,viewState=null,openResult}){
   const l=words[lang==='en'?'en':'bg'];
   const requests=await Promise.allSettled([getNotes(),...keys.map(([key])=>getMeta(key))]);
   let warnings=0;
@@ -40,7 +40,7 @@ export async function mountSearch({element,lang,t,tools,openResult}){
     sources[collection==='items'?'bookmarks':collection]=result.value[collection];
   });
   const index=makeSearchIndex(sources);
-  let category='all',query='',titlesOnly=false,sort='relevance',disposed=false,timer=null,currentResults=[];
+  let category=viewState?.category??'all',query=viewState?.query??'',titlesOnly=viewState?.titlesOnly===true,sort=viewState?.sort??'relevance',disposed=false,timer=null,currentResults=[];
   element.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / SEARCH</span><h1>⌕ ${l.heading}</h1><p>${l.intro}</p></section>
     <section class="surface hub-search-panel"><label class="sr-only" for="hub-universal-search">${l.heading}</label>
       <input class="text-field" id="hub-universal-search" type="search" maxlength="120" placeholder="${l.placeholder}" autocomplete="off" autocorrect="off" spellcheck="false">
@@ -63,6 +63,7 @@ export async function mountSearch({element,lang,t,tools,openResult}){
   const titlesButton=element.querySelector('#hub-search-titles');
   const sortSelect=element.querySelector('#hub-search-sort');
   const resetButton=element.querySelector('#hub-search-reset');
+  input.value=query;sortSelect.value=sort;
   function render(){
     if(disposed)return;
     const data=findInIndex(index,query,category,50,{titlesOnly,sort});
@@ -96,5 +97,7 @@ export async function mountSearch({element,lang,t,tools,openResult}){
   sortSelect.addEventListener('change',onSort);
   element.addEventListener('click',onClick);
   render();input.focus();
-  return ()=>{disposed=true;clearTimeout(timer);input.removeEventListener('input',onInput);sortSelect.removeEventListener('change',onSort);element.removeEventListener('click',onClick);};
+  const release=()=>{disposed=true;clearTimeout(timer);input.removeEventListener('input',onInput);sortSelect.removeEventListener('change',onSort);element.removeEventListener('click',onClick);};
+  release.getViewState=()=>({query,category,titlesOnly,sort});
+  return release;
 }

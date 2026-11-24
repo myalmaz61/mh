@@ -12,7 +12,7 @@ import { createNoteSaveManager } from './notes-save-core.js';
 import { createNotesDraftStore, notesMatch } from './notes-draft-core.js';
 import { emptyNotesTemplates, validNotesTemplates, MAX_NOTE_TEMPLATES, templateFromNote, noteFromTemplate, templateAdd, templateRename, templateRemove } from './notes-templates-core.js';
 
-export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
+export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, viewState=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
   const valid = note => note && typeof note.id === 'string' && ['text','checklist'].includes(note.kind) &&
     typeof note.title === 'string' && typeof note.body === 'string' && Array.isArray(note.items) &&
@@ -38,11 +38,11 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   try { trash = await getNotesTrash(); } catch { trash = null; notify(t('trashCorrupt')); }
   if(notes.length !== stored.length) notify(t('corruptRecords'));
   let currentId = null;
-  let search = '';
-  let scope = 'all';
-  let order = 'newest';
-  let displayedLimit = NOTES_PAGE_SIZE;
-  let categoryFilter = '*';
+  let search = viewState?.search ?? '';
+  let scope = viewState?.scope ?? 'all';
+  let order = viewState?.order ?? 'newest';
+  let displayedLimit = Math.max(NOTES_PAGE_SIZE,viewState?.limit ?? NOTES_PAGE_SIZE);
+  let categoryFilter = viewState?.category ?? '*';
   let bulkMode = false;
   let quickActionBusy = false;
   const selectedIds = new Set();
@@ -699,7 +699,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   window.addEventListener('beforeunload',onBeforeUnload);
   list();
   if(initialId && notes.some(note=>note.id===initialId)) editor(initialId);
-  return async () => {
+  const release=async () => {
     if(!(await flush()))throw Error(t('notesSaveCannotLeave'));
     disposed=true;
     lastDeleted=null;
@@ -707,4 +707,6 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     window.removeEventListener('pagehide',onPageHide);
     window.removeEventListener('beforeunload',onBeforeUnload);
   };
+  release.getViewState=()=>({search,scope,order,category:categoryFilter,limit:displayedLimit});
+  return release;
 }

@@ -18,14 +18,14 @@ const ageMs=iso=>Math.max(0,Date.now()-Date.parse(iso));
 const statusText=(status,t)=>t(`footballStatus${status[0].toUpperCase()}${status.slice(1)}`);
 const esc=escapeHtml;
 
-export async function mountFootball({element,t,lang,notify,confirmAction}){
+export async function mountFootball({element,t,lang,notify,confirmAction,viewState=null}){
   let stored=await getMeta('footballData');
   if(stored!==undefined&&!validFootballData(stored)){
     element.innerHTML=`<section class="tool-head"><h1>${t('football')}</h1></section><section class="surface"><p class="warning-text">${t('footballCorrupt')}</p></section>`;
     return ()=>{}; // Never overwrite corrupt existing data.
   }
   let data=stored===undefined?emptyFootballData():stored;
-  let tab='today',catalog=null,catalogAt='',isBusy=false,isLoadingLeagues=false,dead=false;
+  let tab=viewState?.tab??'today',catalog=null,catalogAt='',isBusy=false,isLoadingLeagues=false,dead=false;
   let currentController=null,catalogController=null,pollController=null,pollBusy=false,lastPoll=0,pollStamp='',nextRetry=0,needReload=false,failureCount=0;
   let loadingLeagueKey=null,displayedDay=footballLocalDay(new Date());
   const stopPoll=()=>{pollController?.abort();pollController=null;pollBusy=false;};
@@ -338,6 +338,8 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   const onOnline=()=>{render();tick();},onOffline=()=>render();
   window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);
   render();void loadMatches();
-  return ()=>{dead=true;releaseLive();releaseSecondSource();clearInterval(interval);document.removeEventListener('visibilitychange',onFocus);
+  const release=()=>{dead=true;releaseLive();releaseSecondSource();clearInterval(interval);document.removeEventListener('visibilitychange',onFocus);
     window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);stopPoll();currentController?.abort();catalogController?.abort();};
+  release.getViewState=()=>({tab});
+  return release;
 }

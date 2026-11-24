@@ -31,6 +31,7 @@ import { orderedTools, moveToolOrder, DEFAULT_TOOL_ORDER } from './tool-order-co
 import { addEverydayFavourites } from './settings-layout-core.js';
 import { recentContinueTool, shouldCheckForAppUpdate } from './resume-core.js';
 import { makeNavState, readNavState, shouldPushRoute, safeScrollY, shouldRunNavigationRequest, isLatestBackEvent } from './navigation-core.js';
+import { sanitiseSessionView, shouldRestoreSessionView, safeSessionScroll } from './everyday-view-core.js';
 
 const app=document.querySelector('#app');
 let settings={...DEFAULT_SETTINGS};
@@ -40,6 +41,8 @@ let cleanup=()=>{};
 let stopDiagnostics=()=>{};
 let stopPwaHealth=()=>{};
 let navigation=Promise.resolve();
+// Temporary presentation state only. Never written to history, storage, backups or URLs.
+const sessionViews=new Map();
 // Only a route identifier and scroll position enter browser history.
 // No note contents, draft IDs, search text or personal records are persisted.
 let appHistoryReady=false;
@@ -203,31 +206,39 @@ function go(route, selection=null){
   }).catch(handleError);
 }
 async function navigate(route,selection=null){
+  // Capture the previous screen before cleanup destroys the DOM. Keep the
+  // snapshot only if navigation succeeds; a rejected unsaved edit stays intact.
+  const previousRoute=active;
+  const previousScroll=safeSessionScroll(window.scrollY);
+  const previousView=typeof cleanup.getViewState==='function'
+    ? sanitiseSessionView(previousRoute,cleanup.getViewState()) : null;
   if(await cleanup()===false)return false;
+  sessionViews.set(previousRoute,{scrollY:previousScroll,view:previousView});
   cleanup=()=>{};
   if(!allowedRoutes.includes(route))route='home';
   active=route;
+  const remembered=shouldRestoreSessionView(selection)?sessionViews.get(route):null;
   shell();
   const main=app.querySelector('#main-content');
   if(route==='home') renderHome(main);
   if(route==='tools') renderTools(main);
   if(route==='settings') renderSettings(main,false,false,selection?.panel==='favourites');
-  if(route==='search') cleanup=await mountSearch({element:main,lang:settings.language,t,tools:visibleTools(TOOLS,settings.hiddenTools),openResult:go});
+  if(route==='search') cleanup=await mountSearch({element:main,lang:settings.language,t,tools:visibleTools(TOOLS,settings.hiddenTools),viewState:remembered?.view,openResult:go});
   if(route==='calculator') cleanup=mountCalculator({element:main,t,history,
     saveHistory:async list=>{history=list;await setMeta('calcHistory',list);},
     copyText,confirmAction:window.confirm,lang:settings.language});
   if(route==='clock') cleanup=mountWorldClock({element:main,t,lang:settings.language,
     timeZones:settings.timeZones,saveZones:timeZones=>updateSettings({timeZones})});
   if(route==='notes') cleanup=await mountNotes({element:main,t,lang:settings.language,
-    confirmAction:window.confirm,notify:toast,initialId:selection?.id,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
+    confirmAction:window.confirm,notify:toast,initialId:selection?.id,viewState:remembered?.view,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
   if(route==='weather') cleanup=mountWeather({element:main,t,lang:settings.language,
-    weatherCities:settings.weatherCities,weatherSelectedId:settings.weatherSelectedId,
+    weatherCities:settings.weatherCities,weatherSelectedId:settings.weatherSelectedId,viewState:remembered?.view,
     saveWeather:change=>updateSettings(change),notify:toast});
   if(route==='timer') cleanup=await mountTimer({element:main,t,lang:settings.language,notify:toast});
   if(route==='calendar') cleanup=await mountCalendar({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id,initialDate:selection?.date,showDay:selection?.showDay===true,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
   if(route==='tasks') cleanup=await mountTasks({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id,onQuickDraft:draft=>quickAdd?.openPrefilled(draft)});
   if(route==='quicklist') cleanup=await mountQuickList({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,initialId:selection?.id});
-  if(route==='football') cleanup=await mountFootball({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
+  if(route==='football') cleanup=await mountFootball({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm,viewState:remembered?.view});
   if(route==='rss') cleanup=await mountRss({element:main,t,lang:settings.language,notify:toast,confirmAction:window.confirm});
   if(route==='unit') cleanup=await mountUnitConverter({element:main,lang:settings.language,notify:toast});
   if(route==='datecalc') cleanup=mountDateCalculator({element:main,lang:settings.language});
@@ -243,6 +254,15 @@ async function navigate(route,selection=null){
   await rememberTool(route);
   quickAdd?.setVisible(route);
   window.scrollTo(0,0);
+  // Returning via a tool tile or "Continue" should resume the same approximate
+  // scroll position, after the module has mounted. A specific record always
+  // starts at the top. Android Back/Forward still uses its history scroll value.
+  if(remembered?.scrollY){
+    const returningRoute=route,offset=safeSessionScroll(remembered.scrollY);
+    window.requestAnimationFrame(()=>{
+      if(active===returningRoute)window.scrollTo(0,offset);
+    });
+  }
   return true;
 }
 function tile(tool){
