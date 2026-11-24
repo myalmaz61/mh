@@ -1,5 +1,6 @@
 import { getMeta, setMetaIfUnchanged } from './db.js';
 import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
+import {snapshotFormValues,hasUnsavedFormChanges} from './unsaved-form-core.js';
 import { escapeHtml, uid } from './utils.js';
 import { draftTaskFromEvent } from './cross-actions-core.js';
 import { CALENDAR_REPEATS, MAX_CALENDAR_EVENTS, emptyCalendar, validCalendarData,
@@ -38,6 +39,9 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     }
   }
   let disposed=false, pending=false, moveId=null;
+  let formBaseline=null;
+  const dirtyForm=()=>hasUnsavedFormChanges(element.querySelector('#cal-form'),formBaseline);
+  const canDiscard=()=>mayLeaveAfterFailure(element,t,confirmAction) && (!dirtyForm() || confirmAction(t('unsavedFormConfirm')));
   let highlightId=showDay&&initialEvent?.id || null;
   const dayEvents=date=>eventsForDay(data.events,date);
   const displayTitle=title=>escapeHtml(title);
@@ -101,6 +105,7 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
       </div>`:''}
       <div class="cal-agenda">${agenda(selected)}</div></section>${editor()}
       <p class="muted cal-disclaimer">${t('calendarNoAlerts')}</p>`;
+    formBaseline=snapshotFormValues(element.querySelector('#cal-form'));
     if(draft)element.querySelector('#cal-editor')?.scrollIntoView({block:'nearest',behavior:'instant'});
   }
   const movePeriod=step=>{
@@ -115,12 +120,12 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
   };
   const click=async event=>{
     const cell=event.target.closest('[data-cal-day]');
-    if(cell&&element.contains(cell)){if(!mayLeaveAfterFailure(element,t,confirmAction))return;selected=cell.dataset.calDay;const p=parseYmd(selected);if(!p)return;
+    if(cell&&element.contains(cell)){if(pending || !canDiscard())return;selected=cell.dataset.calDay;const p=parseYmd(selected);if(!p)return;
       highlightId=null;year=p.year;month=p.month;draft=null;editId=null;moveId=null;render();return;}
     const button=event.target.closest('[data-cal-action]');
     if(!button||!element.contains(button)||pending)return;
     const action=button.dataset.calAction;
-    if(!mayLeaveAfterFailure(element,t,confirmAction))return;
+    if(!canDiscard())return;
     if(action==='month-view'||action==='day-view'){highlightId=null;view=action==='day-view'?'day':'month';draft=null;editId=null;moveId=null;render();}
     else if(action==='today'){highlightId=null;selected=todayLocal();const p=parseYmd(selected);year=p.year;month=p.month;draft=null;editId=null;moveId=null;render();}
     else if(action==='prev'||action==='next'){movePeriod(action==='prev'?-1:1);draft=null;editId=null;moveId=null;render();}
@@ -214,11 +219,11 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     }catch(error){console.error(error);showMetaSaveError(element,t,error);notify(t('calendarSaveError'));}
     finally{pending=false;}
   };
-  const onUnload=event=>{if(element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
+  const onUnload=event=>{if(dirtyForm() || element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
   window.addEventListener('beforeunload',onUnload);
   element.addEventListener('click',click);
   element.addEventListener('change',change);
   element.addEventListener('submit',submit);
   render();
-  return ()=>{if(!mayLeaveAfterFailure(element,t,confirmAction))return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',click);element.removeEventListener('change',change);element.removeEventListener('submit',submit);};
+  return ()=>{if(pending || !canDiscard())return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',click);element.removeEventListener('change',change);element.removeEventListener('submit',submit);};
 }

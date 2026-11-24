@@ -1,5 +1,6 @@
 import {getMeta,setMetaIfUnchanged} from './db.js';
 import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
+import {snapshotFormValues,hasOtherUnsavedForms} from './unsaved-form-core.js';
 import {escapeHtml,uid} from './utils.js';
 import {emptyQuickLists,validQuickListsData,quickProgress,resetQuickTicks,duplicateQuickList,MAX_QUICK_LISTS,MAX_QUICK_ITEMS} from './quick-list-core.js';
 
@@ -12,6 +13,12 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
     return ()=>{};
   }
   let selected=data.lists.some(list=>list.id===initialId)?initialId:(data.lists[0]?.id||''),renameMode=false,busy=false,disposed=false;
+  const formIds=['quick-new-form','quick-add-item','quick-rename-form'];
+  let formBaselines={};
+  const forms=()=>Object.fromEntries(formIds.map(id=>[id,element.querySelector('#'+id)]));
+  const dirtyForms=exceptId=>hasOtherUnsavedForms(forms(),formBaselines,exceptId);
+  const canDiscard=(exceptId='')=>mayLeaveAfterFailure(element,t,confirmAction) &&
+    (!dirtyForms(exceptId) || confirmAction(t('unsavedFormConfirm')));
   const chosen=()=>data.lists.find(x=>x.id===selected);
   function render(){
     if(disposed)return;
@@ -41,6 +48,7 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
         <button class="danger-btn" type="button" data-quick-action="delete">${t('quickDeleteList')}</button></div>
        </section>`:''}
        <p class="muted hub-footer">${t('quickLocalHint')}</p>`;
+    formBaselines=Object.fromEntries(formIds.map(id=>[id,snapshotFormValues(element.querySelector('#'+id))]));
   }
   async function persist(next,success){
     if(busy||!validQuickListsData(next)){notify(t('quickInvalid'));return false;}
@@ -53,7 +61,8 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
   async function click(event){
     const button=event.target.closest('button');
     if(!button||!element.contains(button)||busy)return;
-    if(!mayLeaveAfterFailure(element,t,confirmAction))return;
+    if(button.type==='submit')return; // The submit handler guards the other forms.
+    if(!canDiscard())return;
     if(button.dataset.quickSelect){selected=button.dataset.quickSelect;renameMode=false;render();return;}
     const list=chosen();if(!list)return;
     const remove=button.dataset.quickRemove;
@@ -89,7 +98,7 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
     if(!input||!element.contains(input)||busy)return;
     const list=chosen();if(!list||!list.items.some(x=>x.id===input.dataset.quickToggle))return;
     const itemId=input.dataset.quickToggle,done=input.checked;
-    if(!mayLeaveAfterFailure(element,t,confirmAction)){input.checked=list.items.find(x=>x.id===itemId).done;return;}
+    if(!canDiscard()){input.checked=list.items.find(x=>x.id===itemId).done;return;}
     const original=list.items.find(x=>x.id===itemId);
     const ok=await persist(replaceList(list.id,x=>({...x,updatedAt:now(),items:x.items.map(item=>item.id===itemId?{...item,done}:item)})),()=>notify(t('saved')));
     if(!ok && input.isConnected)input.checked=original.done;
@@ -98,7 +107,7 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
     const form=event.target;
     if(!['quick-new-form','quick-add-item','quick-rename-form'].includes(form?.id))return;
     event.preventDefault();
-    if(busy)return;
+    if(busy || !canDiscard(form.id))return;
     const fd=new FormData(form);
     if(form.id==='quick-new-form'){
       if(data.lists.length>=MAX_QUICK_LISTS){notify(t('quickListLimit'));return;}
@@ -120,12 +129,12 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
       element.querySelector('#quick-item-text')?.focus();
     }
   }
-  const onUnload=event=>{if(element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
+  const onUnload=event=>{if(dirtyForms() || element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
   window.addEventListener('beforeunload',onUnload);
   element.addEventListener('click',click);
   element.addEventListener('change',change);
   element.addEventListener('submit',submit);
   render();
-  return ()=>{if(!mayLeaveAfterFailure(element,t,confirmAction))return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',click);
+  return ()=>{if(busy || !canDiscard())return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',click);
     element.removeEventListener('change',change);element.removeEventListener('submit',submit);};
 }

@@ -1,5 +1,6 @@
 import { getMeta, setMetaIfUnchanged } from './db.js';
 import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
+import {snapshotFormValues,hasUnsavedFormChanges} from './unsaved-form-core.js';
 import { escapeHtml, uid } from './utils.js';
 import { parseYmd, todayLocal } from './calendar-core.js';
 import { emptyTasks, validTask, validTasksData, filteredTasks, taskCounts, quickDeferTask, MAX_TASKS } from './tasks-core.js';
@@ -21,6 +22,9 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     return ()=>{}; // Keep damaged records intact; never save over them.
   }
   let filter='open',search='',editId=null,formOpen=false,busy=false,disposed=false;
+  let formBaseline=null;
+  const dirtyForm=()=>hasUnsavedFormChanges(element.querySelector('#task-form'),formBaseline);
+  const canDiscard=()=>mayLeaveAfterFailure(element,t,confirmAction) && (!dirtyForm() || confirmAction(t('unsavedFormConfirm')));
   if(initialId && data.tasks.some(task=>task.id===initialId)){filter='all';editId=initialId;formOpen=true;}
 
   const cards=()=>{
@@ -70,6 +74,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
        ${['open','today','all','done'].map(value=>`<button type="button" class="${filter===value?'hub-selected':''}" aria-pressed="${filter===value}" data-task-filter="${value}">${t('taskFilter'+value[0].toUpperCase()+value.slice(1))}</button>`).join('')}</div>
        <div class="hub-task-list" id="task-list">${cards()}</div>
        </section>${editor()}<p class="muted hub-footer">${t('taskLocalHint')}</p>`;
+    formBaseline=snapshotFormValues(element.querySelector('#task-form'));
   }
   async function persist(next, success){
     if(busy || !validTasksData(next)){notify(t('taskInvalid'));return false;}
@@ -84,7 +89,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     const action=button.dataset.taskAction;
     // A failed form save must not be silently lost by another UI action.
     if((action || button.dataset.taskFilter || button.dataset.taskEdit || button.dataset.taskDelete || button.dataset.taskToCalendar || button.dataset.taskDefer)
-       && !mayLeaveAfterFailure(element,t,confirmAction))return;
+       && !canDiscard())return;
     if(action==='new'){
       if(data.tasks.length>=MAX_TASKS){notify(t('taskLimit'));return;}
       editId=null;formOpen=true;render();element.querySelector('#task-title')?.focus();return;
@@ -119,7 +124,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     const input=event.target.closest('[data-task-toggle]');
     if(!input || !element.contains(input)||busy)return;
     const id=input.dataset.taskToggle,original=data.tasks.find(x=>x.id===id);
-    if(!mayLeaveAfterFailure(element,t,confirmAction)){if(original)input.checked=original.done;return;}
+    if(!canDiscard()){if(original)input.checked=original.done;return;}
     if(!original)return;
     const ok=await persist({schema:1,tasks:data.tasks.map(x=>x.id===id?{...x,done:input.checked,updatedAt:isoNow()}:x)},()=>notify(t('saved')));
     if(!ok && input.isConnected)input.checked=original.done;
@@ -146,7 +151,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     await persist({schema:1,tasks:original?data.tasks.map(x=>x.id===task.id?task:x):[...data.tasks,task]},
       ()=>{editId=null;formOpen=false;notify(t('taskSaved'));});
   }
-  const onUnload=event=>{if(element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
+  const onUnload=event=>{if(dirtyForm() || element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
   window.addEventListener('beforeunload',onUnload);
   element.addEventListener('click',handleClick);
   element.addEventListener('change',handleChange);
@@ -154,7 +159,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
   element.addEventListener('submit',handleSubmit);
   render();
   if(formOpen)element.querySelector('#task-editor')?.scrollIntoView({block:'nearest'});
-  return ()=>{if(!mayLeaveAfterFailure(element,t,confirmAction))return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',handleClick);
+  return ()=>{if(busy || !canDiscard())return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',handleClick);
     element.removeEventListener('change',handleChange);element.removeEventListener('input',handleInput);
     element.removeEventListener('submit',handleSubmit);};
 }
