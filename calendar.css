@@ -26,3 +26,14 @@
 @media(max-width:370px){.cal-card{padding:11px}.cal-grid{gap:3px}.cal-cell{min-height:52px;border-radius:10px}.cal-fields{grid-template-columns:1fr}.cal-event-time{width:51px}}
 
 .cal-event .cal-edit{width:40px;min-width:40px;min-height:43px;touch-action:manipulation}
+
+/* v5.6: compact rescheduling control, inside the event rather than the full editor. */
+.cal-event{display:block}
+.cal-event-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cal-event-main .cal-event-info{min-width:140px}
+.cal-move-btn{font-size:12px;min-height:42px;padding:8px 11px}
+.cal-move-form{margin-top:12px;padding:12px;border-top:1px solid var(--stroke);display:grid;gap:8px}
+.cal-move-form label{font-size:12px;font-weight:700;display:grid;gap:6px}
+.cal-move-form .text-field{max-width:270px}
+.cal-move-form .muted{margin:0}
+@media(max-width:370px){.cal-event-main .cross-shortcut{font-size:11px;padding:7px}}
