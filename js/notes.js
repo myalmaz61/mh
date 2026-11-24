@@ -1,4 +1,4 @@
-import { getNotes, putNote, putNoteIfUnchanged, toggleNoteQuickFlag, restoreDeletedNote, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever, changeNotesCategories } from './db.js';
+import { getNotes, getMeta, setMetaIfUnchanged, putNote, putNoteIfUnchanged, toggleNoteQuickFlag, restoreDeletedNote, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever, changeNotesCategories } from './db.js';
 import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
@@ -10,6 +10,7 @@ import { MAX_BULK_NOTES } from './notes-bulk-core.js';
 import { parseChecklistBatch, setChecklistCompletion, checklistProgress, moveChecklistRow } from './notes-checklist-core.js';
 import { createNoteSaveManager } from './notes-save-core.js';
 import { createNotesDraftStore, notesMatch } from './notes-draft-core.js';
+import { emptyNotesTemplates, validNotesTemplates, MAX_NOTE_TEMPLATES, templateFromNote, noteFromTemplate, templateAdd, templateRename, templateRemove } from './notes-templates-core.js';
 
 export async function mountNotes({ element, t, lang, confirmAction, notify, initialId=null, onQuickDraft=()=>{} }) {
   const stored = await getNotes();
@@ -19,6 +20,20 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     typeof note.updatedAt === 'string' && Number.isFinite(Date.parse(note.updatedAt)) &&
     (note.category===undefined || (typeof note.category==='string' && note.category.length<=40 && !/[\u0000-\u001f\u007f]/.test(note.category)));
   let notes = stored.filter(valid);
+  let templates;
+  let templatesReadOnly=false;
+  let templatesBaseline;
+  try {
+    const raw=await getMeta('notesTemplatesData');
+    if(raw!==undefined && !validNotesTemplates(raw))throw Error('Invalid templates');
+    templatesBaseline=raw;templates=raw===undefined?emptyNotesTemplates():raw;
+  }catch{templates=emptyNotesTemplates();templatesReadOnly=true;notify(t('notesTemplateCorrupt'));}
+  const updateTemplates=async next=>{
+    if(templatesReadOnly)throw Error('Templates in read-only safety mode');
+    await setMetaIfUnchanged('notesTemplatesData',templatesBaseline,next);
+    templatesBaseline=next;templates=next;
+  };
+
   let trash;
   try { trash = await getNotesTrash(); } catch { trash = null; notify(t('trashCorrupt')); }
   if(notes.length !== stored.length) notify(t('corruptRecords'));
@@ -125,6 +140,9 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       }).join('')}</div></section>`:''}
       ${recovery.corrupt?`<p class="warning-text" role="alert">${t('notesDraftCorrupt')}</p>`:''}
       ${lastDeleted ? `<div class="notes-undo" role="status"><span>${t('notesDeletedUndo')}</span><button type="button" class="secondary-btn" id="undo-delete-note">${t('notesUndo')}</button></div>` : ''}
+      <details class="notes-templates-panel" id="notes-templates-panel"><summary>📋 ${t('notesTemplatesTitle')} (${templates.items.length})</summary><p>${t('notesTemplatesHint')}</p>
+        <input id="notes-template-search" class="text-field" type="search" maxlength="100" placeholder="${t('notesTemplateSearch')}" aria-label="${t('notesTemplateSearch')}" ${templates.items.length?'':'hidden'}>
+        <div class="notes-templates-list" id="notes-templates-list"></div></details>
       <div class="notes-filter-reset"><button type="button" class="text-link" id="notes-reset-filters" hidden>${t('notesResetFilters')}</button></div>
       <div id="notes-list" class="notes-grid"></div><div class="notes-pagination"><span id="notes-page-count" class="muted" aria-live="polite"></span><button type="button" class="secondary-btn" id="notes-show-more" hidden>${t('notesShowMore')}</button></div>`;
     element.querySelector('.notes-draft-list')?.addEventListener('click',async event=>{
@@ -171,6 +189,56 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         }
       }catch(error){notify(`${t('error')}: ${error.message}`);if(action.isConnected)action.disabled=false;}
     });
+    const templatesPanel=element.querySelector('#notes-templates-panel');
+    const templatesRows=element.querySelector('#notes-templates-list');
+    const templatesSearch=element.querySelector('#notes-template-search');
+    // Keep template details in a collapsed Notes-only section.
+    const renderTemplates=()=>{
+      if(!templatesRows?.isConnected)return;
+      const q=(templatesSearch?.value||'').trim().toLocaleLowerCase();
+      const found=templates.items.filter(entry=>(entry.name+' '+entry.title).toLocaleLowerCase().includes(q));
+      templatesRows.innerHTML=found.length?found.map(entry=>`<div class="notes-template-card"><div class="notes-template-text"><strong>${escapeHtml(entry.name)}</strong><small>${escapeHtml(entry.kind==='checklist'?t('newChecklist'):t('newNote'))} · ${entry.kind==='checklist'?entry.items.length+' ✓':escapeHtml(entry.title||'—')}</small></div><div class="notes-template-actions"><button type="button" class="primary-btn" data-template-use="${escapeHtml(entry.id)}">${t('notesTemplateUse')}</button><button type="button" class="secondary-btn" data-template-rename="${escapeHtml(entry.id)}" ${templatesReadOnly?'disabled':''}>${t('notesTemplateRename')}</button><button type="button" class="secondary-btn" data-template-delete="${escapeHtml(entry.id)}" ${templatesReadOnly?'disabled':''}>${t('notesTemplateDelete')}</button></div></div>`).join(''):`<p class="muted">${t('notesTemplatesEmpty')}</p>`;
+    };
+    templatesSearch.addEventListener('input',renderTemplates);
+    templatesRows.addEventListener('click',async event=>{
+      const button=event.target.closest('[data-template-use],[data-template-rename],[data-template-delete]');
+      if(!button||button.disabled)return;
+      const id=button.dataset.templateUse||button.dataset.templateRename||button.dataset.templateDelete;
+      const template=templates.items.find(entry=>entry.id===id);
+      if(!template)return;
+      if(button.hasAttribute('data-template-delete')&&!confirmAction(t('notesTemplateDeleteConfirm')))return;
+      let newName=null;
+      if(button.hasAttribute('data-template-rename')){
+        newName=window.prompt(t('notesTemplateRenamePrompt'),template.name);
+        if(newName===null)return;
+      }
+      button.disabled=true;
+      try{
+        if(button.hasAttribute('data-template-use')){
+          // Read the latest count within IndexedDB; do not overwrite any note.
+          const note=noteFromTemplate(template,{id:uid(),newItemId:uid,now:new Date().toISOString()});
+          await restoreDeletedNote(note);
+          if(disposed)return;
+          notes.push(note);editor(note.id);notify(t('notesTemplateCreated'));
+        }else if(button.hasAttribute('data-template-rename')){
+          const next=templateRename(templates,id,newName,new Date().toISOString());
+          await updateTemplates(next);
+          if(disposed)return;
+          renderTemplates();notify(t('notesTemplateUpdated'));
+        }else{
+          await updateTemplates(templateRemove(templates,id));
+          if(disposed)return;
+          list();notify(t('notesTemplateDeleted'));
+        }
+      }catch(err){
+        if(disposed)return;
+        notify(err.message==='Template limit reached'?t('notesTemplateLimit'):(err.message.includes('Invalid')?t('notesTemplateInvalid'):t('notesTemplateError')));
+        if(err.code==='stale-meta'){
+          try{const raw=await getMeta('notesTemplatesData');if(raw!==undefined&&!validNotesTemplates(raw))throw Error('Invalid');templatesBaseline=raw;templates=raw===undefined?emptyNotesTemplates():raw;list();}catch{templatesReadOnly=true;notify(t('notesTemplateCorrupt'));}
+        }else if(button.isConnected)button.disabled=false;
+      }
+    });
+    renderTemplates();
     const searchInput=element.querySelector('#note-search');
     const resultList=element.querySelector('#notes-list');
     const showMore=element.querySelector('#notes-show-more');
@@ -414,7 +482,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <datalist id="note-category-suggestions">${noteCategories(notes,locale).map(c=>`<option value="${escapeHtml(c)}"></option>`).join('')}</datalist>
       ${n.kind==='text' ? `<textarea id="note-body" maxlength="100000" rows="11" class="note-body" placeholder="${t('textPlaceholder')}" aria-label="${t('textPlaceholder')}">${escapeHtml(n.body)}</textarea>` :
       `<div class="checklist-tools"><span id="checklist-progress" class="muted" aria-live="polite"></span><div class="checklist-tool-buttons"><button type="button" class="secondary-btn" id="check-all">${t('checklistCheckAll')}</button><button type="button" class="secondary-btn" id="uncheck-all">${t('checklistUncheckAll')}</button><button type="button" class="secondary-btn" id="toggle-done-visibility" aria-pressed="false">${t('checklistHideDone')}</button></div></div><div id="checklist-items" class="checklist-items"></div><div class="form-row"><input class="text-field" id="new-item" maxlength="2000" placeholder="${t('checklistPlaceholder')}"><button type="button" class="primary-btn" id="add-item">+ ${t('add')}</button></div><details class="checklist-bulk"><summary>${t('checklistMultiAdd')}</summary><label for="checklist-paste">${t('checklistPasteHint')}</label><textarea id="checklist-paste" class="text-field" rows="4" placeholder="${t('checklistPastePlaceholder')}"></textarea><button type="button" class="secondary-btn" id="add-many-items">${t('checklistAddMany')}</button></details>`}
-      <div class="editor-actions"><button type="button" class="secondary-btn" id="copy-note">⧉ ${t('copy')}</button><button type="button" class="secondary-btn" id="duplicate-note">${t('notesDuplicate')}</button><button type="button" class="secondary-btn" id="share-note">${t('notesShare')}</button><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
+      <div class="editor-actions"><button type="button" class="secondary-btn" id="copy-note">⧉ ${t('copy')}</button><button type="button" class="secondary-btn" id="duplicate-note">${t('notesDuplicate')}</button><button type="button" class="secondary-btn" id="save-note-template" ${templatesReadOnly?'disabled':''}>📋 ${t('notesTemplateSave')}</button><button type="button" class="secondary-btn" id="share-note">${t('notesShare')}</button><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
       <button type="button" class="secondary-btn" id="star-note">${n.favourite?'★ '+t('unfavourite'):'☆ '+t('favourite')}</button>
       <button type="button" class="danger-btn" id="delete-note">${t('delete')}</button></div></article>`;
     const update = () => {n.updatedAt=new Date().toISOString();schedule();};
@@ -544,6 +612,27 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         }catch{ /* Unsupported share payload: try the clipboard. */ }
       }
       void copyFallback();
+    });
+    element.querySelector('#save-note-template').addEventListener('click',async event=>{
+      if(templatesReadOnly){notify(t('notesTemplateCorrupt'));return;}
+      if(templates.items.length>=MAX_NOTE_TEMPLATES){notify(t('notesTemplateLimit'));return;}
+      const name=window.prompt(t('notesTemplateNamePrompt'),n.title.trim()||t(n.kind==='checklist'?'newChecklist':'newNote'));
+      if(name===null)return;
+      const button=event.currentTarget;
+      button.disabled=true;
+      try{
+        const ok=await flush();
+        if(!ok||dirty){notify(t('crossSaveFirst'));return;}
+        const item=templateFromNote(n,{id:uid(),name,now:new Date().toISOString()});
+        await updateTemplates(templateAdd(templates,item));
+        if(disposed)return;
+        notify(t('notesTemplateSaved'));
+      }catch(err){
+        if(!disposed)notify(err.message.includes('Invalid')?t('notesTemplateInvalid'):(err.message.includes('limit')?t('notesTemplateLimit'):t('notesTemplateError')));
+        if(err?.code==='stale-meta'){
+          try{const raw=await getMeta('notesTemplatesData');if(raw!==undefined&&!validNotesTemplates(raw))throw Error('Invalid');templatesBaseline=raw;templates=raw===undefined?emptyNotesTemplates():raw;}catch{templatesReadOnly=true;notify(t('notesTemplateCorrupt'));}
+        }
+      }finally{if(button.isConnected)button.disabled=false;}
     });
     element.querySelector('#duplicate-note').addEventListener('click',async()=>{
       await flush();

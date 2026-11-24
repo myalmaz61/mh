@@ -2,6 +2,7 @@ import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES
 import { safeClone } from './utils.js';
 import { verifyBackupArchive } from './backup-integrity-core.js';
 import {sameMetaSnapshot} from './meta-save-core.js';
+import { emptyNotesTemplates, validNotesTemplates } from './notes-templates-core.js';
 import { MAX_TRASH_NOTES, emptyNotesTrash, validNotesTrash, validStoredNote } from './notes-trash-core.js';
 import {validNoteCategory} from './notes-category-core.js';
 import {planBulkCategoryChange} from './notes-bulk-core.js';
@@ -25,7 +26,7 @@ const DB_VERSION = 1;
 const BACKUP_META_KEYS = [
   'settings','calcHistory','weatherCache','timerData','calendarData',
   'tasksData','quickListsData','footballData','rssData','bookmarksData',
-  'unitFavouritesData','recentTools','notesTrashData'
+  'unitFavouritesData','recentTools','notesTrashData','notesTemplatesData'
 ];
 let dbPromise;
 
@@ -351,7 +352,7 @@ export async function setMeta(key, value) {
  * (including Quick Add, Today and Restore) must not be silently overwritten.
  */
 export async function setMetaIfUnchanged(key, expectedValue, nextValue) {
-  if (!['tasksData','calendarData','quickListsData'].includes(key)) throw Error('Unsupported guarded meta key');
+  if (!['tasksData','calendarData','quickListsData','notesTemplatesData'].includes(key)) throw Error('Unsupported guarded meta key');
   const snapshot=safeClone(nextValue);
   const db=await openDatabase();
   return new Promise((resolve,reject)=>{
@@ -564,6 +565,8 @@ export function validateBackup(data) {
   if(payload.notesTrashData!==undefined && !validNotesTrash(payload.notesTrashData,[...seen]))
     throw Error('Невалидно кошче за бележки / invalid notes trash');
   const notesTrashData=payload.notesTrashData===undefined?emptyNotesTrash():safeClone(payload.notesTrashData);
+  if(payload.notesTemplatesData!==undefined && !validNotesTemplates(payload.notesTemplatesData))throw Error('Невалидни шаблони / invalid notes templates');
+  const notesTemplatesData=payload.notesTemplatesData===undefined?emptyNotesTemplates():safeClone(payload.notesTemplatesData);
   const settings = payload.settings;
   if (!['auto','light','dark'].includes(settings.theme) || !['bg','en'].includes(settings.language) ||
     !Array.isArray(settings.favourites) || !Array.isArray(settings.timeZones) ||
@@ -616,7 +619,7 @@ export function validateBackup(data) {
   if(payload.recentTools!==undefined && !validRecentTools(payload.recentTools))throw Error('Невалидни последни инструменти / invalid recent tools');
   const unitFavouritesData=payload.unitFavouritesData===undefined?emptyUnitFavourites():safeClone(payload.unitFavouritesData);
   const recentTools=payload.recentTools===undefined?[]:safeClone(payload.recentTools);
-  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData,footballData,rssData,bookmarksData,unitFavouritesData,recentTools,notesTrashData };
+  return { notes:safeClone(payload.notes), settings:safeSettings, calcHistory:safeClone(payload.calcHistory),weatherCache,timerData,calendarData,tasksData,quickListsData,footballData,rssData,bookmarksData,unitFavouritesData,recentTools,notesTrashData,notesTemplatesData };
 }
 export async function createBackup(snapshot = null) {
   const raw = snapshot ?? await readBackupSnapshot();
@@ -624,7 +627,7 @@ export async function createBackup(snapshot = null) {
   const {settings:s,calcHistory:h,weatherCache:weather,timerData:timer,
     calendarData:calendar,tasksData:tasks,quickListsData:quickLists,
     footballData:football,rssData:rss,bookmarksData:bookmarks,
-    unitFavouritesData:unitFavs,recentTools:recent,notesTrashData:trash} = raw.meta;
+    unitFavouritesData:unitFavs,recentTools:recent,notesTrashData:trash,notesTemplatesData:templates} = raw.meta;
   if(calendar!==undefined && !validCalendarData(calendar))throw Error('Calendar data is damaged. Backup was stopped to avoid losing events.');
   if(tasks!==undefined && !validTasksData(tasks))throw Error('Task data is damaged. Backup was stopped to avoid losing tasks.');
   if(quickLists!==undefined && !validQuickListsData(quickLists))throw Error('Quick checklist data is damaged. Backup was stopped to avoid losing lists.');
@@ -634,6 +637,7 @@ export async function createBackup(snapshot = null) {
   if(unitFavs!==undefined && !validUnitFavourites(unitFavs))throw Error('Unit favourites are damaged. Backup stopped.');
   if(recent!==undefined && !validRecentTools(recent))throw Error('Recent tools are damaged. Backup stopped.');
   if(trash!==undefined && !validNotesTrash(trash,notes.map(n=>n.id)))throw Error('Notes trash is damaged. Backup stopped.');
+  if(templates!==undefined && !validNotesTemplates(templates))throw Error('Notes templates are damaged. Backup stopped without deleting them.');
   const cleanSettings=normaliseSettings(s);
   const cleanCache={};
   // Never silently drop a malformed forecast for a city the user still has.
@@ -653,7 +657,8 @@ export async function createBackup(snapshot = null) {
       bookmarksData:bookmarks===undefined?emptyBookmarks():safeClone(bookmarks),
       unitFavouritesData:unitFavs===undefined?emptyUnitFavourites():safeClone(unitFavs),
       recentTools:recent===undefined?[]:safeClone(recent),
-      notesTrashData:trash===undefined?emptyNotesTrash():safeClone(trash) } };
+      notesTrashData:trash===undefined?emptyNotesTrash():safeClone(trash),
+      notesTemplatesData:templates===undefined?emptyNotesTemplates():safeClone(templates) } };
   // Verify both raw stored fields and the final export. Normalisation must not
   // conceal damaged user settings, timer or calculator history.
   const preflight=structuredClone(backup);
@@ -694,7 +699,7 @@ export async function replaceFromBackup(payload, expectedSnapshot = null) {
           quickListsData:data.quickListsData, footballData:data.footballData,
           rssData:data.rssData, bookmarksData:data.bookmarksData,
           unitFavouritesData:data.unitFavouritesData, recentTools:data.recentTools,
-          notesTrashData:data.notesTrashData
+          notesTrashData:data.notesTrashData, notesTemplatesData:data.notesTemplatesData
         };
         for (const key of BACKUP_META_KEYS) metaStore.put({key,value:values[key]});
         // An export prepared BEFORE this Restore no longer covers these data.
