@@ -1,6 +1,7 @@
 import { getMeta, setMetaIfUnchanged } from './db.js';
 import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
 import {snapshotFormValues,hasUnsavedFormChanges} from './unsaved-form-core.js';
+import {createFormRecoveryStore,applyFormDraft,formDraftDestination} from './form-recovery-core.js';
 import { escapeHtml, uid } from './utils.js';
 import { parseYmd, todayLocal } from './calendar-core.js';
 import { emptyTasks, validTask, validTasksData, filteredTasks, taskCounts, quickDeferTask, MAX_TASKS } from './tasks-core.js';
@@ -22,9 +23,39 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     return ()=>{}; // Keep damaged records intact; never save over them.
   }
   let filter='open',search='',editId=null,formOpen=false,busy=false,disposed=false;
-  let formBaseline=null;
+  let formBaseline=null,activeDraftKey=null,formOriginal=null,draftWarningShown=false;
+  const recovery=createFormRecoveryStore((()=>{try{return window.localStorage;}catch{return null;}})());
   const dirtyForm=()=>hasUnsavedFormChanges(element.querySelector('#task-form'),formBaseline);
-  const canDiscard=()=>mayLeaveAfterFailure(element,t,confirmAction) && (!dirtyForm() || confirmAction(t('unsavedFormConfirm')));
+  function clearActiveDraft(){if(activeDraftKey)recovery.remove('tasks',activeDraftKey);activeDraftKey=null;formOriginal=null;}
+  function beginDraft(record=null){activeDraftKey=recovery.makeKey('tasks',uid());formOriginal=record?JSON.parse(JSON.stringify(record)):null;}
+  function syncDraft(){
+    const form=element.querySelector('#task-form');
+    if(!form||!activeDraftKey)return false;
+    if(!dirtyForm()){recovery.remove('tasks',activeDraftKey);return true;}
+    const result=recovery.write('tasks',activeDraftKey,formOriginal,snapshotFormValues(form));
+    if(!result.ok&&!draftWarningShown){draftWarningShown=true;notify(t('formRecoveryFailed'));}
+    return result.ok;
+  }
+  const canDiscard=()=>{
+    if(!mayLeaveAfterFailure(element,t,confirmAction))return false;
+    if(dirtyForm()){
+      if(!confirmAction(t('unsavedFormConfirm')))return false;
+      clearActiveDraft();
+    }
+    return true;
+  };
+  function recoveryPanel(){
+    const {drafts,corrupt}=recovery.list('tasks');
+    const visible=drafts.filter(item=>item.key!==activeDraftKey);
+    if(!visible.length&&!corrupt)return '';
+    return `<section class="surface form-recovery-panel"><h2>${t('formRecoveryTitle')}</h2><p class="muted">${t('formRecoveryHint')}</p>
+      ${corrupt?`<p class="warning-text">${t('formRecoveryCorrupt')} (${corrupt})</p>`:''}
+      ${visible.map(item=>{const title=item.fields.find(([name])=>name==='title')?.[1]||t('formRecoveryDraft');
+        return `<div class="form-recovery-row"><strong>${escapeHtml(title.slice(0,110))}</strong><div class="hub-actions">
+          <button class="secondary-btn" type="button" data-task-draft-restore="${escapeHtml(item.key)}">${t('formRecoveryRestore')}</button>
+          <button class="secondary-btn" type="button" data-task-draft-discard="${escapeHtml(item.key)}">${t('formRecoveryDiscard')}</button></div></div>`;}).join('')}
+    </section>`;
+  }
   if(initialId && data.tasks.some(task=>task.id===initialId)){filter='all';editId=initialId;formOpen=true;}
 
   const cards=()=>{
@@ -64,6 +95,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
   }
   function render(){
     if(disposed)return;
+    if(formOpen&&!activeDraftKey)beginDraft(data.tasks.find(item=>item.id===editId)||null);
     const stats=taskCounts(data.tasks);
     element.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / TASKS</span><h1>${t('tasks')}</h1><p>${t('taskIntro')}</p></section>
       <section class="surface hub-task-panel"><div class="hub-overview"><div><small>${t('taskOpen')}</small><strong>${stats.open}</strong></div>
@@ -73,7 +105,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
        <div class="hub-filter-row" role="group" aria-label="${t('taskFilter')}">
        ${['open','today','all','done'].map(value=>`<button type="button" class="${filter===value?'hub-selected':''}" aria-pressed="${filter===value}" data-task-filter="${value}">${t('taskFilter'+value[0].toUpperCase()+value.slice(1))}</button>`).join('')}</div>
        <div class="hub-task-list" id="task-list">${cards()}</div>
-       </section>${editor()}<p class="muted hub-footer">${t('taskLocalHint')}</p>`;
+       </section>${recoveryPanel()}${editor()}<p class="muted hub-footer">${t('taskLocalHint')}</p>`;
     formBaseline=snapshotFormValues(element.querySelector('#task-form'));
   }
   async function persist(next, success){
@@ -86,13 +118,34 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
   async function handleClick(event){
     const button=event.target.closest('button');
     if(!button || !element.contains(button)||busy)return;
+    const draftKey=button.dataset.taskDraftRestore||button.dataset.taskDraftDiscard;
+    if(draftKey){
+      const candidate=recovery.read('tasks',draftKey);
+      if(!candidate)return;
+      if(button.dataset.taskDraftDiscard){
+        if(!confirmAction(t('formRecoveryDiscardConfirm')))return;
+        if(recovery.removeIfUnchanged(draftKey,candidate.raw))button.closest('.form-recovery-row')?.remove();return;
+      }
+      if(!canDiscard())return;
+      const destination=formDraftDestination(candidate,data.tasks);
+      if(destination.mode==='invalid')return;
+      if(destination.mode!=='edit'&&data.tasks.length>=MAX_TASKS){notify(t('taskLimit'));return;}
+      editId=destination.id;formOpen=true;
+      beginDraft(data.tasks.find(item=>item.id===editId)||null);
+      render();
+      if(!applyFormDraft(element.querySelector('#task-form'),candidate)){notify(t('formRecoveryFailed'));return;}
+      if(syncDraft())recovery.removeIfUnchanged(draftKey,candidate.raw);
+      notify(t(destination.mode==='copy'?'formRecoveryCopy':'formRecoveryRestored'));
+      element.querySelector('#task-editor')?.scrollIntoView({block:'nearest'});
+      return;
+    }
     const action=button.dataset.taskAction;
     // A failed form save must not be silently lost by another UI action.
     if((action || button.dataset.taskFilter || button.dataset.taskEdit || button.dataset.taskDelete || button.dataset.taskToCalendar || button.dataset.taskDefer)
        && !canDiscard())return;
     if(action==='new'){
       if(data.tasks.length>=MAX_TASKS){notify(t('taskLimit'));return;}
-      editId=null;formOpen=true;render();element.querySelector('#task-title')?.focus();return;
+      editId=null;formOpen=true;beginDraft();render();element.querySelector('#task-title')?.focus();return;
     }
     if(action==='cancel'){editId=null;formOpen=false;render();return;}
     if(button.dataset.taskFilter){filter=button.dataset.taskFilter;render();return;}
@@ -112,7 +165,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     if(button.dataset.taskEdit){
       const found=data.tasks.find(x=>x.id===button.dataset.taskEdit);
       if(!found)return;
-      editId=found.id;formOpen=true;render();element.querySelector('#task-title')?.focus();return;
+      editId=found.id;formOpen=true;beginDraft(found);render();element.querySelector('#task-title')?.focus();return;
     }
     if(button.dataset.taskDelete){
       const id=button.dataset.taskDelete;
@@ -122,6 +175,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
   }
   async function handleChange(event){
     const input=event.target.closest('[data-task-toggle]');
+    if(event.target?.closest?.('#task-form')){syncDraft();return;}
     if(!input || !element.contains(input)||busy)return;
     const id=input.dataset.taskToggle,original=data.tasks.find(x=>x.id===id);
     if(!canDiscard()){if(original)input.checked=original.done;return;}
@@ -130,6 +184,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     if(!ok && input.isConnected)input.checked=original.done;
   }
   function handleInput(event){
+    if(event.target?.closest?.('#task-form')){syncDraft();return;}
     if(event.target?.id!=='task-search')return;
     search=event.target.value;
     const list=element.querySelector('#task-list');
@@ -149,7 +204,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
       done:original?.done||false,createdAt:original?.createdAt||now,updatedAt:now};
     if(!validTask(task)){notify(t('taskInvalid'));return;}
     await persist({schema:1,tasks:original?data.tasks.map(x=>x.id===task.id?task:x):[...data.tasks,task]},
-      ()=>{editId=null;formOpen=false;notify(t('taskSaved'));});
+      ()=>{clearActiveDraft();editId=null;formOpen=false;notify(t('taskSaved'));});
   }
   const onUnload=event=>{if(dirtyForm() || element.querySelector('[data-meta-save-warning]')){event.preventDefault();event.returnValue='';}};
   window.addEventListener('beforeunload',onUnload);

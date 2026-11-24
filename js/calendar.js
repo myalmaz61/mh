@@ -1,6 +1,7 @@
 import { getMeta, setMetaIfUnchanged } from './db.js';
 import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
 import {snapshotFormValues,hasUnsavedFormChanges} from './unsaved-form-core.js';
+import {createFormRecoveryStore,applyFormDraft,formDraftDestination} from './form-recovery-core.js';
 import { escapeHtml, uid } from './utils.js';
 import { draftTaskFromEvent } from './cross-actions-core.js';
 import { CALENDAR_REPEATS, MAX_CALENDAR_EVENTS, emptyCalendar, validCalendarData,
@@ -39,9 +40,40 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     }
   }
   let disposed=false, pending=false, moveId=null;
-  let formBaseline=null;
+  let formBaseline=null,activeDraftKey=null,formOriginal=null,draftWarningShown=false;
+  const recovery=createFormRecoveryStore((()=>{try{return window.localStorage;}catch{return null;}})());
   const dirtyForm=()=>hasUnsavedFormChanges(element.querySelector('#cal-form'),formBaseline);
-  const canDiscard=()=>mayLeaveAfterFailure(element,t,confirmAction) && (!dirtyForm() || confirmAction(t('unsavedFormConfirm')));
+  function clearActiveDraft(){if(activeDraftKey)recovery.remove('calendar',activeDraftKey);activeDraftKey=null;formOriginal=null;}
+  function beginDraft(record=null){activeDraftKey=recovery.makeKey('calendar',uid());formOriginal=record?JSON.parse(JSON.stringify(record)):null;}
+  function syncDraft(){
+    const form=element.querySelector('#cal-form');
+    if(!form||!activeDraftKey)return false;
+    if(!dirtyForm()){recovery.remove('calendar',activeDraftKey);return true;}
+    const result=recovery.write('calendar',activeDraftKey,formOriginal,snapshotFormValues(form));
+    if(!result.ok&&!draftWarningShown){draftWarningShown=true;notify(t('formRecoveryFailed'));}
+    return result.ok;
+  }
+  const canDiscard=()=>{
+    if(!mayLeaveAfterFailure(element,t,confirmAction))return false;
+    if(dirtyForm()){
+      if(!confirmAction(t('unsavedFormConfirm')))return false;
+      clearActiveDraft();
+    }
+    return true;
+  };
+  function recoveryPanel(){
+    const {drafts,corrupt}=recovery.list('calendar');
+    const visible=drafts.filter(item=>item.key!==activeDraftKey);
+    if(!visible.length&&!corrupt)return '';
+    return `<section class="surface form-recovery-panel"><h2>${t('formRecoveryTitle')}</h2><p class="muted">${t('formRecoveryHint')}</p>
+      ${corrupt?`<p class="warning-text">${t('formRecoveryCorrupt')} (${corrupt})</p>`:''}
+      ${visible.map(item=>{const title=item.fields.find(([name])=>name==='title')?.[1]||t('formRecoveryDraft');
+        return `<div class="form-recovery-row"><strong>${escapeHtml(title.slice(0,110))}</strong><div class="cal-actions">
+          <button class="secondary-btn" type="button" data-cal-draft-restore="${escapeHtml(item.key)}">${t('formRecoveryRestore')}</button>
+          <button class="secondary-btn" type="button" data-cal-draft-discard="${escapeHtml(item.key)}">${t('formRecoveryDiscard')}</button></div></div>`;}).join('')}
+    </section>`;
+  }
+  if(draft)beginDraft(data.events.find(item=>item.id===editId)||null);
   let highlightId=showDay&&initialEvent?.id || null;
   const dayEvents=date=>eventsForDay(data.events,date);
   const displayTitle=title=>escapeHtml(title);
@@ -87,6 +119,7 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
   }
   function render(){
     if(disposed)return;
+    if(draft&&!activeDraftKey)beginDraft(data.events.find(item=>item.id===editId)||null);
     const counts=monthEventCounts(data.events,year,month);
     const days=monthCells(year,month);
     element.innerHTML=`<section class="tool-head"><span class="eyebrow">MYHUB / CALENDAR</span><h1>${t('calendar')}</h1><p>${t('calendarIntro')}</p></section>
@@ -103,7 +136,7 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
           return `<button type="button" class="cal-cell ${inMonth?'':'cal-other'} ${selected===date?'cal-selected':''} ${todayLocal()===date?'cal-today':''}" data-cal-day="${date}" aria-label="${displayDate(date,lang)} · ${amount}" aria-pressed="${selected===date}">
             <span>${p?.day||''}</span>${amount?`<small>${amount}</small>`:''}</button>`;}).join('')}
       </div>`:''}
-      <div class="cal-agenda">${agenda(selected)}</div></section>${editor()}
+      <div class="cal-agenda">${agenda(selected)}</div></section>${recoveryPanel()}${editor()}
       <p class="muted cal-disclaimer">${t('calendarNoAlerts')}</p>`;
     formBaseline=snapshotFormValues(element.querySelector('#cal-form'));
     if(draft)element.querySelector('#cal-editor')?.scrollIntoView({block:'nearest',behavior:'instant'});
@@ -119,6 +152,32 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     selected=formatYmd(year,month,Math.min(parseYmd(selected).day,new Date(Date.UTC(year,month,0)).getUTCDate()));
   };
   const click=async event=>{
+    const recoveryButton=event.target.closest('[data-cal-draft-restore], [data-cal-draft-discard]');
+    if(recoveryButton && element.contains(recoveryButton) && !pending){
+      const key=recoveryButton.dataset.calDraftRestore||recoveryButton.dataset.calDraftDiscard;
+      const candidate=recovery.read('calendar',key);
+      if(!candidate)return;
+      if(recoveryButton.dataset.calDraftDiscard){
+        if(!confirmAction(t('formRecoveryDiscardConfirm')))return;
+        if(recovery.removeIfUnchanged(key,candidate.raw))recoveryButton.closest('.form-recovery-row')?.remove();return;
+      }
+      if(!canDiscard())return;
+      const destination=formDraftDestination(candidate,data.events);
+      if(destination.mode==='invalid')return;
+      if(destination.mode!=='edit'&&data.events.length>=MAX_CALENDAR_EVENTS){notify(t('calendarLimit'));return;}
+      editId=destination.id;
+      const draftDate=candidate.fields.find(([name])=>name==='date')?.[1];
+      const parsedDate=parseYmd(draftDate);
+      if(parsedDate){selected=draftDate;year=parsedDate.year;month=parsedDate.month;view='day';}
+      draft=destination.mode==='edit'?{...data.events.find(item=>item.id===editId)}:startDraft(selected);
+      beginDraft(data.events.find(item=>item.id===editId)||null);render();
+      const form=element.querySelector('#cal-form');
+      if(!applyFormDraft(form,candidate)){notify(t('formRecoveryFailed'));return;}
+      const until=form.querySelector('#cal-until');if(until)until.disabled=form.querySelector('#cal-repeat').value==='none';
+      if(syncDraft())recovery.removeIfUnchanged(key,candidate.raw);
+      notify(t(destination.mode==='copy'?'formRecoveryCopy':'formRecoveryRestored'));
+      return;
+    }
     const cell=event.target.closest('[data-cal-day]');
     if(cell&&element.contains(cell)){if(pending || !canDiscard())return;selected=cell.dataset.calDay;const p=parseYmd(selected);if(!p)return;
       highlightId=null;year=p.year;month=p.month;draft=null;editId=null;moveId=null;render();return;}
@@ -131,7 +190,7 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     else if(action==='prev'||action==='next'){movePeriod(action==='prev'?-1:1);draft=null;editId=null;moveId=null;render();}
     else if(action==='new'){
       if(data.events.length>=MAX_CALENDAR_EVENTS){notify(t('calendarLimit'));return;}
-      editId=null;draft=startDraft(selected);render();element.querySelector('#cal-title')?.focus();
+      editId=null;draft=startDraft(selected);beginDraft();render();element.querySelector('#cal-title')?.focus();
     }
     else if(action==='move'&&!draft){
       const original=data.events.find(e=>e.id===button.dataset.calId);
@@ -149,19 +208,19 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
       if(data.events.length>=MAX_CALENDAR_EVENTS){notify(t('calendarLimit'));return;}
       const original=data.events.find(e=>e.id===button.dataset.calId);
       if(!original)return;
-      editId=null;draft=calendarDuplicateDraft(original,selected);
+      editId=null;draft=calendarDuplicateDraft(original,selected);beginDraft();
       render();element.querySelector('#cal-title')?.focus();
     }
     else if(action==='edit'){
       const original=data.events.find(e=>e.id===button.dataset.calId);
-      if(!original)return;editId=original.id;draft={...original};render();element.querySelector('#cal-title')?.focus();
+      if(!original)return;editId=original.id;draft={...original};beginDraft(original);render();element.querySelector('#cal-title')?.focus();
     }
     else if(action==='cancel'){draft=null;editId=null;moveId=null;render();}
     else if(action==='delete'&&editId){
       if(!confirmAction(t('calendarDeleteConfirm')))return;
       pending=true;
       try {const next={schema:1,events:data.events.filter(e=>e.id!==editId)};
-        await setMetaIfUnchanged('calendarData',savedSnapshot,next);savedSnapshot=next;data=next;draft=null;editId=null;notify(t('calendarDeleted'));render();}
+        await setMetaIfUnchanged('calendarData',savedSnapshot,next);savedSnapshot=next;data=next;clearActiveDraft();draft=null;editId=null;notify(t('calendarDeleted'));render();}
       catch(error){console.error(error);showMetaSaveError(element,t,error);notify(t('calendarSaveError'));}finally{pending=false;}
     }
   };
@@ -173,7 +232,9 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     if(event.target?.name==='date'){
       const until=element.querySelector('#cal-until');if(until)until.min=event.target.value;
     }
+    if(event.target?.closest?.('#cal-form'))syncDraft();
   };
+  const onInput=event=>{if(event.target?.closest?.('#cal-form'))syncDraft();};
   const submit=async event=>{
     const moveForm=event.target?.closest?.('[data-cal-move-form]');
     if(moveForm){
@@ -215,7 +276,7 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
     try{
       await setMetaIfUnchanged('calendarData',savedSnapshot,next);savedSnapshot=next;data=next;selected=date;
       const p=parseYmd(selected);year=p.year;month=p.month;
-      draft=null;editId=null;notify(t('calendarSaved'));render();
+      clearActiveDraft();draft=null;editId=null;notify(t('calendarSaved'));render();
     }catch(error){console.error(error);showMetaSaveError(element,t,error);notify(t('calendarSaveError'));}
     finally{pending=false;}
   };
@@ -223,7 +284,8 @@ export async function mountCalendar({element,t,lang,notify,confirmAction,initial
   window.addEventListener('beforeunload',onUnload);
   element.addEventListener('click',click);
   element.addEventListener('change',change);
+  element.addEventListener('input',onInput);
   element.addEventListener('submit',submit);
   render();
-  return ()=>{if(pending || !canDiscard())return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',click);element.removeEventListener('change',change);element.removeEventListener('submit',submit);};
+  return ()=>{if(pending || !canDiscard())return false;disposed=true;window.removeEventListener('beforeunload',onUnload);element.removeEventListener('click',click);element.removeEventListener('change',change);element.removeEventListener('input',onInput);element.removeEventListener('submit',submit);};
 }
