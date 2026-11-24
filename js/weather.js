@@ -7,8 +7,8 @@ import {weatherDayComparison} from './weather-day-compare-core.js';
 import {weatherQuickOutlook} from './weather-quick-core.js';
 import {weatherSnapshotFreshness} from './weather-freshness-core.js';
 import {weatherDayHighlights} from './weather-glance-core.js';
+import {forecastRefreshDecision} from './foreground-refresh-core.js';
 
-const REFRESH_MS = 30 * 60 * 1000;
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const WEATHER_GROUPS = [
@@ -115,7 +115,7 @@ const fmtUpdate=(iso,lang)=>new Intl.DateTimeFormat(lang==='en'?'en-GB':'bg-BG',
 export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,saveWeather,notify}){
   let cities=weatherCities.map(item=>({...item}));
   let selected=cities.some(c=>c.id===weatherSelectedId)?weatherSelectedId:(cities[0]?.id||'');
-  let cache={};let destroyed=false;let fetching=null;let searching=null;let requestSequence=0;
+  let cache={};let destroyed=false;let fetching=null;let fetchingCity=null;let searching=null;let requestSequence=0;
   element.innerHTML=`<section class="tool-head"><span class="eyebrow">04 / MYHUB</span><h1>${t('weather')}</h1><p>${t('weatherDesc')}</p></section>
     <section class="surface weather-main">
       <div class="row-between gap-wrap"><h2>${t('weatherPlaces')}</h2><button type="button" class="text-link" id="weather-refresh">↻ ${t('weatherRefresh')}</button></div>
@@ -137,7 +137,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
   const refreshButton=element.querySelector('#weather-refresh');
   const searchButton=element.querySelector('#weather-search-btn');
   const name=city=>[city.name,city.region,city.country].filter(Boolean).join(', ');
-  const abortCurrent=()=>{fetching?.abort();fetching=null;};
+  const abortCurrent=()=>{fetching?.abort();fetching=null;fetchingCity=null;};
   const persistCities=()=>saveWeather({weatherCities:cities,weatherSelectedId:selected});
   function paintCities(){
     picker.innerHTML=cities.map(c=>`<option value="${escapeHtml(c.id)}" ${c.id===selected?'selected':''}>${escapeHtml(name(c))}</option>`).join('');
@@ -237,11 +237,17 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
   async function getForecast(force=false){
     const city=cities.find(c=>c.id===selected);if(!city)return;
     const snapshot=cache[city.id];
+    const decision=forecastRefreshDecision({
+      now:Date.now(),fetchedAt:snapshot?.fetchedAt,valid:validSnapshot(snapshot),
+      online:navigator.onLine,inFlight:!!(fetching && !fetching.signal.aborted && fetchingCity===city.id),force
+    });
+    // A fresh forecast or identical in-flight request needs no repaint or abort:
+    // keep expanded sections, focus and scroll in place when Android resumes.
+    if(decision==='fresh'||decision==='pending')return;
     paint();
-    if(!navigator.onLine){if(!validSnapshot(snapshot))notify(t('weatherOfflineUnavailable'));return;}
-    if(!force && validSnapshot(snapshot) && Date.now()-Date.parse(snapshot.fetchedAt)<REFRESH_MS)return;
+    if(decision==='offline'){if(!validSnapshot(snapshot))notify(t('weatherOfflineUnavailable'));return;}
     abortCurrent();const token=++requestSequence;
-    const ctrl=new AbortController();fetching=ctrl;
+    const ctrl=new AbortController();fetching=ctrl;fetchingCity=city.id;
     refreshButton.disabled=true;refreshButton.textContent=t('weatherLoading');
     let timedOut=false;
     const timeout=setTimeout(()=>{timedOut=true;ctrl.abort();},14000);
@@ -261,7 +267,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       }
     }finally{
       clearTimeout(timeout);
-      if(fetching===ctrl)fetching=null;
+      if(fetching===ctrl){fetching=null;fetchingCity=null;}
       if(!destroyed && token===requestSequence){refreshButton.disabled=false;refreshButton.textContent='↻ '+t('weatherRefresh');}
     }
   }

@@ -5,6 +5,7 @@ import {escapeHtml} from './utils.js';
 import {dayUtc,lastSaturdayUtc,isValidFootballDay,sportScoreDayUrl,parseSportScoreFixtures,
   sportScoreFiltered,sportScoreForCompetition,sportScoreShownScore,validSportScoreCompetition,sportScoreQueryPlan,sportScoreResponseDiagnostic,
   SECOND_SOURCE_PREMIER_LEAGUE,SECOND_SOURCE_MIN_REFRESH_MS} from './football-second-source-core.js';
+import {sportScoreDayOnReturn} from './foreground-refresh-core.js';
 
 export function mountFootballSecondSource({element,t,lang}){
   const select=element.querySelector('#football-second-date');
@@ -17,6 +18,7 @@ export function mountFootballSecondSource({element,t,lang}){
   const toggle=element.querySelector('#football-second-details');
   const refresh=element.querySelector('#football-second-refresh');
   let day=dayUtc(0),dead=false,busy=false,controller=null,current=[],loadedKey='',lastFetched=0,requestId=0,viaGlobal=false;
+  let followToday=true,lastKnownToday=dayUtc(0);
   // Choose EPL by default: the user should not need to 'add' it via OpenLigaDB.
   competition.value=SECOND_SOURCE_PREMIER_LEAGUE;
   select.value=day;
@@ -98,9 +100,19 @@ export function mountFootballSecondSource({element,t,lang}){
   const onToggle=()=>{if(toggle.open&&!loadedKey)void load();};
   const onSelection=()=>{requestId++;controller?.abort();busy=false;refresh.disabled=false;loadedKey='';current=[];viaGlobal=false;results.innerHTML='';message.textContent='';checked.textContent='';debug.textContent='';if(toggle.open)void load();};
   const onSearch=()=>{if(loadedKey)paint();};const onRefresh=()=>void load(true);
-  const onToday=()=>{select.value=dayUtc();onSelection();};
-  const onYesterday=()=>{select.value=dayUtc(1);onSelection();};
-  const onSaturday=()=>{select.value=lastSaturdayUtc();onSelection();};
+  const onToday=()=>{select.value=dayUtc();followToday=true;onSelection();};
+  const onYesterday=()=>{select.value=dayUtc(1);followToday=false;onSelection();};
+  const onSaturday=()=>{select.value=lastSaturdayUtc();followToday=false;onSelection();};
+  const onManualDay=()=>{followToday=false;onSelection();};
+  const onReturn=()=>{
+    if(dead||document.hidden)return;
+    const currentToday=dayUtc(0);
+    const nextDay=sportScoreDayOnReturn({previousToday:lastKnownToday,currentToday,
+      selectedDay:select.value,followToday});
+    select.max=currentToday;
+    lastKnownToday=currentToday;
+    if(nextDay!==select.value){select.value=nextDay;onSelection();}
+  };
   const today=element.querySelector('#football-second-today');
   const yesterday=element.querySelector('#football-second-yesterday');
   const saturday=element.querySelector('#football-second-saturday');
@@ -110,13 +122,15 @@ export function mountFootballSecondSource({element,t,lang}){
     if(loadedKey!==selectionKey()||Date.now()-lastFetched<SECOND_SOURCE_MIN_REFRESH_MS)return;
     if(current.some(m=>m.status==='live'))void load();
   },60_000);
-  toggle.addEventListener('toggle',onToggle);select.addEventListener('change',onSelection);
+  toggle.addEventListener('toggle',onToggle);select.addEventListener('change',onManualDay);
+  document.addEventListener('visibilitychange',onReturn);window.addEventListener('pageshow',onReturn);
   competition.addEventListener('change',onSelection);
   search.addEventListener('input',onSearch);refresh.addEventListener('click',onRefresh);
   today.addEventListener('click',onToday);yesterday.addEventListener('click',onYesterday);
   saturday.addEventListener('click',onSaturday);
   return ()=>{dead=true;clearInterval(activeCheck);controller?.abort();toggle.removeEventListener('toggle',onToggle);
-    select.removeEventListener('change',onSelection);competition.removeEventListener('change',onSelection);
+    select.removeEventListener('change',onManualDay);competition.removeEventListener('change',onSelection);
+    document.removeEventListener('visibilitychange',onReturn);window.removeEventListener('pageshow',onReturn);
     search.removeEventListener('input',onSearch);refresh.removeEventListener('click',onRefresh);
     today.removeEventListener('click',onToday);yesterday.removeEventListener('click',onYesterday);
     saturday.removeEventListener('click',onSaturday);};

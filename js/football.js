@@ -4,7 +4,7 @@ import {escapeHtml} from './utils.js';
 import {FOOTBALL_BASE,MAX_LEAGUES,emptyFootballData,validFootballData,leagueListFromAPI,
   matchURL,parseMatches,matchStatus,visibleMatches,hasPossibleMatch} from './football-core.js';
 import {footballRefreshDelay} from './football-refresh-core.js';
-import {footballTodayMatches,footballSnapshotRecency} from './football-today-core.js';
+import {footballTodayMatches,footballSnapshotRecency,footballLocalDay} from './football-today-core.js';
 import {footballResultHealth,hasConfirmedResult,needsResultCheck,mergeFootballMatches,singleFootballMatchURL,matchSearchURL,SINGLE_MATCH_COOLDOWN_MS} from './football-recovery-core.js';
 
 // Match-aware TTLs keep quiet leagues on a light schedule.
@@ -26,6 +26,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   let data=stored===undefined?emptyFootballData():stored;
   let tab='today',catalog=null,catalogAt='',isBusy=false,isLoadingLeagues=false,dead=false;
   let currentController=null,catalogController=null,lastPoll=0,pollStamp='',nextRetry=0,needReload=false,failureCount=0;
+  let loadingLeagueKey=null,displayedDay=footballLocalDay(new Date());
   let pendingSave=Promise.resolve();
   let singleCheckId=0;const singleChecked=new Map();
   element.innerHTML=`<section class="tool-head"><span class="eyebrow">09 / MYHUB</span><h1>${t('football')}</h1><p>${t('footballIntro')}</p></section>
@@ -103,6 +104,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     return visibleMatches(activeSnapshot()?.matches||[],tab,data.favoriteTeams);
   }
   function paintMatches(){
+    displayedDay=footballLocalDay(new Date());
     const snap=activeSnapshot();
     const list=matchesForTab();
     const recency=footballSnapshotRecency(snap);
@@ -181,7 +183,12 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   }
   async function loadMatches(force=false){
     if(dead||!navigator.onLine)return;
-    if(isBusy){needReload=true;currentController?.abort();return;}
+    if(isBusy){
+      // Foreground events and timer ticks must never cancel an identical fetch.
+      // A deliberate refresh or a switch to a different league may replace it.
+      if(force||league()?.key!==loadingLeagueKey){needReload=true;currentController?.abort();}
+      return;
+    }
     const current=league();if(!current)return;
     const snapshot=activeSnapshot();
     const minDelay=footballRefreshDelay(snapshot?.matches||[],force);
@@ -190,7 +197,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
       render();return;
     }
     if(Date.now()<nextRetry){if(force)displayMessage(t('footballRefreshLimited'));return;}
-    isBusy=true;render();displayMessage(t('weatherLoading'));
+    isBusy=true;loadingLeagueKey=current.key;render();displayMessage(t('weatherLoading'));
     const controller=new AbortController();currentController?.abort();currentController=controller;
     const timeout=setTimeout(()=>controller.abort(),18000);
     try{
@@ -213,7 +220,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
         if(/HTTP (429|5\d\d)/.test(String(err.message)))failureCount=Math.min(failureCount+1,5);
         nextRetry=Date.now()+Math.min(60,5*2**Math.max(0,failureCount-1))*60*1000;
       }
-    }finally{clearTimeout(timeout);isBusy=false;render();if(needReload&&!dead){needReload=false;void loadMatches();}}
+    }finally{clearTimeout(timeout);if(currentController===controller)currentController=null;isBusy=false;loadingLeagueKey=null;render();if(needReload&&!dead){needReload=false;void loadMatches();}}
   }
   async function pollLive(){
     if(dead||isBusy||document.hidden||!navigator.onLine||Date.now()<nextRetry)return;
@@ -305,7 +312,13 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     void loadMatches();
   };
   const interval=setInterval(tick,LIVE_AFTER);
-  const onFocus=()=>tick();document.addEventListener('visibilitychange',onFocus);
+  const onFocus=()=>{
+    if(dead||document.hidden)return;
+    // After midnight, cached Today's fixtures must follow the NEW day,
+    // even when offline. Do not remount the entire Football tool.
+    if(footballLocalDay(new Date())!==displayedDay)paintMatches();
+    tick();
+  };document.addEventListener('visibilitychange',onFocus);
   const onOnline=()=>{render();tick();},onOffline=()=>render();
   window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);
   render();void loadMatches();
