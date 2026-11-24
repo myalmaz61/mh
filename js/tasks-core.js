@@ -1,5 +1,5 @@
 /** Tasks v1 — independent local-first data model. Date-only values never use Date.parse. */
-import { parseYmd, todayLocal } from './calendar-core.js';
+import { parseYmd, todayLocal, shiftDay } from './calendar-core.js';
 
 export const MAX_TASKS = 1000;
 export const TASK_PRIORITIES = Object.freeze(['normal', 'high']);
@@ -47,4 +47,14 @@ export function filteredTasks(tasks,{filter='open',search='',today=todayLocal()}
     if(a.priority!==b.priority)return a.priority==='high'?-1:1;
     return b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id);
   });
+}
+
+/** Move an active task to a calendar day relative to TODAY (not its previous due). */
+export function quickDeferTask(task,days,{today=todayLocal(),stamp=new Date().toISOString()}={}){
+  if(!validTask(task)||task.done||![1,7].includes(days))throw Error('Invalid task reschedule');
+  const due=shiftDay(today,days);
+  if(!due)throw Error('Invalid target date');
+  const result={...task,due,updatedAt:stamp};
+  if(!validTask(result))throw Error('Invalid task reschedule');
+  return result;
 }

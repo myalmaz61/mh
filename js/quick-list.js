@@ -1,7 +1,7 @@
 import {getMeta,setMetaIfUnchanged} from './db.js';
 import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
 import {escapeHtml,uid} from './utils.js';
-import {emptyQuickLists,validQuickListsData,quickProgress,MAX_QUICK_LISTS,MAX_QUICK_ITEMS} from './quick-list-core.js';
+import {emptyQuickLists,validQuickListsData,quickProgress,resetQuickTicks,duplicateQuickList,MAX_QUICK_LISTS,MAX_QUICK_ITEMS} from './quick-list-core.js';
 
 const now=()=>new Date().toISOString();
 export async function mountQuickList({element,t,notify,confirmAction,initialId=null}){
@@ -35,7 +35,9 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
        <form id="quick-add-item" class="hub-inline-form"><label for="quick-item-text" class="sr-only">${t('quickAddItem')}</label>
         <input id="quick-item-text" name="text" class="text-field" maxlength="250" required placeholder="${t('quickAddItem')}" autocomplete="off">
         <button type="submit" class="primary-btn">+ ${t('add')}</button></form>
-       <div class="hub-actions"><button class="secondary-btn" type="button" data-quick-action="clear">${t('quickClearDone')}</button>
+       <div class="hub-actions"><button class="secondary-btn" type="button" data-quick-action="reset">${t('quickResetTicks')}</button>
+        <button class="secondary-btn" type="button" data-quick-action="duplicate">${t('quickDuplicate')}</button>
+        <button class="secondary-btn" type="button" data-quick-action="clear">${t('quickClearDone')}</button>
         <button class="danger-btn" type="button" data-quick-action="delete">${t('quickDeleteList')}</button></div>
        </section>`:''}
        <p class="muted hub-footer">${t('quickLocalHint')}</p>`;
@@ -63,7 +65,17 @@ export async function mountQuickList({element,t,notify,confirmAction,initialId=n
     const action=button.dataset.quickAction;
     if(action==='rename'){renameMode=true;render();element.querySelector('#quick-rename-name')?.focus();}
     else if(action==='cancel-rename'){renameMode=false;render();}
-    else if(action==='clear'){
+    else if(action==='reset'){
+      if(!list.items.some(item=>item.done)){notify(t('quickNothingToReset'));return;}
+      if(!confirmAction(t('quickResetConfirm')))return;
+      await persist(replaceList(list.id,x=>resetQuickTicks(x,now())),()=>notify(t('quickTicksReset')));
+    }else if(action==='duplicate'){
+      if(data.lists.length>=MAX_QUICK_LISTS){notify(t('quickListLimit'));return;}
+      const suffix=` (${t('quickCopySuffix')})`;
+      const stamp=now(),id=uid();
+      const copy=duplicateQuickList(list,{id,itemIds:list.items.map(()=>uid()),name:list.name.slice(0,80-suffix.length)+suffix,stamp});
+      await persist({schema:1,lists:[...data.lists,copy]},()=>{selected=id;renameMode=false;notify(t('quickCopied'));});
+    }else if(action==='clear'){
       if(!list.items.some(x=>x.done)){notify(t('quickNothingToClear'));return;}
       if(!confirmAction(t('quickClearConfirm')))return;
       await persist(replaceList(list.id,x=>({...x,items:x.items.filter(i=>!i.done),updatedAt:now()})),()=>notify(t('saved')));

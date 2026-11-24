@@ -30,3 +30,17 @@ export function quickProgress(list){
   const total=list.items.length,done=list.items.filter(item=>item.done).length;
   return {total,done,remaining:total-done};
 }
+
+/** Untick checked items without destroying text or item IDs. */
+export function resetQuickTicks(list,stamp){
+  const result={...list,updatedAt:stamp,items:list.items.map(item=>({...item,done:false}))};
+  if(!validQuickListsData({schema:1,lists:[result]}))throw Error('Invalid quick-list reset');
+  return result;
+}
+/** Independent duplicate: the original list and its item IDs stay unchanged. */
+export function duplicateQuickList(list,{id,itemIds,name,stamp}){
+  if(!validQuickListsData({schema:1,lists:[list]})||!Array.isArray(itemIds)||itemIds.length!==list.items.length||id===list.id||list.items.some((item,i)=>item.id===itemIds[i]))throw Error('Invalid quick-list copy');
+  const copy={id,name,createdAt:stamp,updatedAt:stamp,items:list.items.map((item,i)=>({id:itemIds[i],text:item.text,done:false}))};
+  if(!validQuickListsData({schema:1,lists:[copy]}))throw Error('Invalid quick-list copy');
+  return copy;
+}

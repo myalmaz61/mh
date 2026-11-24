@@ -2,7 +2,7 @@ import { getMeta, setMetaIfUnchanged } from './db.js';
 import {showMetaSaveError,mayLeaveAfterFailure} from './meta-save-core.js';
 import { escapeHtml, uid } from './utils.js';
 import { parseYmd, todayLocal } from './calendar-core.js';
-import { emptyTasks, validTask, validTasksData, filteredTasks, taskCounts, MAX_TASKS } from './tasks-core.js';
+import { emptyTasks, validTask, validTasksData, filteredTasks, taskCounts, quickDeferTask, MAX_TASKS } from './tasks-core.js';
 import { draftEventFromTask } from './cross-actions-core.js';
 
 const isoNow=()=>new Date().toISOString();
@@ -34,7 +34,11 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
           ${task.details?`<p>${escapeHtml(task.details)}</p>`:''}
           <div class="hub-chips">${task.priority==='high'?`<span class="hub-chip priority">★ ${t('taskHigh')}</span>`:''}
             ${task.due?`<span class="hub-chip ${overdue?'overdue':''}">📅 ${dateLabel(task.due,lang)}${overdue?' · '+t('taskOverdue'):''}</span>`:''}
-            ${task.done?`<span class="hub-chip">✓ ${t('taskDone')}</span>`:''}</div></div>
+            ${task.done?`<span class="hub-chip">✓ ${t('taskDone')}</span>`:''}</div>
+          ${!task.done&&!formOpen?`<details class="hub-task-reschedule"><summary>${t('taskMoveDue')}</summary>
+           <div><button class="secondary-btn" type="button" data-task-defer="${task.id}" data-task-days="1">${t('taskTomorrow')}</button>
+           <button class="secondary-btn" type="button" data-task-defer="${task.id}" data-task-days="7">${t('taskNextWeek')}</button></div>
+          </details>`:''}</div>
         ${!formOpen?`<button class="secondary-btn cross-shortcut" type="button" data-task-to-calendar="${escapeHtml(task.id)}" aria-label="${t('crossToCalendar')} ${escapeHtml(task.title)}">${t('crossToCalendar')}</button>`:''}
         <button class="hub-small-btn" type="button" data-task-edit="${escapeHtml(task.id)}" aria-label="${t('taskEdit')} ${escapeHtml(task.title)}">✎</button>
       </article>`;
@@ -79,7 +83,7 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     if(!button || !element.contains(button)||busy)return;
     const action=button.dataset.taskAction;
     // A failed form save must not be silently lost by another UI action.
-    if((action || button.dataset.taskFilter || button.dataset.taskEdit || button.dataset.taskDelete || button.dataset.taskToCalendar)
+    if((action || button.dataset.taskFilter || button.dataset.taskEdit || button.dataset.taskDelete || button.dataset.taskToCalendar || button.dataset.taskDefer)
        && !mayLeaveAfterFailure(element,t,confirmAction))return;
     if(action==='new'){
       if(data.tasks.length>=MAX_TASKS){notify(t('taskLimit'));return;}
@@ -87,6 +91,15 @@ export async function mountTasks({element,t,lang,notify,confirmAction,initialId=
     }
     if(action==='cancel'){editId=null;formOpen=false;render();return;}
     if(button.dataset.taskFilter){filter=button.dataset.taskFilter;render();return;}
+    if(button.dataset.taskDefer){
+      const task=data.tasks.find(item=>item.id===button.dataset.taskDefer);
+      if(!task || task.done)return;
+      const days=Number(button.dataset.taskDays);
+      if(days!==1&&days!==7)return;
+      const updated=quickDeferTask(task,days);
+      await persist({schema:1,tasks:data.tasks.map(item=>item.id===task.id?updated:item)},()=>notify(t('taskRescheduled')));
+      return;
+    }
     if(button.dataset.taskToCalendar){
       const task=data.tasks.find(item=>item.id===button.dataset.taskToCalendar);
       if(task)onQuickDraft(draftEventFromTask(task));return;
