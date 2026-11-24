@@ -4,6 +4,7 @@ import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
 import { plainNoteText, duplicateNoteData } from './note-actions-core.js';
 import { createNotesSelector, recentNotes } from './notes-view-core.js';
+import { matchingQuickAction } from './interaction-stability-core.js';
 import { NOTES_PAGE_SIZE, sliceNotesPage, nextNotesPageLimit } from './notes-list-core.js';
 import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
@@ -397,6 +398,9 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         const note=notes.find(n=>n.id===quick.dataset.quickId);
         if(!note)return;
         const flag=quick.dataset.quickFlag;
+        // Rebuilding a sorted list replaces the clicked button. Restore keyboard
+        // focus to the equivalent action only if it was focused before repaint.
+        const shouldRestoreFocus=document.activeElement===quick;
         quickActionBusy=true;
         resultList.querySelectorAll('[data-quick-flag]').forEach(btn=>{btn.disabled=true;});
         try{
@@ -411,7 +415,16 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
           if(disposed)return;
           notify(`${t('notesQuickFailed')}: ${error.message}`);
           renderList();
-        }finally{quickActionBusy=false; if(!disposed)resultList.querySelectorAll('[data-quick-flag]').forEach(btn=>{btn.disabled=false;});}
+        }finally{
+          quickActionBusy=false;
+          if(!disposed){
+            resultList.querySelectorAll('[data-quick-flag]').forEach(btn=>{btn.disabled=false;});
+            if(shouldRestoreFocus){
+              const replacement=matchingQuickAction(resultList,note.id,flag);
+              replacement?.focus({preventScroll:true});
+            }
+          }
+        }
         return;
       }
       const btn=event.target.closest('[data-note-id]');

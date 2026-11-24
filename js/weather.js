@@ -9,6 +9,7 @@ import {weatherPracticalSummary} from './weather-practical-core.js';
 import {weatherSnapshotFreshness} from './weather-freshness-core.js';
 import {weatherDayHighlights} from './weather-glance-core.js';
 import {forecastRefreshDecision} from './foreground-refresh-core.js';
+import {ownsRequest, usableRequestResponse} from './interaction-stability-core.js';
 
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -308,11 +309,20 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
       const response=await fetch(geocodeUrl(value),{signal:ctrl.signal,cache:'no-store'});
       if(!response.ok)throw Error(`HTTP ${response.status}`);
       const options=parsePlaces(await response.json());
-      if(destroyed || searching!==ctrl)return;
+      // A cancelled request can still finish parsing on some browsers. Only
+      // the currently active, non-aborted lookup may display search results.
+      if(!usableRequestResponse(searching,ctrl,destroyed))return;
       results.innerHTML=options.length?options.map(place=>`<button type="button" class="weather-search-result" data-add-place="${escapeHtml(place.id)}"><span>＋</span><span>${escapeHtml(name(place))}</span></button>`).join(''):`<p class="muted">${t('weatherNoResults')}</p>`;
       results._weatherPlaces=options;
-    }catch(err){if(!destroyed && searching===ctrl && (err.name!=='AbortError'||timedOut))results.innerHTML=`<p class="warning-text">${t('weatherSearchFailed')}</p>`;}
-    finally{clearTimeout(timeout);if(searching===ctrl)searching=null;if(!destroyed)searchButton.disabled=false;}
+    }catch(err){if(!destroyed && ownsRequest(searching,ctrl) && (err.name!=='AbortError'||timedOut))results.innerHTML=`<p class="warning-text">${t('weatherSearchFailed')}</p>`;}
+    finally{
+      clearTimeout(timeout);
+      // An older lookup must not re-enable the button or clear the new lookup.
+      if(ownsRequest(searching,ctrl)){
+        searching=null;
+        if(!destroyed)searchButton.disabled=false;
+      }
+    }
   });
   results.addEventListener('click',async event=>{
     const button=event.target.closest('[data-add-place]');if(!button)return;

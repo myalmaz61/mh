@@ -5,6 +5,7 @@ import {escapeHtml} from './utils.js';
 import {FOOTBALL_BASE,MAX_LEAGUES,emptyFootballData,validFootballData,leagueListFromAPI,
   matchURL,parseMatches,matchStatus,visibleMatches,hasPossibleMatch} from './football-core.js';
 import {footballRefreshDelay} from './football-refresh-core.js';
+import {calendarDayChanged,fixtureStatusBoundaryCrossed} from './interaction-stability-core.js';
 import {footballTodayMatches,footballSnapshotRecency,footballLocalDay} from './football-today-core.js';
 import {footballResultHealth,hasConfirmedResult,needsResultCheck,mergeFootballMatches,singleFootballMatchURL,matchSearchURL,SINGLE_MATCH_COOLDOWN_MS} from './football-recovery-core.js';
 
@@ -27,7 +28,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
   let data=stored===undefined?emptyFootballData():stored;
   let tab=viewState?.tab??'today',catalog=null,catalogAt='',isBusy=false,isLoadingLeagues=false,dead=false;
   let currentController=null,catalogController=null,pollController=null,pollBusy=false,lastPoll=0,pollStamp='',nextRetry=0,needReload=false,failureCount=0;
-  let loadingLeagueKey=null,displayedDay=footballLocalDay(new Date());
+  let loadingLeagueKey=null,displayedDay=footballLocalDay(new Date()),lastFullMatchPaint=0;
   const stopPoll=()=>{pollController?.abort();pollController=null;pollBusy=false;};
   let pendingSave=Promise.resolve();
   let singleCheckId=0;const singleChecked=new Map();
@@ -117,14 +118,23 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
     if(tab==='today')return footballTodayMatches(activeSnapshot()?.matches||[]);
     return visibleMatches(activeSnapshot()?.matches||[],tab,data.favoriteTeams);
   }
-  function paintMatches(){
-    displayedDay=footballLocalDay(new Date());
+  function paintSnapshotAge(){
+    // Update only the small time/status labels on a still-fresh cache hit.
+    // Rebuilding #football-matches needlessly destroys keyboard focus and
+    // in-progress interaction with its match buttons every poll interval.
     const snap=activeSnapshot();
-    const list=matchesForTab();
     const recency=footballSnapshotRecency(snap);
     const age=recency.minutes===null?'':` · ${t('footballMinutesAgo').replace('{n}',String(recency.minutes))}`;
     one('#football-updated').textContent=snap?`${t('footballChecked')}: ${when(snap.fetchedAt,lang)}${age}${!navigator.onLine?' · '+t('footballCached'):''}`:t('footballNeverChecked');
     one('#football-freshness').textContent=recency.stale?t('footballStaleNotice'):'';
+  }
+  function paintMatches(){
+    const renderedAt=Date.now();
+    displayedDay=footballLocalDay(new Date(renderedAt));
+    lastFullMatchPaint=renderedAt;
+    const snap=activeSnapshot();
+    const list=matchesForTab();
+    paintSnapshotAge();
     one('#football-today-count').textContent=`(${footballTodayMatches(snap?.matches||[]).length})`;
     one('#football-refresh').disabled=isBusy||!navigator.onLine;
     one('#football-refresh').textContent=isBusy?t('weatherLoading'):`↻ ${t('weatherRefresh')}`;
@@ -209,7 +219,13 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
     const minDelay=footballRefreshDelay(snapshot?.matches||[],force);
     if(snapshot&&ageMs(snapshot.fetchedAt)<minDelay){
       if(force)displayMessage(t('footballRefreshLimited'));
-      render();return;
+      // A time-only refresh should not throw away the match list DOM.
+      // Date rollover is the exception: Today's fixtures must change.
+      const now=Date.now();
+      if(calendarDayChanged(displayedDay,footballLocalDay(new Date(now)))
+        || fixtureStatusBoundaryCrossed(snapshot.matches,lastFullMatchPaint,now))paintMatches();
+      else paintSnapshotAge();
+      return;
     }
     if(Date.now()<nextRetry){if(force)displayMessage(t('footballRefreshLimited'));return;}
     isBusy=true;loadingLeagueKey=current.key;render();displayMessage(t('weatherLoading'));
