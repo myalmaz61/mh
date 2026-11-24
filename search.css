@@ -18,3 +18,12 @@
 .hub-search-result-text small{font-size:12px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .hub-search-result>span:last-child{color:var(--muted);font-size:21px}
 .hub-search-help{padding:12px 0}
+/* v5.8.0: small search filters and safe highlighting; nothing on the home screen. */
+.hub-search-options{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.hub-search-options .hub-search-titles{font-size:12px}
+.hub-search-sort-label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.hub-search-sort{min-height:39px;max-width:155px;padding:7px 9px;border:1px solid var(--stroke);border-radius:12px;background:var(--surface-alt);color:inherit;font:inherit}
+.hub-search-reset{border:0;background:transparent;color:var(--accent);text-decoration:underline;font-weight:650;font-size:12px;min-height:39px;padding:7px 4px}
+.hub-search-sort:focus-visible,.hub-search-reset:focus-visible{outline:3px solid var(--ring);outline-offset:2px}
+.hub-search-mark{background:color-mix(in srgb,var(--accent) 22%,var(--surface));color:inherit;border-radius:3px;padding:0 1px;font-weight:750}
+.hub-search-reset[hidden]{display:none}
