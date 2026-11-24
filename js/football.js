@@ -26,8 +26,9 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   }
   let data=stored===undefined?emptyFootballData():stored;
   let tab='today',catalog=null,catalogAt='',isBusy=false,isLoadingLeagues=false,dead=false;
-  let currentController=null,catalogController=null,lastPoll=0,pollStamp='',nextRetry=0,needReload=false,failureCount=0;
+  let currentController=null,catalogController=null,pollController=null,pollBusy=false,lastPoll=0,pollStamp='',nextRetry=0,needReload=false,failureCount=0;
   let loadingLeagueKey=null,displayedDay=footballLocalDay(new Date());
+  const stopPoll=()=>{pollController?.abort();pollController=null;pollBusy=false;};
   let pendingSave=Promise.resolve();
   let singleCheckId=0;const singleChecked=new Map();
   element.innerHTML=`<section class="tool-head"><span class="eyebrow">09 / MYHUB</span><h1>${t('football')}</h1><p>${t('footballIntro')}</p></section>
@@ -158,6 +159,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     if(data.leagues.length>=MAX_LEAGUES){notify(t('footballLimit'));return;}
     const item=catalog?.find(l=>l.key===key);
     if(!item||data.leagues.some(l=>l.key===key))return;
+    stopPoll();pollStamp='';lastPoll=0;
     await save({...data,leagues:[...data.leagues,item],selected:item.key});
     one('#football-add-panel').hidden=true;tab='today';render();
     await loadMatches(false);
@@ -236,26 +238,27 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     }finally{clearTimeout(timeout);if(currentController===controller)currentController=null;isBusy=false;loadingLeagueKey=null;render();if(needReload&&!dead){needReload=false;void loadMatches();}}
   }
   async function pollLive(){
-    if(dead||isBusy||document.hidden||!navigator.onLine||Date.now()<nextRetry)return;
+    if(dead||isBusy||pollBusy||document.hidden||!navigator.onLine||Date.now()<nextRetry)return;
     const current=league(),snap=activeSnapshot();
     if(!snap||!hasPossibleMatch(snap.matches))return;
     if(Date.now()-lastPoll<LIVE_AFTER)return;
     lastPoll=Date.now();
     const match=snap.matches.find(m=>matchStatus(m)==='possible'&&m.group>0);
     if(!match)return;
-    const controller=new AbortController();currentController=controller;
+    const controller=new AbortController();pollController=controller;pollBusy=true;
     const timeout=setTimeout(()=>controller.abort(),12000);
     try{
       const changed=await fetchJSON(`${FOOTBALL_BASE}/getlastchangedate/${encodeURIComponent(current.shortcut)}/${current.season}/${match.group}`,controller.signal);
       const stamp=typeof changed==='string'?changed:JSON.stringify(changed);
       if(dead||current.key!==data.selected)return;
-      if(pollStamp&&stamp!==pollStamp&&ageMs(snap.fetchedAt)>=LIVE_AFTER){
-        // The change endpoint is inexpensive; only refetch the season if the source changed.
+      if(pollController!==controller || controller.signal.aborted)return;
+      if(pollStamp&&stamp!==pollStamp&&ageMs(snap.fetchedAt)>=LIVE_AFTER && !isBusy){
+        // Do not interrupt an already running season fetch on a foreground wake.
         await loadMatches(true);
       }
-      pollStamp=stamp;
-    }catch(err){if(!controller.signal.aborted)nextRetry=Date.now()+10*60*1000;}
-    finally{clearTimeout(timeout);}
+      if(pollController===controller && !controller.signal.aborted)pollStamp=stamp;
+    }catch(err){if(!controller.signal.aborted && !dead)nextRetry=Date.now()+10*60*1000;}
+    finally{clearTimeout(timeout);if(pollController===controller){pollController=null;pollBusy=false;}}
   }
   async function checkSingleMatch(id){
     if(dead||!navigator.onLine||isBusy||singleCheckId)return;
@@ -279,7 +282,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
     }finally{clearTimeout(timeout);singleCheckId=0;render();}
   }
   select.addEventListener('change',safeAction(async()=>{
-    currentController?.abort();pollStamp='';lastPoll=0;tab='today';
+    stopPoll();currentController?.abort();pollStamp='';lastPoll=0;tab='today';
     await save({...data,selected:select.value});displayMessage('');await loadMatches();
   }));
   one('#football-refresh').addEventListener('click',safeAction(()=>loadMatches(true)));
@@ -290,7 +293,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   one('#football-remove-league').addEventListener('click',safeAction(async()=>{
     if(data.leagues.length<=1||!confirmAction(t('footballRemoveConfirm')))return;
     const selected=data.selected,leagues=data.leagues.filter(l=>l.key!==selected),cache={...data.cache};delete cache[selected];
-    currentController?.abort();pollStamp='';lastPoll=0;
+    stopPoll();currentController?.abort();pollStamp='';lastPoll=0;
     await save({...data,leagues,cache,selected:leagues[0].key});tab='today';
     await loadMatches();
   }));
@@ -336,5 +339,5 @@ export async function mountFootball({element,t,lang,notify,confirmAction}){
   window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);
   render();void loadMatches();
   return ()=>{dead=true;releaseLive();releaseSecondSource();clearInterval(interval);document.removeEventListener('visibilitychange',onFocus);
-    window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);currentController?.abort();catalogController?.abort();};
+    window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);stopPoll();currentController?.abort();catalogController?.abort();};
 }

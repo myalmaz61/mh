@@ -1,5 +1,5 @@
 import { MAX_WEATHER_CITIES } from './config.js';
-import { getMeta, setMeta } from './db.js';
+import { getMeta, updateWeatherCacheCity } from './db.js';
 import { escapeHtml } from './utils.js';
 import { upcomingRainSummary, rainChanceWindow } from './weather-rain-core.js';
 import { hourlyProbabilityBar } from './weather-hour-core.js';
@@ -251,7 +251,9 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     // A fresh forecast or identical in-flight request needs no repaint or abort:
     // keep expanded sections, focus and scroll in place when Android resumes.
     if(decision==='fresh'||decision==='pending')return;
-    paint();
+    // Keep the existing forecast and any focused/expanded controls in place.
+    // Only repaint if there is no cached content to display.
+    if(!validSnapshot(snapshot))paint();
     if(decision==='offline'){if(!validSnapshot(snapshot))notify(t('weatherOfflineUnavailable'));return;}
     abortCurrent();const token=++requestSequence;
     const ctrl=new AbortController();fetching=ctrl;fetchingCity=city.id;
@@ -264,9 +266,12 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       const body=await response.json();
       const forecast=parseForecast(body);
       if(destroyed || token!==requestSequence)return;
-      cache[city.id]={fetchedAt:new Date().toISOString(),...forecast};
-      await setMeta('weatherCache',cache);
-      if(!destroyed && token===requestSequence)paint();
+      const updated={fetchedAt:new Date().toISOString(),...forecast};
+      const saved=await updateWeatherCacheCity(city.id,updated);
+      if(!destroyed && token===requestSequence){
+        cache[city.id]=saved||updated;
+        paint();
+      }
     }catch(error){
       if(!destroyed && token===requestSequence && (error.name!=='AbortError'||timedOut)){
         notify(t('weatherFailed'));
@@ -318,7 +323,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     delete cache[button.dataset.removeWeather];
     if(!cities.some(c=>c.id===selected))selected=cities[0]?.id||'';
     abortCurrent();requestSequence++;paint();
-    try{await persistCities();await setMeta('weatherCache',cache);if(!destroyed)void getForecast();}catch(err){if(!destroyed)notify(t('error')+': '+err.message);}
+    try{await persistCities();await updateWeatherCacheCity(button.dataset.removeWeather,null);if(!destroyed)void getForecast();}catch(err){if(!destroyed)notify(t('error')+': '+err.message);}
   });
   const onOnline=()=>{if(!destroyed)void getForecast();};
   window.addEventListener('online',onOnline);

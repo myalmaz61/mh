@@ -1,5 +1,6 @@
 import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
-import { safeClone } from './utils.js';
+import {safeClone} from './utils.js';
+import {weatherCachePatch} from './weather-cache-core.js';
 import { verifyBackupArchive } from './backup-integrity-core.js';
 import {sameMetaSnapshot} from './meta-save-core.js';
 import { emptyNotesTemplates, validNotesTemplates } from './notes-templates-core.js';
@@ -346,6 +347,45 @@ export async function getMeta(key) {
 }
 export async function setMeta(key, value) {
   return request('meta','readwrite',store => store.put({ key, value:safeClone(value) }));
+}
+
+/** Update ONLY the affected weather city in one IndexedDB transaction.
+ * Read current settings and cache in the same transaction, so another tab's
+ * newer forecast is preserved and a deleted city is never silently revived.
+ * A damaged cache is never replaced without warning; JSON Backup stays v1.
+ */
+export async function updateWeatherCacheCity(cityId, snapshot=null){
+  if(typeof cityId!=='string' || !cityId || cityId.length>120 ||
+      (snapshot!==null && !validWeatherCacheEntry(snapshot)))throw Error('Invalid weather cache city or snapshot');
+  const safeSnapshot=snapshot===null?null:safeClone(snapshot);
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite');
+    const store=tx.objectStore('meta');
+    let failure=null, result=null;
+    const abort=err=>{failure=err;try{tx.abort();}catch{/* already complete */}};
+    const cacheRead=store.get('weatherCache');
+    cacheRead.onsuccess=()=>{
+      const settingsRead=store.get('settings');
+      settingsRead.onsuccess=()=>{
+        try{
+          const previous=cacheRead.result?.value??{};
+          if(!previous || typeof previous!=='object' || Array.isArray(previous) ||
+              Object.keys(previous).length>MAX_WEATHER_CITIES ||
+              Object.values(previous).some(item=>!validWeatherCacheEntry(item)))
+            throw Error('Saved weather cache is damaged');
+          const allowed=normaliseSettings(settingsRead.result?.value).weatherCities.map(city=>city.id);
+          const updated=weatherCachePatch(previous,allowed,cityId,safeSnapshot);
+          if(Object.keys(updated).length>MAX_WEATHER_CITIES)throw Error('Too many cached cities');
+          result=updated[cityId]??null;
+          store.put({key:'weatherCache',value:updated});
+        }catch(error){abort(error);}
+      };
+    };
+    tx.oncomplete=()=>resolve(result);
+    tx.onerror=()=>reject(failure||tx.error||Error('Weather cache update failed'));
+    tx.onabort=()=>reject(failure||tx.error||Error('Weather cache update aborted'));
+  });
 }
 /** Atomic compare-and-swap for Tasks, Calendar, Quick Lists, templates and Bookmarks.
  * Read and write happen in ONE readwrite transaction; concurrent changes
