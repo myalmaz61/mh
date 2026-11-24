@@ -51,3 +51,12 @@
 .football-second-diagnostic{margin-top:.75rem;font-size:.85rem}
 .football-second-diagnostic summary{cursor:pointer;min-height:40px;display:flex;align-items:center;color:var(--text-muted,#667085)}
 .football-second-debug{font-size:.72rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:190px;overflow:auto}
+
+/* v4.8.0 — prominent date filter and direct access to the optional provider. */
+.football-quick-source{display:inline-flex;align-items:center;justify-content:center;min-height:44px;max-width:100%;margin-top:8px;border:1px solid var(--stroke);background:var(--surface-alt);border-radius:12px;padding:9px 14px;color:var(--ink);font-size:13px;font-weight:650;cursor:pointer}
+.football-quick-source:focus-visible,.football-show-all:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.football-freshness:not(:empty){margin:8px 0 0;font-size:12px;line-height:1.5}
+.football-show-all{min-height:42px}
+#football-today-count{font-size:11px;opacity:.85}
+.football-second-updated:not(:empty){font-size:12px;margin:4px 0 12px;line-height:1.5}
+.football-second-note{font-size:12px}

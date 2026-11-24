@@ -1,4 +1,4 @@
-const CACHE='myhub-shell-v4.7.0';
+const CACHE='myhub-shell-v4.8.0';
 const PREFIX='myhub-shell-';
 // Separate from shell cache: incoming shares are private, temporary, and never deployed.
 const SHARE_INBOX='myhub-share-inbox-v1';
@@ -9,7 +9,7 @@ const ASSETS=[
   './js/calculator.js','./js/world-clock.js','./js/notes.js','./js/notes-save-core.js','./js/notes-draft-core.js','./js/notes-list-core.js','./js/note-quick-core.js','./js/notes-category-core.js','./js/notes-bulk-core.js','./js/notes-checklist-core.js','./js/notes-trash-core.js','./js/note-actions-core.js','./js/notes-view-core.js','./js/weather.js','./js/weather-rain-core.js','./js/weather-hour-core.js','./js/weather-day-compare-core.js','./js/weather-quick-core.js','./js/weather-freshness-core.js','./js/weather-glance-core.js',
   './js/timer.js','./js/timer-core.js','./js/calendar.js','./js/calendar-core.js',
   './js/tasks.js','./js/tasks-core.js','./js/quick-list.js','./js/quick-list-core.js',
-  './js/football.js','./js/football-second-source.js','./js/football-second-source-core.js','./js/football-core.js','./js/football-refresh-core.js','./js/football-recovery-core.js','./js/rss.js','./js/rss-core.js',
+  './js/football.js','./js/football-today-core.js','./js/football-second-source.js','./js/football-second-source-core.js','./js/football-core.js','./js/football-refresh-core.js','./js/football-recovery-core.js','./js/rss.js','./js/rss-core.js',
   './js/unit-core.js','./js/date-core.js','./js/percent-core.js','./js/bookmarks-core.js',
   './js/utilities.js','./js/bookmarks.js','./js/today-core.js','./js/today-actions-core.js','./js/today.js','./js/diagnostics-core.js','./js/diagnostics.js','./js/search-core.js','./js/search.js','./js/quick-add-core.js','./js/quick-add.js',
   './js/share-core.js','./js/share-target.js',
