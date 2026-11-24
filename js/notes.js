@@ -125,12 +125,22 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       displayedLimit=nextNotesPageLimit(displayedLimit,count);
       renderList();
     });
-    searchInput.addEventListener('input', () => {search=searchInput.value;displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();renderList();});
-    scopeInput.addEventListener('change',()=>{scope=scopeInput.value;displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();renderList();});
-    orderInput.addEventListener('change',()=>{order=orderInput.value;displayedLimit=NOTES_PAGE_SIZE;renderList();});
-    categoryInput?.addEventListener('change',()=>{categoryFilter=categoryInput.value;displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();renderList();});
+    // Coalesce rapid typing so a large local collection does not repaint every keystroke.
+    // Search still covers ALL records (the 40-item limit affects rendering only).
+    let searchPaintTimer=null;
+    searchInput.addEventListener('input', () => {
+      search=searchInput.value;displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();
+      clearTimeout(searchPaintTimer);
+      searchPaintTimer=setTimeout(()=>{
+        searchPaintTimer=null;
+        if(searchInput.isConnected)renderList();
+      },140);
+    });
+    scopeInput.addEventListener('change',()=>{clearTimeout(searchPaintTimer);scope=scopeInput.value;displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();renderList();});
+    orderInput.addEventListener('change',()=>{clearTimeout(searchPaintTimer);order=orderInput.value;displayedLimit=NOTES_PAGE_SIZE;renderList();});
+    categoryInput?.addEventListener('change',()=>{clearTimeout(searchPaintTimer);categoryFilter=categoryInput.value;displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();renderList();});
     element.querySelector('#notes-reset-filters').addEventListener('click',()=>{
-      search='';scope='all';order='newest';categoryFilter='*';displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();
+      clearTimeout(searchPaintTimer);search='';scope='all';order='newest';categoryFilter='*';displayedLimit=NOTES_PAGE_SIZE;selectedIds.clear();
       searchInput.value='';scopeInput.value=scope;orderInput.value=order;
       if(categoryInput)categoryInput.value=categoryFilter;
       renderList();searchInput.focus();

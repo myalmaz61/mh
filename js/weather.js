@@ -5,6 +5,7 @@ import { upcomingRainSummary, rainChanceWindow } from './weather-rain-core.js';
 import { hourlyProbabilityBar } from './weather-hour-core.js';
 import {weatherDayComparison} from './weather-day-compare-core.js';
 import {weatherQuickOutlook} from './weather-quick-core.js';
+import {weatherSnapshotFreshness} from './weather-freshness-core.js';
 
 const REFRESH_MS = 30 * 60 * 1000;
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -152,8 +153,17 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     }
     const current=snapshot.current;
     const condition=weatherDescription(current.code,lang);
-    const age=Date.now()-Date.parse(snapshot.fetchedAt);
-    const stale=age>REFRESH_MS;
+    const freshness=weatherSnapshotFreshness(snapshot.fetchedAt);
+    const stale=freshness.state!=='fresh';
+    if(freshness.state==='outdated'){
+      // Do not present last day's observation or old hourly values as today's conditions.
+      content.innerHTML=`<section class="weather-expired" role="status"><strong>⚠ ${t('weatherOutdatedTitle')}</strong>
+        <p>${t('weatherOutdatedHint')}</p>
+        <p class="muted">${t('weatherUpdated')}: ${escapeHtml(fmtUpdate(snapshot.fetchedAt,lang))}</p>
+        <p class="muted">${condition.symbol} ${concise(current.temp)}°C · ${escapeHtml(condition.text)} — ${t('weatherLastObservation')}</p>
+      </section>`;
+      return;
+    }
     const rainSummary=upcomingRainSummary(snapshot.hours);
     const rainWindow=rainChanceWindow(snapshot.hours);
     const dayComparison=weatherDayComparison(snapshot.hours,snapshot.current.time);
@@ -161,7 +171,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     content.innerHTML=`<div class="weather-condition">
       <div class="weather-condition-row"><span class="weather-emblem" aria-hidden="true">${condition.symbol}</span><div><div class="weather-temp">${concise(current.temp)}°</div><div class="weather-description">${escapeHtml(condition.text)}</div></div></div>
       <span class="weather-status ${stale?'stale':''}">${stale?t('weatherStored'):t('weatherRecent')}</span>
-    </div><p class="weather-updated">${t('weatherUpdated')}: ${escapeHtml(fmtUpdate(snapshot.fetchedAt,lang))} · ${t('weatherLocalTime')}: ${escapeHtml(current.time.slice(11,16))}</p>
+    </div>${stale?`<p class="weather-snapshot-warning" role="status">⚠ ${t('weatherCachedCaution')}</p>`:''}<p class="weather-updated">${t('weatherUpdated')}: ${escapeHtml(fmtUpdate(snapshot.fetchedAt,lang))} · ${t('weatherLocalTime')}: ${escapeHtml(current.time.slice(11,16))}</p>
     <div class="weather-stat-grid">
       <div><small>${t('weatherFeels')}</small><strong>${concise(current.feels)}°C</strong></div>
       <div><small>${t('weatherWind')}</small><strong>${concise(current.wind)} km/h</strong></div>
@@ -169,7 +179,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       <div><small>${t('weatherRainNow')}</small><strong>${concise(current.rain,1)} mm</strong></div>
     </div>
     ${quickOutlook ? `<section class="weather-quick" aria-label="${t('weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}">
-      <h3 class="weather-quick-title">${t('weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}</h3>
+      <h3 class="weather-quick-title">${t(stale?'weatherQuickAtUpdate':'weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}</h3>
       <p class="weather-quick-hint">${t('weatherQuickLocalHint')}${stale?` · ${t('weatherQuickCached')}`:''}</p>
       <div class="weather-quick-grid">
         <div class="weather-quick-stat"><small>🌡 ${t('weatherQuickTemperature')}</small><strong>${quickOutlook.minTemperature === null?'–':`${concise(quickOutlook.minTemperature)}°`}${quickOutlook.maxTemperature===null||quickOutlook.maxTemperature===quickOutlook.minTemperature?'':` – ${concise(quickOutlook.maxTemperature)}°`}</strong></div>
