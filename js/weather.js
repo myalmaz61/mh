@@ -6,6 +6,7 @@ import { hourlyProbabilityBar } from './weather-hour-core.js';
 import {weatherDayComparison} from './weather-day-compare-core.js';
 import {weatherQuickOutlook} from './weather-quick-core.js';
 import {weatherSnapshotFreshness} from './weather-freshness-core.js';
+import {weatherDayHighlights} from './weather-glance-core.js';
 
 const REFRESH_MS = 30 * 60 * 1000;
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -121,11 +122,12 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       <label class="sr-only" for="weather-city">${t('weatherSelect')}</label><select id="weather-city" class="input-select weather-picker"></select>
       <div id="weather-content" aria-live="polite"></div>
     </section>
-    <section class="surface weather-manage"><div class="row-between"><h2>${t('weatherAddCity')}</h2><span class="soft-tag" id="weather-city-count"></span></div>
+    <details class="surface weather-manage"><summary class="weather-manage-summary"><span>${t('weatherManageCities')}</span><span class="soft-tag" id="weather-city-count"></span></summary>
+      <div class="weather-manage-body"><h2>${t('weatherAddCity')}</h2>
       <form id="weather-search-form" class="form-row"><label class="sr-only" for="weather-search-input">${t('weatherCityName')}</label><input class="text-field" id="weather-search-input" type="search" maxlength="70" placeholder="${t('weatherCityName')}" autocomplete="off"><button class="primary-btn" id="weather-search-btn" type="submit">${t('weatherSearch')}</button></form>
       <p class="muted weather-hint">${t('weatherSearchHint')}</p><div id="weather-search-results"></div>
-      <div id="weather-saved-cities" class="weather-saved-cities"></div>
-    </section>
+      <div id="weather-saved-cities" class="weather-saved-cities"></div></div>
+    </details>
     <p class="weather-source">${t('weatherSource')} <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></p>`;
   const picker=element.querySelector('#weather-city');
   const content=element.querySelector('#weather-content');
@@ -144,6 +146,10 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     saved.innerHTML=cities.map(city=>`<div class="weather-saved-row"><span>${escapeHtml(name(city))}</span><button type="button" class="icon-btn small" data-remove-weather="${escapeHtml(city.id)}" aria-label="${t('remove')} ${escapeHtml(city.name)}">×</button></div>`).join('');
   }
   function paint(){
+    // Keep the user's open details open across automatic refreshes / cached paints.
+    const openFolds=new Set([...content.querySelectorAll('details[data-weather-fold]')]
+      .filter(item=>item.open).map(item=>item.dataset.weatherFold));
+    const expanded=key=>openFolds.has(key)?' open':'';
     paintCities();const city=cities.find(c=>c.id===selected);
     refreshButton.disabled=!city;
     if(!city){content.innerHTML=`<div class="weather-empty">${t('weatherEmpty')}</div>`;return;}
@@ -168,16 +174,12 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     const rainWindow=rainChanceWindow(snapshot.hours);
     const dayComparison=weatherDayComparison(snapshot.hours,snapshot.current.time);
     const quickOutlook=weatherQuickOutlook(snapshot.hours,snapshot.current.time);
+    const dayHighlights=weatherDayHighlights(snapshot.daily,snapshot.current.time);
     content.innerHTML=`<div class="weather-condition">
       <div class="weather-condition-row"><span class="weather-emblem" aria-hidden="true">${condition.symbol}</span><div><div class="weather-temp">${concise(current.temp)}°</div><div class="weather-description">${escapeHtml(condition.text)}</div></div></div>
       <span class="weather-status ${stale?'stale':''}">${stale?t('weatherStored'):t('weatherRecent')}</span>
     </div>${stale?`<p class="weather-snapshot-warning" role="status">⚠ ${t('weatherCachedCaution')}</p>`:''}<p class="weather-updated">${t('weatherUpdated')}: ${escapeHtml(fmtUpdate(snapshot.fetchedAt,lang))} · ${t('weatherLocalTime')}: ${escapeHtml(current.time.slice(11,16))}</p>
-    <div class="weather-stat-grid">
-      <div><small>${t('weatherFeels')}</small><strong>${concise(current.feels)}°C</strong></div>
-      <div><small>${t('weatherWind')}</small><strong>${concise(current.wind)} km/h</strong></div>
-      <div><small>${t('weatherHumidity')}</small><strong>${concise(current.humidity)}%</strong></div>
-      <div><small>${t('weatherRainNow')}</small><strong>${concise(current.rain,1)} mm</strong></div>
-    </div>
+    <div class="weather-now-mini"><span>${t('weatherFeels')}: <strong>${concise(current.feels)}°</strong></span><span>${t('weatherWind')}: <strong>${concise(current.wind)} km/h</strong></span></div>
     ${quickOutlook ? `<section class="weather-quick" aria-label="${t('weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}">
       <h3 class="weather-quick-title">${t(stale?'weatherQuickAtUpdate':'weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}</h3>
       <p class="weather-quick-hint">${t('weatherQuickLocalHint')}${stale?` · ${t('weatherQuickCached')}`:''}</p>
@@ -186,7 +188,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
         <div class="weather-quick-stat"><small>☔ ${t('weatherQuickRain')}</small><strong>${quickOutlook.peakRainProbability===null?'–':`${concise(quickOutlook.peakRainProbability)}%`}</strong>${quickOutlook.peakRainTime?`<small>${escapeHtml(quickOutlook.peakRainTime.slice(11,16))}</small>`:''}</div>
         <div class="weather-quick-stat"><small>💨 ${t('weatherQuickWind')}</small><strong>${quickOutlook.maxWind===null?'–':`${concise(quickOutlook.maxWind)} km/h`}</strong></div>
       </div>
-      <details class="weather-quick-details"><summary>${t('weatherQuickDetails')}</summary>
+      <details class="weather-quick-details" data-weather-fold="quick"${expanded('quick')}><summary>${t('weatherQuickDetails')}</summary>
         <div class="weather-quick-rows"><div class="weather-quick-row weather-quick-head"><span>${t('weatherCompareTime')}</span><span>°C</span><span>☔</span><span>km/h</span></div>
         ${quickOutlook.hours.map(hour=>`<div class="weather-quick-row"><span>${escapeHtml(hour.time.slice(11,16))}</span><span>${hour.temp===null?'–':`${concise(hour.temp)}°`}</span><span>${hour.prob===null?'–':`${concise(hour.prob)}%`}</span><span>${hour.wind===null?'–':concise(hour.wind)}</span></div>`).join('')}</div>
       </details>
@@ -195,17 +197,41 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
       ${rainWindow ? `<div class="weather-rain-window">${rainWindow.firstTime
         ? `${t('weatherRainFirstHigh')}: <strong>${escapeHtml(rainWindow.firstTime.slice(8,10)+'.'+rainWindow.firstTime.slice(5,7)+' '+rainWindow.firstTime.slice(11,16))} (${t('weatherLocalTime')}) · ${concise(rainWindow.firstProbability)}%</strong>`
         : `${t('weatherRainBelowThreshold').replace('{n}',String(rainWindow.count))}`}</div>` : ''}</div>`:''}
-    ${dayComparison ? `<div class="weather-day-comparison"><h3 class="weather-subtitle">${t('weatherCompareDays')}</h3><p class="weather-hour-hint">${t('weatherCompareHint')}</p><div class="weather-compare-grid">${dayComparison.map((day,index)=>`<details class="weather-compare-card"><summary><span><strong>${t(index===0?'weatherToday':'weatherTomorrow')}</strong><small>${escapeHtml(day.date)}</small></span><span>${day.maxProbability===null?'—':`${Math.round(day.maxProbability)}%`} ☔</span></summary><p class="weather-compare-summary">🌡 ${t('weatherCompareTemperature')}: ${day.minTemperature===null?'—':`${concise(day.minTemperature)}°`} – ${day.maxTemperature===null?'—':`${concise(day.maxTemperature)}°`}<span>💨 ${t('weatherComparePeakWind')}: ${day.maxWind===null?'—':`${concise(day.maxWind)} km/h`}</span></p>${day.hours.length?`<div class="weather-compare-rows"><div class="weather-compare-row weather-compare-head"><span>${t('weatherCompareTime')}</span><span>°C</span><span>km/h</span><span>☔</span></div>${day.hours.map(hour=>`<div class="weather-compare-row"><span>${escapeHtml(hour.time.slice(11,16))}</span><span>${hour.temp===null?'—':`${concise(hour.temp)}°`}</span><span>${hour.wind==null?'—':concise(hour.wind)}</span><strong>${hour.prob===null?'—':`${Math.round(hour.prob)}%`}</strong></div>`).join('')}</div>`:`<p class="muted">${t('weatherNoHourlyForDay')}</p>`}</details>`).join('')}</div></div>`:''}
-    <h3 class="weather-subtitle">${t('weatherNextDays')}</h3><div class="weather-week">${snapshot.daily.map(day=>{
-      const w=weatherDescription(day.code,lang);
-      return `<div class="weather-day"><div class="weather-day-title">${escapeHtml(fmtDay(day.date,lang))}</div><span class="weather-day-icon" aria-label="${escapeHtml(w.text)}" role="img">${w.symbol}</span>
-        <div class="weather-day-temp">${concise(day.max)}° <span>${concise(day.min)}°</span></div>
-        <div class="weather-day-rain">☔ ${concise(day.prob)}% <small>· ${concise(day.rain,1)} mm</small></div></div>`;
-    }).join('')}</div>
-    ${snapshot.hours.length?`<h3 class="weather-subtitle">${t('weatherComingHours')}</h3><p class="weather-hour-hint">${t('weatherHoursHint')}</p><div class="weather-hours">${snapshot.hours.slice(0,12).map(hour=>{
-      const probability=hourlyProbabilityBar(hour.prob);
-      return `<div class="weather-hour"><strong>${escapeHtml(hour.time.slice(11,16))}</strong><span>${concise(hour.temp)}°</span><small>☔ ${probability === null ? '–' : `${probability}%`}</small><div class="weather-rain-track" aria-hidden="true"><div class="weather-rain-fill" style="width:${probability === null ? 0 : probability}%"></div></div></div>`;
-    }).join('')}</div>`:''}
+    ${dayHighlights.length?`<section class="weather-highlights" aria-label="${t('weatherGlanceTitle')}">
+      <h3 class="weather-subtitle">${t('weatherGlanceTitle')}</h3><div class="weather-highlight-grid">${dayHighlights.map(day=>{
+        const w=weatherDescription(day.code,lang);
+        return `<div class="weather-highlight-card"><div class="weather-highlight-label"><strong>${t(day.label==='today'?'weatherToday':'weatherTomorrow')}</strong><small>${escapeHtml(fmtDay(day.date,lang))}</small></div>
+          <div class="weather-highlight-main"><span role="img" aria-label="${escapeHtml(w.text)}">${w.symbol}</span><strong>${concise(day.max)}° <small>${concise(day.min)}°</small></strong></div>
+          <div class="weather-highlight-rain">☔ ${t('weatherRainProbability')}: <strong>${day.prob===null?'–':concise(day.prob)+'%'}</strong></div></div>`;
+      }).join('')}</div>
+      <p class="weather-highlight-hint">${t(stale?'weatherGlanceCachedHint':'weatherGlanceHint')}</p>
+    </section>`:''}
+    <div class="weather-folds">
+      <details class="weather-fold" data-weather-fold="week"${expanded('week')}><summary>${t('weatherNextDays')} <span aria-hidden="true">⌄</span></summary>
+        <div class="weather-week">${snapshot.daily.map(day=>{
+          const w=weatherDescription(day.code,lang);
+          return `<div class="weather-day"><div class="weather-day-title">${escapeHtml(fmtDay(day.date,lang))}</div><span class="weather-day-icon" aria-label="${escapeHtml(w.text)}" role="img">${w.symbol}</span>
+            <div class="weather-day-temp">${concise(day.max)}° <span>${concise(day.min)}°</span></div>
+            <div class="weather-day-rain">☔ ${concise(day.prob)}% <small>· ${concise(day.rain,1)} mm</small></div></div>`;
+        }).join('')}</div>
+      </details>
+      ${snapshot.hours.length?`<details class="weather-fold" data-weather-fold="hours"${expanded('hours')}><summary>${t('weatherComingHours')} <span aria-hidden="true">⌄</span></summary>
+        <p class="weather-hour-hint">${t('weatherHoursHint')}</p><div class="weather-hours">${snapshot.hours.slice(0,12).map(hour=>{
+          const probability=hourlyProbabilityBar(hour.prob);
+          return `<div class="weather-hour"><strong>${escapeHtml(hour.time.slice(11,16))}</strong><span>${concise(hour.temp)}°</span><small>☔ ${probability === null ? '–' : `${probability}%`}</small><div class="weather-rain-track" aria-hidden="true"><div class="weather-rain-fill" style="width:${probability === null ? 0 : probability}%"></div></div></div>`;
+        }).join('')}</div></details>`:''}
+      ${dayComparison ? `<details class="weather-fold" data-weather-fold="compare"${expanded('compare')}><summary>${t('weatherCompareDetails')} <span aria-hidden="true">⌄</span></summary>
+        <p class="weather-hour-hint">${t('weatherCompareHint')}</p><div class="weather-compare-grid">${dayComparison.map((day,index)=>`<details class="weather-compare-card" data-weather-fold="compare-${index}"${expanded(`compare-${index}`)}><summary><span><strong>${t(index===0?'weatherToday':'weatherTomorrow')}</strong><small>${escapeHtml(day.date)}</small></span><span>${day.maxProbability===null?'—':`${Math.round(day.maxProbability)}%`} ☔</span></summary><p class="weather-compare-summary">🌡 ${t('weatherCompareTemperature')}: ${day.minTemperature===null?'—':`${concise(day.minTemperature)}°`} – ${day.maxTemperature===null?'—':`${concise(day.maxTemperature)}°`}<span>💨 ${t('weatherComparePeakWind')}: ${day.maxWind===null?'—':`${concise(day.maxWind)} km/h`}</span></p>${day.hours.length?`<div class="weather-compare-rows"><div class="weather-compare-row weather-compare-head"><span>${t('weatherCompareTime')}</span><span>°C</span><span>km/h</span><span>☔</span></div>${day.hours.map(hour=>`<div class="weather-compare-row"><span>${escapeHtml(hour.time.slice(11,16))}</span><span>${hour.temp===null?'—':`${concise(hour.temp)}°`}</span><span>${hour.wind==null?'—':concise(hour.wind)}</span><strong>${hour.prob===null?'—':`${Math.round(hour.prob)}%`}</strong></div>`).join('')}</div>`:`<p class="muted">${t('weatherNoHourlyForDay')}</p>`}</details>`).join('')}</div>
+      </details>`:''}
+      <details class="weather-fold" data-weather-fold="metrics"${expanded('metrics')}><summary>${t('weatherMoreDetails')} <span aria-hidden="true">⌄</span></summary>
+        <div class="weather-stat-grid">
+          <div><small>${t('weatherFeels')}</small><strong>${concise(current.feels)}°C</strong></div>
+          <div><small>${t('weatherWind')}</small><strong>${concise(current.wind)} km/h</strong></div>
+          <div><small>${t('weatherHumidity')}</small><strong>${concise(current.humidity)}%</strong></div>
+          <div><small>${t('weatherRainNow')}</small><strong>${concise(current.rain,1)} mm</strong></div>
+        </div>
+      </details>
+    </div>
     <p class="weather-disclaimer">${t('weatherForecastDisclaimer')}</p>`;
   }
   async function getForecast(force=false){
