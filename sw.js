@@ -1,4 +1,4 @@
-const CACHE='myhub-shell-v4.4.0';
+const CACHE='myhub-shell-v4.5.0';
 const PREFIX='myhub-shell-';
 // Separate from shell cache: incoming shares are private, temporary, and never deployed.
 const SHARE_INBOX='myhub-share-inbox-v1';
