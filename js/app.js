@@ -17,7 +17,10 @@ import { mountBookmarks } from './bookmarks.js';
 import { mountToday } from './today.js';
 import { mountDiagnostics } from './diagnostics.js';
 import { mountPwaHealth } from './pwa-health.js';
-import { previewBackup, compareBackupContents, backupReminderState } from './backup-preview-core.js';
+import { previewBackup, compareBackupContents, compareOtherBackupSections, backupReminderState } from './backup-preview-core.js';
+import { sealBackupArchive, verifyBackupArchive } from './backup-integrity-core.js';
+import { createNotesDraftStore } from './notes-draft-core.js';
+import { notesDraftInventory, sameNotesDraftInventory } from './backup-guard-core.js';
 import { mountSearch } from './search.js';
 import { mountQuickAdd } from './quick-add.js';
 import { mountTextCounter } from './text-counter.js';
@@ -435,65 +438,92 @@ function renderSettings(main,openHidden=false,openOrder=false,openFavourites=fal
   });
   main.querySelector('#export-backup').addEventListener('click',async()=>{
     try{
-      const data=await createBackup();
+      const data=await sealBackupArchive(await createBackup());
       const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
       const url=URL.createObjectURL(blob);
       const link=document.createElement('a');
       link.href=url;link.download=`MyHub-backup-${new Date().toISOString().slice(0,10)}.json`;
       document.body.append(link);link.click();link.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),5000);
+      setTimeout(()=>URL.revokeObjectURL(url),60000); // Android download hand-off can be delayed
       // Records that an export was initiated, NOT that Android saved the file.
       try{await setMeta('lastBackupExportAt',new Date().toISOString());await refreshReminder();}catch(err){console.warn('Backup date unavailable',err);}
     }catch(err){handleError(err);toast(t('exportFailed'));}
   });
   const fileInput=main.querySelector('#backup-file');
   const previewElement=main.querySelector('#backup-preview');
+  const draftsNow=()=>{
+    let storage=null;
+    try { storage=window.localStorage; } catch { /* browser may block storage */ }
+    return notesDraftInventory(createNotesDraftStore(storage));
+  };
   const previewWords=settings.language==='en'
-    ?{heading:'Checked archive — compare before replacing',date:'Created',version:'Archive version',legacy:'Older archive: absent sections will be restored to defaults (often empty).',counts:['Notes','Trash','Tasks','Events','Quick lists','Bookmarks','RSS articles','Football leagues'],confirm:'Replace local data',cancel:'Cancel',ready:'No local data has been changed.',working:'Restoring…',current:'Now',incoming:'After Restore',removed:'Missing from archive',changed:'Different existing records',comparisonFail:'Unable to compare existing data. Restore would still replace everything; take care.',safe:'Nothing missing among the eight compared record types. Settings and other content will still be replaced.',risk:'Some local records are missing from this archive.',ack:'I understand Restore REPLACES all local data and cannot be undone without a separate backup.',notAcknowledged:'Tick the confirmation box before restoring.'}
-    :{heading:'Проверен архив — сравнение преди заместване',date:'Създаден',version:'Версия на архива',legacy:'Стар архив: липсващите раздели ще получат началните си стойности (често празни).',counts:['Бележки','Кошче','Задачи','Събития','Бързи списъци','Връзки','RSS статии','Футболни първенства'],confirm:'Замени локалните данни',cancel:'Отказ',ready:'Все още нищо не е променено.',working:'Възстановяване…',current:'Сега',incoming:'След Restore',removed:'Липсват в архива',changed:'Различни съществуващи записи',comparisonFail:'Не мога да сравня текущите данни. Restore въпреки това ще ги замени изцяло — бъди внимателен.',safe:'В осемте проверявани вида записи няма липсващи ID. Настройките и съдържанието пак ще бъдат заменени.',risk:'В този архив липсват някои текущи записи.',ack:'Разбирам, че Restore ЗАМЕНЯ всички локални данни и не може да бъде отменен без отделен архив.',notAcknowledged:'Маркирай полето за потвърждение преди Restore.'};
-  function cancelPreview(){pendingBackup=null;pendingGuard=null;previewElement.replaceChildren();previewElement.hidden=true;}
+    ?{heading:'Checked archive — compare before replacing',date:'Created',version:'Archive version',legacy:'Older archive: absent sections will be restored to defaults (often empty).',counts:['Notes','Trash','Tasks','Events','Quick lists','Bookmarks','RSS articles','Football leagues'],confirm:'Replace local data',cancel:'Cancel',ready:'No local data has been changed.',working:'Restoring…',current:'Now',incoming:'After Restore',removed:'Missing from archive',changed:'Different existing records',comparisonFail:'Unable to compare existing data. Restore would still replace everything; take care.',safe:'Nothing missing among the eight compared record types. Settings and other content will still be replaced.',risk:'Some local records are missing from this archive.',ack:'I understand Restore REPLACES all local data and cannot be undone without a separate backup.',notAcknowledged:'Tick the confirmation box before restoring.',integrityOK:'SHA-256 verified — archive matches its checksum.',integrityLegacy:'Older archive without checksum — structure was checked, but file integrity cannot be verified.',otherHeading:'Other data that will be replaced',otherLabels:{settings:'Settings',calcHistory:'Calculator history',weatherCache:'Weather cache',timerData:'Timer state',unitFavouritesData:'Favourite conversions',recentTools:'Recently used tools'},draftsWarning:'Notes recovery drafts: {count} valid, {corrupt} damaged. They are NOT in JSON Backup. Restore will not remove them, but saved Notes may differ afterwards.',draftsUnavailable:'Draft storage could not be checked. Check Notes first.',draftAck:'I understand the risk to Notes drafts and want to continue.',draftsChanged:'Notes drafts changed during the preview. Choose the archive again.'}
+    :{heading:'Проверен архив — сравнение преди заместване',date:'Създаден',version:'Версия на архива',legacy:'Стар архив: липсващите раздели ще получат началните си стойности (често празни).',counts:['Бележки','Кошче','Задачи','Събития','Бързи списъци','Връзки','RSS статии','Футболни първенства'],confirm:'Замени локалните данни',cancel:'Отказ',ready:'Все още нищо не е променено.',working:'Възстановяване…',current:'Сега',incoming:'След Restore',removed:'Липсват в архива',changed:'Различни съществуващи записи',comparisonFail:'Не мога да сравня текущите данни. Restore въпреки това ще ги замени изцяло — бъди внимателен.',safe:'В осемте проверявани вида записи няма липсващи ID. Настройките и съдържанието пак ще бъдат заменени.',risk:'В този архив липсват някои текущи записи.',ack:'Разбирам, че Restore ЗАМЕНЯ всички локални данни и не може да бъде отменен без отделен архив.',notAcknowledged:'Маркирай полето за потвърждение преди Restore.',integrityOK:'SHA-256 е проверен — съдържанието съответства на контролния отпечатък.',integrityLegacy:'Стар архив без контролен отпечатък — структурата е проверена, но не може да се потвърди целостта на файла.',otherHeading:'Други данни, които ще бъдат заменени',otherLabels:{settings:'Настройки',calcHistory:'История на калкулатора',weatherCache:'Кеш на времето',timerData:'Състояние на таймера',unitFavouritesData:'Любими преобразувания',recentTools:'Последни инструменти'},draftsWarning:'Чернови за възстановяване от Notes: {count} валидни, {corrupt} повредени. Те НЕ влизат в JSON Backup. Restore няма да ги изтрие, но записаните бележки може да станат различни.',draftsUnavailable:'Не успях да проверя хранилището на черновите. Провери Notes.',draftAck:'Разбирам риска за черновите в Notes и искам да продължа.',draftsChanged:'Черновите на Notes са се променили след прегледа. Избери архива отново.'};
+  function cancelPreview(){pendingBackup=null;pendingGuard=null;pendingDrafts=null;previewElement.replaceChildren();previewElement.hidden=true;}
   let pendingBackup=null;
   let pendingGuard=null;
+  let pendingDrafts=null;
+  let importEpoch=0;
   main.querySelector('#import-backup').addEventListener('click',()=>fileInput.click());
   fileInput.addEventListener('change',async()=>{
+    const epoch=++importEpoch;
     const file=fileInput.files?.[0];fileInput.value='';cancelPreview();
     if(!file)return;
     try{
       if(file.size>20_000_000)throw Error('File exceeds 20 MB');
       const data=JSON.parse(await file.text());
       const cleaned=validateBackup(data);
+      const checksum=await verifyBackupArchive(data);
+      if(epoch!==importEpoch)return;
       const summary=previewBackup(data,cleaned);
       // Comparing cannot modify local content. If local data is corrupt, allow
       // selecting a known-good archive but display an explicit warning.
-      let comparison=null;
+      let comparison=null,otherDifferences=[];
       // The preview and guard refer to one committed, read-only snapshot.
       // Even when current data is damaged, Restore must not overwrite newer edits.
       const guard=await readBackupSnapshot();
       try{
         const current=validateBackup(await createBackup(guard));
         comparison=compareBackupContents(current,cleaned);
+        otherDifferences=compareOtherBackupSections(current,cleaned);
       }catch(err){console.warn('Current data comparison not available',err);}
+      if(epoch!==importEpoch)return;
+      const draftRisk=draftsNow();
       pendingBackup=data;
       pendingGuard=guard;
+      pendingDrafts=draftRisk;
       const created=summary.createdAt?new Intl.DateTimeFormat(languageCode(),{dateStyle:'medium',timeStyle:'short'}).format(new Date(summary.createdAt)):'—';
       const lost=comparison?.some(item=>item.removed>0);
       const changed=comparison?.some(item=>item.changed>0);
       previewElement.innerHTML=`<h3>${previewWords.heading}</h3><p>${previewWords.date}: <strong>${escapeHtml(created)}</strong> · ${previewWords.version}: <strong>${escapeHtml(summary.version||'—')}</strong></p>
         ${comparison?`<div class="backup-compare-list">${comparison.map((entry,i)=>`<div class="backup-compare-row"><strong>${previewWords.counts[i]}</strong><span>${previewWords.current}: ${entry.current} → ${previewWords.incoming}: ${entry.incoming}</span>${entry.removed||entry.changed?`<small class="warning-text">${entry.removed?`${previewWords.removed}: ${entry.removed}`:''}${entry.removed&&entry.changed?' · ':''}${entry.changed?`${previewWords.changed}: ${entry.changed}`:''}</small>`:''}</div>`).join('')}</div>`:''}
         <p class="${!comparison||lost||changed?'warning-text':'muted'}">${!comparison?previewWords.comparisonFail:lost?previewWords.risk:previewWords.safe}</p>
+        ${otherDifferences.length?`<p class="warning-text"><strong>${previewWords.otherHeading}:</strong> ${otherDifferences.map(key=>escapeHtml(previewWords.otherLabels[key]||key)).join(', ')}</p>`:''}
         ${summary.missing.length?`<p class="warning-text">${previewWords.legacy}</p>`:''}
+        <p class="${checksum.status==='verified'?'muted':'warning-text'}">${checksum.status==='verified'?previewWords.integrityOK:previewWords.integrityLegacy}</p>
+        ${draftRisk.needsAcknowledgement?`<p class="warning-text" role="alert">${draftRisk.unavailable?previewWords.draftsUnavailable:previewWords.draftsWarning.replace('{count}',String(draftRisk.count)).replace('{corrupt}',String(draftRisk.corrupt))}</p>`:''}
         <p class="muted">${previewWords.ready}</p>
         <label class="backup-acknowledge"><input type="checkbox" id="backup-ack-check"><span>${previewWords.ack}</span></label>
+        ${draftRisk.needsAcknowledgement?`<label class="backup-acknowledge"><input type="checkbox" id="backup-draft-ack"><span>${previewWords.draftAck}</span></label>`:''}
         <div class="backup-actions"><button type="button" class="danger-btn" id="confirm-backup-restore" disabled>${previewWords.confirm}</button><button type="button" class="secondary-btn" id="cancel-backup-restore">${previewWords.cancel}</button></div>`;
       previewElement.hidden=false;
       const confirmButton=previewElement.querySelector('#confirm-backup-restore');
-      previewElement.querySelector('#backup-ack-check').addEventListener('change',e=>{confirmButton.disabled=!e.target.checked;});
+      const ack=previewElement.querySelector('#backup-ack-check');
+      const draftAck=previewElement.querySelector('#backup-draft-ack');
+      const ready=()=>{confirmButton.disabled=!ack.checked || Boolean(draftAck && !draftAck.checked);};
+      ack.addEventListener('change',ready);
+      draftAck?.addEventListener('change',ready);
       previewElement.querySelector('#cancel-backup-restore').addEventListener('click',cancelPreview);
       confirmButton.addEventListener('click',async()=>{
-        if(!pendingBackup || !previewElement.querySelector('#backup-ack-check').checked){toast(previewWords.notAcknowledged);return;}
+        if(!pendingBackup || !ack.checked || (draftAck && !draftAck.checked)){toast(previewWords.notAcknowledged);return;}
+        if(!sameNotesDraftInventory(pendingDrafts,draftsNow())){cancelPreview();toast(previewWords.draftsChanged);return;}
         if(!window.confirm(t('importConfirm')))return;
         confirmButton.disabled=true;confirmButton.textContent=previewWords.working;
         try{
+          // Re-check the exact Notes drafts and the archive after confirmation.
+          if(!sameNotesDraftInventory(pendingDrafts,draftsNow())){cancelPreview();toast(previewWords.draftsChanged);return;}
+          await verifyBackupArchive(pendingBackup);
+          if(!sameNotesDraftInventory(pendingDrafts,draftsNow())){cancelPreview();toast(previewWords.draftsChanged);return;}
           // Validate again before the atomic IndexedDB transaction.
           await replaceFromBackup(pendingBackup,pendingGuard);
           pendingBackup=null;

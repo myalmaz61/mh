@@ -1,5 +1,6 @@
 import { VERSION, DEFAULT_SETTINGS, TOOLS, CITIES, MAX_NOTES, MAX_WEATHER_CITIES } from './config.js';
 import { safeClone } from './utils.js';
+import { verifyBackupArchive } from './backup-integrity-core.js';
 import {sameMetaSnapshot} from './meta-save-core.js';
 import { MAX_TRASH_NOTES, emptyNotesTrash, validNotesTrash, validStoredNote } from './notes-trash-core.js';
 import {validNoteCategory} from './notes-category-core.js';
@@ -645,6 +646,9 @@ export async function createBackup(snapshot = null) {
  */
 export async function replaceFromBackup(payload, expectedSnapshot = null) {
   const data = validateBackup(payload);
+  // An archive with an integrity marker must pass verification even when this
+  // API is called directly. Legacy format:1 files still work unchanged.
+  await verifyBackupArchive(payload);
   if (expectedSnapshot !== null && (!expectedSnapshot ||
       !Array.isArray(expectedSnapshot.notes) || !expectedSnapshot.meta ||
       typeof expectedSnapshot.meta !== 'object')) throw Error('Invalid restore snapshot');

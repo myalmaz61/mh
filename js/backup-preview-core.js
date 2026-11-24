@@ -50,6 +50,14 @@ export function compareBackupContents(current, incoming){
   });
 }
 
+/** Compare settings and other sections that have no useful per-record IDs.
+ * Each item is labelled, not exposed (we never render private JSON content). */
+export function compareOtherBackupSections(current,incoming){
+  if(!current||!incoming)throw Error('Compare validated backups only');
+  const keys=['settings','calcHistory','weatherCache','timerData','unitFavouritesData','recentTools'];
+  return keys.filter(key=>JSON.stringify(current[key])!==JSON.stringify(incoming[key]));
+}
+
 /** Reminder is informational only; exported timestamp means prepared, not downloaded. */
 export function backupReminderState(lastExportAt, days=14, now=Date.now()){
   if(![0,7,14,30].includes(days))throw Error('Invalid reminder interval');
