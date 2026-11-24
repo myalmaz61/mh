@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f5f7fb">
   <meta name="color-scheme" content="light dark">
-  <meta name="description" content="Запазване на споделена връзка в MyHub — само на телефона.">
+  <meta name="description" content="Запазване на споделен текст или връзка в MyHub — локално на телефона.">
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
@@ -14,28 +14,39 @@
 </head>
 <body>
   <main class="share-page">
-    <header class="share-brand"><span class="brand-mark" aria-hidden="true">M<span>·</span></span><div><strong>MyHub</strong><small id="share-subtitle">Споделена връзка</small></div></header>
+    <header class="share-brand"><span class="brand-mark" aria-hidden="true">M<span>·</span></span><div><strong>MyHub</strong><small id="share-subtitle">Споделено съдържание</small></div></header>
     <section class="surface share-card">
       <span class="eyebrow">SHARE TO MYHUB</span>
-      <h1 id="share-heading">Запази връзка</h1>
-      <p class="muted" id="share-intro">Провери адреса, преди да го добавиш в Bookmarks.</p>
+      <h1 id="share-heading">Запази споделеното</h1>
+      <p class="muted" id="share-intro">Избери дали да го запазиш в Notes или Bookmarks.</p>
       <p id="share-message" class="share-message" role="status" aria-live="polite"></p>
       <form id="share-form" class="share-form" novalidate>
-        <label for="share-title">Заглавие<input id="share-title" class="text-field" name="title" required maxlength="160" autocomplete="off"></label>
-        <label for="share-url">Уеб адрес (http/https)<input id="share-url" class="text-field" name="url" type="url" required maxlength="2048" inputmode="url" autocomplete="off" spellcheck="false"></label>
-        <label for="share-category">Категория (по желание)<input id="share-category" class="text-field" name="category" maxlength="60" autocomplete="off"></label>
-        <label class="share-checkbox"><input type="checkbox" id="share-favourite" name="favourite"> <span id="share-favourite-label">Добави към любими</span></label>
+        <fieldset class="share-destinations">
+          <legend id="share-destination-label">Къде да запазим?</legend>
+          <label><input type="radio" name="destination" value="notes" id="dest-notes"><span id="share-notes-label">📝 Notes</span></label>
+          <label><input type="radio" name="destination" value="bookmarks" id="dest-bookmarks" checked><span id="share-bookmarks-label">🔖 Bookmarks</span></label>
+        </fieldset>
+        <label for="share-title"><span id="share-title-label">Заглавие</span><input id="share-title" class="text-field" name="title" maxlength="160" autocomplete="off"></label>
+        <div id="share-note-fields" class="share-fields" hidden>
+          <label for="share-body"><span id="share-body-label">Текст на бележката</span><textarea id="share-body" name="body" class="text-field" maxlength="100000" rows="8" spellcheck="true"></textarea></label>
+          <label for="share-note-category"><span id="share-note-category-label">Категория (по желание)</span><input id="share-note-category" class="text-field" maxlength="40" autocomplete="off"></label>
+        </div>
+        <div id="share-bookmark-fields" class="share-fields">
+          <label for="share-url"><span id="share-url-label">Уеб адрес (http/https)</span><input id="share-url" class="text-field" name="url" type="url" required maxlength="2048" inputmode="url" autocomplete="off" spellcheck="false"></label>
+          <label for="share-category"><span id="share-category-label">Категория (по желание)</span><input id="share-category" class="text-field" name="category" maxlength="60" autocomplete="off"></label>
+          <label class="share-checkbox"><input type="checkbox" id="share-favourite" name="favourite"><span id="share-favourite-label">Добави към любими</span></label>
+        </div>
         <div class="share-actions">
           <button type="submit" class="primary-btn" id="share-save">Запази</button>
           <button type="button" class="secondary-btn" id="share-cancel">Отказ</button>
         </div>
       </form>
       <div id="share-result" hidden>
-        <a class="primary-btn share-link-button" id="share-open" href="./">Отвори в Bookmarks</a>
-        <a class="secondary-btn share-link-button" href="./">Към MyHub</a>
+        <a class="primary-btn share-link-button" id="share-open" href="./">Отвори</a>
+        <a class="secondary-btn share-link-button" id="share-home" href="./">Към MyHub</a>
       </div>
     </section>
-    <p class="share-privacy" id="share-privacy">🔒 Връзката се обработва локално. Не я изпращаме към външен API.</p>
+    <p class="share-privacy" id="share-privacy">🔒 Споделеното се обработва локално. Не го изпращаме към външен API.</p>
   </main>
   <script type="module" src="./js/share-target.js"></script>
 </body>

@@ -1,4 +1,4 @@
-const CACHE='myhub-shell-v5.0.0';
+const CACHE='myhub-shell-v5.1.0';
 const PREFIX='myhub-shell-';
 // Separate from shell cache: incoming shares are private, temporary, and never deployed.
 const SHARE_INBOX='myhub-share-inbox-v1';
@@ -12,7 +12,7 @@ const ASSETS=[
   './js/football.js','./js/football-today-core.js','./js/football-second-source.js','./js/football-second-source-core.js','./js/football-core.js','./js/football-refresh-core.js','./js/football-recovery-core.js','./js/rss.js','./js/rss-core.js',
   './js/unit-core.js','./js/date-core.js','./js/percent-core.js','./js/bookmarks-core.js',
   './js/utilities.js','./js/bookmarks.js','./js/today-core.js','./js/today-actions-core.js','./js/today.js','./js/diagnostics-core.js','./js/diagnostics.js','./js/search-core.js','./js/search.js','./js/quick-add-core.js','./js/quick-add.js',
-  './js/share-core.js','./js/share-target.js',
+  './js/share-core.js','./js/share-notes-core.js','./js/share-target.js',
   './js/cross-actions-core.js','./js/unit-favourites-core.js','./js/recent-core.js','./js/visibility-core.js','./js/tool-order-core.js','./js/pwa-health-core.js','./js/pwa-health.js','./js/backup-preview-core.js','./js/backup-integrity-core.js','./js/backup-guard-core.js','./js/text-counter-core.js','./js/text-counter.js','./js/random-core.js','./js/random-generator.js'
 ];
 self.addEventListener('install',event=>{
@@ -40,11 +40,14 @@ self.addEventListener('fetch',event=>{
     event.respondWith((async()=>{
       try{
         const form=await request.formData();
-        const limited=name=>{
+        const limited=(name,max)=>{
           const value=form.get(name);
-          return typeof value==='string'?value.slice(0,12000):'';
+          if(typeof value!=='string')return '';
+          // Never silently lose the end of someone's shared note.
+          if(value.length>max){const error=Error('Shared text too large');error.code='tooLarge';throw error;}
+          return value;
         };
-        const data={title:limited('title'),text:limited('text'),url:limited('url')};
+        const data={title:limited('title',12000),text:limited('text',100000),url:limited('url',12000)};
         const token=crypto.randomUUID();
         const dest=new URL('./share.html',scope);
         dest.searchParams.set('shareId',token);
@@ -55,7 +58,7 @@ self.addEventListener('fetch',event=>{
         return Response.redirect(dest.href,303);
       }catch(err){
         console.error('Share reception failed',err);
-        return Response.redirect(new URL('./share.html?shareError=storage',scope).href,303);
+        return Response.redirect(new URL('./share.html?shareError='+(err?.code==='tooLarge'?'tooLarge':'storage'),scope).href,303);
       }
     })());
     return;

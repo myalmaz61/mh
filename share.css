@@ -5,3 +5,19 @@
 .share-actions{display:flex;gap:10px;flex-wrap:wrap}.share-actions button{min-width:112px;flex:1}.share-message{font-size:13px;line-height:1.5;margin:0 0 10px}.share-message:empty{display:none}.share-message[data-kind="error"]{color:var(--rose)}.share-message[data-kind="success"]{color:var(--accent)}.share-link-button{display:inline-flex;justify-content:center;align-items:center;text-align:center;text-decoration:none;margin:4px 6px 7px 0}
 .share-privacy{text-align:center;color:var(--muted);font-size:11px;line-height:1.6;margin:24px auto}
 @media(max-width:350px){.share-page{padding-left:11px;padding-right:11px}.share-card{padding:17px}}
+/* v5.1 — destination choice, keeping the original compact landing layout. */
+.share-destinations{border:0;padding:0;margin:0;min-width:0;display:flex;gap:8px;flex-wrap:wrap}
+.share-destinations legend{font-weight:680;font-size:13px;margin:0 0 9px;padding:0}
+.share-destinations label{display:flex;gap:8px;align-items:center;justify-content:center;min-height:44px;padding:10px 13px;border:1px solid var(--stroke);border-radius:11px;flex:1;cursor:pointer;font-size:13px;font-weight:650}
+.share-destinations label:has(input:checked){border-color:var(--accent);background:var(--surface-alt,transparent)}
+.share-destinations input{accent-color:var(--accent);width:17px;height:17px}
+.share-fields{display:grid;gap:14px}
+.share-fields[hidden]{display:none}
+.share-form label:not(.share-checkbox){font-weight:680;font-size:13px;display:grid;gap:7px}
+.share-fields textarea{font-weight:400;font-size:15px;line-height:1.5;resize:vertical;min-height:140px}
+.share-fields input{font-weight:400}
+.share-fields .share-checkbox{display:flex;gap:10px;min-height:40px}
+/* Explicitly honour the hidden attribute even with grid/flex display rules. */
+.share-form[hidden],.share-result[hidden]{display:none}
+
+.share-form .share-destinations label{display:flex;flex-direction:row;gap:8px}
