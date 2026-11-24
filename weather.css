@@ -94,3 +94,44 @@
 .weather-expired { padding:1rem; border:1px solid var(--line, #d1d5db); border-radius:14px; line-height:1.5; }
 .weather-expired strong { display:block; margin-bottom:.35rem; }
 .weather-expired p { margin:.4rem 0; overflow-wrap:anywhere; }
+
+/* v4.7 — focused, accessible Weather on narrow Android screens.
+ * Existing detailed forecast cards remain available through native <details>.
+ */
+.weather-now-mini{display:flex;flex-wrap:wrap;gap:8px 16px;margin:0 0 14px;font-size:12px;color:var(--muted)}
+.weather-now-mini strong{color:var(--ink);font-variant-numeric:tabular-nums}
+.weather-highlights{margin-top:17px}
+.weather-highlights>.weather-subtitle{margin:0 0 10px}
+.weather-highlight-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.weather-highlight-card{border:1px solid var(--stroke);background:var(--surface-alt);border-radius:14px;padding:13px;min-width:0;display:flex;flex-direction:column;gap:10px}
+.weather-highlight-label{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 6px;align-items:baseline}
+.weather-highlight-label strong{font-size:13px}
+.weather-highlight-label small{font-size:10px;color:var(--muted)}
+.weather-highlight-main{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.weather-highlight-main>span{font-size:28px}
+.weather-highlight-main strong{font-size:20px;white-space:nowrap;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.weather-highlight-main small{font-size:15px;color:var(--muted);font-weight:500}
+.weather-highlight-rain{font-size:11px;color:var(--muted);line-height:1.35}
+.weather-highlight-rain strong{color:var(--ink);font-variant-numeric:tabular-nums}
+.weather-highlight-hint{font-size:11px;line-height:1.45;color:var(--muted);margin:9px 0 0}
+.weather-folds{display:grid;gap:7px;margin-top:17px}
+.weather-fold{min-width:0;border:1px solid var(--stroke);border-radius:12px;background:var(--surface);overflow:hidden}
+.weather-fold>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;list-style:none;min-height:48px;padding:12px 13px;font-size:13px;font-weight:700;color:var(--ink)}
+.weather-fold>summary::-webkit-details-marker{display:none}
+.weather-fold>summary>span{color:var(--muted);font-size:16px;transition:transform .15s}
+.weather-fold[open]>summary>span{transform:rotate(180deg)}
+.weather-fold>summary:focus-visible,.weather-manage>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-3px;border-radius:10px}
+.weather-fold>.weather-week,.weather-fold>.weather-hours,.weather-fold>.weather-stat-grid,.weather-fold>.weather-compare-grid{margin:0 11px 12px}
+.weather-fold>.weather-hour-hint{margin:0 12px 10px}
+.weather-fold .weather-hours{padding-bottom:12px}
+.weather-manage{margin-top:15px}
+.weather-manage>summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:45px;list-style:none;font-weight:700;font-size:14px}
+.weather-manage>summary::-webkit-details-marker{display:none}
+.weather-manage-body{padding-top:14px;border-top:1px solid var(--stroke)}
+.weather-manage-body>h2{font-size:14px}
+.weather-manage[open] .weather-saved-cities{margin-top:16px}
+@media(max-width:365px){.weather-highlight-card{padding:10px}.weather-highlight-main>span{font-size:24px}.weather-highlight-main strong{font-size:17px}.weather-highlight-main small{font-size:13px}}
+@media(prefers-reduced-motion:reduce){.weather-fold>summary>span{transition:none}}
+
+.weather-manage>summary::after{content:'⌄';font-size:16px;color:var(--muted);margin-left:3px}
+.weather-manage[open]>summary::after{content:'⌃'}
