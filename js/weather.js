@@ -5,6 +5,7 @@ import { upcomingRainSummary, rainChanceWindow } from './weather-rain-core.js';
 import { hourlyProbabilityBar } from './weather-hour-core.js';
 import {weatherDayComparison} from './weather-day-compare-core.js';
 import {weatherQuickOutlook} from './weather-quick-core.js';
+import {weatherPracticalSummary} from './weather-practical-core.js';
 import {weatherSnapshotFreshness} from './weather-freshness-core.js';
 import {weatherDayHighlights} from './weather-glance-core.js';
 import {forecastRefreshDecision} from './foreground-refresh-core.js';
@@ -175,6 +176,11 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     const dayComparison=weatherDayComparison(snapshot.hours,snapshot.current.time);
     const quickOutlook=weatherQuickOutlook(snapshot.hours,snapshot.current.time);
     const dayHighlights=weatherDayHighlights(snapshot.daily,snapshot.current.time);
+    const practical=!stale && quickOutlook ? weatherPracticalSummary(quickOutlook) : null;
+    const phrase=(key, values={})=>Object.entries(values).reduce((message,[token,value])=>message.replace(`{${token}}`,String(value)),t(key));
+    const practicalRain=practical ? phrase(`weatherPracticalRain_${practical.rain.kind}`, {p:concise(practical.rain.peak),time:practical.rain.firstHighTime??''}) : '';
+    const practicalWind=practical ? phrase(`weatherPracticalWind_${practical.wind.kind}`, {speed:concise(practical.wind.peak)}) : '';
+    const practicalTemp=practical ? phrase(`weatherPracticalTemp_${practical.temperature.kind}`, {change:concise(practical.temperature.change,1)}) : '';
     content.innerHTML=`<div class="weather-condition">
       <div class="weather-condition-row"><span class="weather-emblem" aria-hidden="true">${condition.symbol}</span><div><div class="weather-temp">${concise(current.temp)}°</div><div class="weather-description">${escapeHtml(condition.text)}</div></div></div>
       <span class="weather-status ${stale?'stale':''}">${stale?t('weatherStored'):t('weatherRecent')}</span>
@@ -183,12 +189,13 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,sav
     ${quickOutlook ? `<section class="weather-quick" aria-label="${t('weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}">
       <h3 class="weather-quick-title">${t(stale?'weatherQuickAtUpdate':'weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}</h3>
       <p class="weather-quick-hint">${t('weatherQuickLocalHint')}${stale?` · ${t('weatherQuickCached')}`:''}</p>
+      ${practical ? `<div class="weather-practical"><h4>${t('weatherPracticalTitle')}</h4><ul><li><span aria-hidden="true">☔</span>${escapeHtml(practicalRain)}</li><li><span aria-hidden="true">💨</span>${escapeHtml(practicalWind)}</li><li><span aria-hidden="true">🌡️</span>${escapeHtml(practicalTemp)}</li></ul><p>${t('weatherPracticalDisclaimer')}</p></div>` : ''}
+      <details class="weather-quick-details" data-weather-fold="quick"${expanded('quick')}><summary>${t('weatherQuickDetails')}</summary>
       <div class="weather-quick-grid">
         <div class="weather-quick-stat"><small>🌡 ${t('weatherQuickTemperature')}</small><strong>${quickOutlook.minTemperature === null?'–':`${concise(quickOutlook.minTemperature)}°`}${quickOutlook.maxTemperature===null||quickOutlook.maxTemperature===quickOutlook.minTemperature?'':` – ${concise(quickOutlook.maxTemperature)}°`}</strong></div>
         <div class="weather-quick-stat"><small>☔ ${t('weatherQuickRain')}</small><strong>${quickOutlook.peakRainProbability===null?'–':`${concise(quickOutlook.peakRainProbability)}%`}</strong>${quickOutlook.peakRainTime?`<small>${escapeHtml(quickOutlook.peakRainTime.slice(11,16))}</small>`:''}</div>
         <div class="weather-quick-stat"><small>💨 ${t('weatherQuickWind')}</small><strong>${quickOutlook.maxWind===null?'–':`${concise(quickOutlook.maxWind)} km/h`}</strong></div>
       </div>
-      <details class="weather-quick-details" data-weather-fold="quick"${expanded('quick')}><summary>${t('weatherQuickDetails')}</summary>
         <div class="weather-quick-rows"><div class="weather-quick-row weather-quick-head"><span>${t('weatherCompareTime')}</span><span>°C</span><span>☔</span><span>km/h</span></div>
         ${quickOutlook.hours.map(hour=>`<div class="weather-quick-row"><span>${escapeHtml(hour.time.slice(11,16))}</span><span>${hour.temp===null?'–':`${concise(hour.temp)}°`}</span><span>${hour.prob===null?'–':`${concise(hour.prob)}%`}</span><span>${hour.wind===null?'–':concise(hour.wind)}</span></div>`).join('')}</div>
       </details>
