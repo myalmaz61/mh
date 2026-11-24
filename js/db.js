@@ -82,6 +82,31 @@ async function request(storeName, mode, run) {
   });
 }
 export async function getNotes() { return await request('notes','readonly',store => store.getAll()) || []; }
+/** Store a shared note without overwriting any existing note. The count check
+ * and add are inside one readwrite transaction, safe against concurrent tabs.
+ * A failed transaction leaves the incoming share receipt available to retry. */
+export async function appendSharedNote(note){
+  if(!validStoredNote(note)){
+    const error=Error('Invalid shared note');error.code='invalid';throw error;
+  }
+  const snapshot=safeClone(note), db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('notes','readwrite');
+    const store=tx.objectStore('notes');
+    let failure=null;
+    const count=store.count();
+    count.onsuccess=()=>{
+      if(count.result>=MAX_NOTES){
+        failure=Error('Notes limit reached');failure.code='limit';tx.abort();return;
+      }
+      store.add(snapshot); // add, NEVER put: an ID collision cannot overwrite.
+    };
+    tx.oncomplete=()=>resolve(snapshot.id);
+    tx.onerror=()=>reject(failure||tx.error||Error('Shared note save failed'));
+    tx.onabort=()=>reject(failure||tx.error||Error('Shared note save aborted'));
+  });
+}
+
 export async function putNote(note) { return request('notes','readwrite',store => store.put(safeClone(note))); }
 /** Save an edited note only if its exact original snapshot still exists.
  * Both the comparison and put are in ONE readwrite transaction; an older tab,

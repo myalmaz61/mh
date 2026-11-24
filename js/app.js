@@ -580,9 +580,9 @@ async function boot(){
     const params=new URL(location.href).searchParams;
     const requested=params.get('myhubOpen');
     const recordId=params.get('id');
-    if(requested==='bookmarks' && recordId && /^[A-Za-z0-9-]{1,100}$/.test(recordId)){
+    if(['bookmarks','notes'].includes(requested) && recordId && /^[A-Za-z0-9-]{1,100}$/.test(recordId)){
       window.history.replaceState(null,'',location.pathname);
-      await navigate('bookmarks',{id:recordId});
+      await navigate(requested,{id:recordId});
     }else{
       await navigate('home');
     }
