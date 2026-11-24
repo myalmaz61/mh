@@ -60,3 +60,14 @@
 #football-today-count{font-size:11px;opacity:.85}
 .football-second-updated:not(:empty){font-size:12px;margin:4px 0 12px;line-height:1.5}
 .football-second-note{font-size:12px}
+
+/* v5.2.0 — opt-in, independent live/recent panel; home screen unchanged. */
+.football-live-panel{margin-bottom:16px}
+.football-live-panel>summary{font-size:15px;font-weight:700;cursor:pointer;min-height:40px;padding:9px 0}
+.football-live-panel>.muted{font-size:12px;line-height:1.6;margin:7px 0}
+.football-live-actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}
+.football-live-actions button{font-size:12px;min-height:42px;padding:8px 11px}
+#football-live-only.selected{border-color:var(--accent);color:var(--accent)}
+.football-live-message{font-size:12px;line-height:1.5}
+#football-live-updated,#football-live-count{font-size:12px;line-height:1.5;margin:5px 0}
+#football-live-search{width:100%;min-height:44px}
