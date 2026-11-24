@@ -146,3 +146,13 @@
 .settings-diagnostics-body{padding-top:12px}
 .settings-diagnostics-body h2{margin-bottom:12px}
 @media(max-width:400px){.everyday-tools-shortcut .secondary-btn{width:100%;}}
+
+/* v4.2.0 — compact "continue" shortcut, visible only after a tool has been opened. */
+.home-continue-wrap{margin-top:14px}
+.home-continue{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--stroke);background:var(--surface);border-radius:17px;padding:11px 15px;min-height:62px;color:inherit;box-shadow:var(--shadow)}
+.home-continue-icon{font-size:20px;display:grid;place-items:center;width:36px;height:36px;background:var(--surface-alt);border-radius:12px;flex:none}
+.home-continue-copy{display:flex;flex:1;flex-direction:column;gap:2px;min-width:0}
+.home-continue-copy small{font-size:11px;color:var(--muted)}
+.home-continue-copy strong{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-continue-arrow{color:var(--accent);font-size:20px;flex:none}
+.home-continue:focus-visible{outline:3px solid var(--ring);outline-offset:3px}
