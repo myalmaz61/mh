@@ -135,3 +135,13 @@
 
 .weather-manage>summary::after{content:'⌄';font-size:16px;color:var(--muted);margin-left:3px}
 .weather-manage[open]>summary::after{content:'⌃'}
+
+/* v5.4.0: short interpretation before numeric forecast details. */
+.weather-practical{padding:3px 0 9px}
+.weather-practical h4{margin:0 0 9px;font-size:13px;font-weight:750}
+.weather-practical ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.weather-practical li{display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.5}
+.weather-practical li span{flex:0 0 21px;text-align:center}
+.weather-practical p{margin:9px 0 0;color:var(--muted);font-size:10px;line-height:1.4}
+.weather-quick-details .weather-quick-grid{margin:8px 0 10px}
+.weather-quick-details .weather-quick-rows{margin-bottom:5px}
