@@ -82,6 +82,37 @@ async function request(storeName, mode, run) {
 }
 export async function getNotes() { return await request('notes','readonly',store => store.getAll()) || []; }
 export async function putNote(note) { return request('notes','readwrite',store => store.put(safeClone(note))); }
+/** Save an edited note only if its exact original snapshot still exists.
+ * Both the comparison and put are in ONE readwrite transaction; an older tab,
+ * a deleted note or a concurrent quick action can never be overwritten.
+ * Creating notes uses putNote separately; this function will not re-create a
+ * note that another tab deleted while its editor was open.
+ */
+export async function putNoteIfUnchanged(note, expectedNote) {
+  if (!validStoredNote(note) || !validStoredNote(expectedNote) || note.id !== expectedNote.id) {
+    throw Error('Invalid note edit snapshot');
+  }
+  const snapshot=safeClone(note), expected=safeClone(expectedNote);
+  const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('notes','readwrite');
+    const store=tx.objectStore('notes');
+    let problem=null;
+    const req=store.get(expected.id);
+    req.onsuccess=()=>{
+      const actual=req.result;
+      if (!validStoredNote(actual) || JSON.stringify(actual)!==JSON.stringify(expected)) {
+        problem=Error('Note changed in another tab or was deleted');
+        problem.code='stale-note';tx.abort();return;
+      }
+      try { store.put(snapshot); }
+      catch(err){problem=err;tx.abort();}
+    };
+    tx.oncomplete=()=>resolve(snapshot);
+    tx.onerror=()=>reject(problem||tx.error||Error('Note save failed'));
+    tx.onabort=()=>reject(problem||tx.error||Error('Note save aborted'));
+  });
+}
 export async function deleteNote(id) { return request('notes','readwrite',store => store.delete(id)); }
 /** Atomic compare-and-swap: a stale note can NEVER overwrite an updated note.
  * Only the flag and updatedAt are modified on the original snapshot. */

@@ -1,4 +1,4 @@
-import { getNotes, putNote, toggleNoteQuickFlag, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever, changeNotesCategories } from './db.js';
+import { getNotes, putNote, putNoteIfUnchanged, toggleNoteQuickFlag, moveNoteToTrash, getNotesTrash, restoreTrashedNote, purgeTrashedNote, emptyNotesTrashForever, changeNotesCategories } from './db.js';
 import { escapeHtml, makeNote, uid, safeClone } from './utils.js';
 import { MAX_NOTES } from './config.js';
 import { draftTaskFromNote } from './cross-actions-core.js';
@@ -48,10 +48,20 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     if(recovery){
       recovery.hidden=!state.error;
       const message=recovery.querySelector('#notes-save-message');
-      if(message)message.textContent=t(state.quota?'notesStorageFull':'notesSaveHelp');
+      if(message)message.textContent=t(state.error?.code==='stale-note'?'notesSaveConflict':state.quota?'notesStorageFull':'notesSaveHelp');
     }
   };
-  const saveManager=createNoteSaveManager({write:putNote,onChange:updateSaveStatus});
+  // For the currently open editor only: the last committed snapshot, never
+  // the live mutable draft. This prevents a long-backgrounded Android tab from
+  // silently overwriting another tab's newer changes on return.
+  let expectedSavedNote=null;
+  const saveManager=createNoteSaveManager({
+    write:async snapshot=>{
+      if(!expectedSavedNote || expectedSavedNote.id!==snapshot.id)throw Error('Invalid editor baseline');
+      await putNoteIfUnchanged(snapshot,expectedSavedNote);
+      expectedSavedNote=safeClone(snapshot); // Advance ONLY after committed transaction.
+    },onChange:updateSaveStatus
+  });
   const flush = async () => {
     if(timer){clearTimeout(timer);timer=null;}
     const ok=await saveManager.saveNow();
@@ -314,6 +324,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     currentId=id;
     const n=current();
     if(!n){list();return;}
+    expectedSavedNote=safeClone(n);
     element.innerHTML=`<div class="editor-top"><button class="back-btn" type="button" id="back-notes">‹ ${t('backToNotes')}</button><span class="save-status" id="note-status" role="status" aria-live="polite">${t('saved')}</span></div>
       <div class="notes-save-recovery" id="notes-save-recovery" role="alert" hidden><strong>${t('notesSaveFailed')}</strong><p id="notes-save-message">${t('notesSaveHelp')}</p><div class="notes-save-recovery-actions"><button type="button" class="primary-btn" id="notes-save-retry">${t('notesSaveRetry')}</button><button type="button" class="secondary-btn" id="notes-save-copy">${t('notesSaveCopy')}</button></div></div>
       <article class="surface note-editor"><input class="note-title-input" id="note-title" maxlength="200" placeholder="${t('titlePlaceholder')}" value="${escapeHtml(n.title)}" aria-label="${t('titlePlaceholder')}">
