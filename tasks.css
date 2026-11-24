@@ -40,3 +40,9 @@
 .hub-crossed{text-decoration:line-through;color:var(--muted)}
 @media(min-width:650px){.hub-quick-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:370px){.hub-form-grid{grid-template-columns:1fr}.hub-task-panel,.hub-quick-panel{padding:12px}.hub-overview>div{padding:9px}.hub-overview small{font-size:10px}}
+
+/* v5.5: shortcuts are collapsed on each task card. */
+.hub-task-reschedule{margin-top:8px;font-size:12px}
+.hub-task-reschedule summary{color:var(--accent);font-weight:650;cursor:pointer;min-height:32px;padding:7px 0;width:fit-content}
+.hub-task-reschedule>div{display:flex;gap:7px;flex-wrap:wrap;padding-top:3px}
+.hub-task-reschedule .secondary-btn{font-size:12px;min-height:36px;padding:7px 10px}
