@@ -156,3 +156,15 @@
 .home-continue-copy strong{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .home-continue-arrow{color:var(--accent);font-size:20px;flex:none}
 .home-continue:focus-visible{outline:3px solid var(--ring);outline-offset:3px}
+
+/* v4.6: emergency Notes drafts appear only when unfinished edits exist. */
+.notes-draft-panel{border:1px solid var(--stroke);border-radius:16px;background:var(--surface-alt);padding:14px;margin:0 0 18px}
+.notes-draft-panel h2{font-size:15px;margin:0 0 5px}
+.notes-draft-panel p{font-size:12px;color:var(--muted);line-height:1.55;margin:0 0 11px}
+.notes-draft-list{display:grid;gap:10px}
+.notes-draft-card{display:grid;gap:6px;padding:12px;border:1px solid var(--stroke);background:var(--surface);border-radius:12px;overflow-wrap:anywhere}
+.notes-draft-card strong{font-size:13px}
+.notes-draft-card small{font-size:11px;color:var(--muted)}
+.notes-draft-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px}
+.notes-draft-actions button{min-height:43px;font-size:12px}
+@media(max-width:360px){.notes-draft-actions button{width:100%}}

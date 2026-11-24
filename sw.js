@@ -1,4 +1,4 @@
-const CACHE='myhub-shell-v4.5.0';
+const CACHE='myhub-shell-v4.6.0';
 const PREFIX='myhub-shell-';
 // Separate from shell cache: incoming shares are private, temporary, and never deployed.
 const SHARE_INBOX='myhub-share-inbox-v1';
@@ -6,7 +6,7 @@ const ASSETS=[
   './','./index.html','./share.html','./share.css','./styles.css','./weather.css','./timer.css','./calendar.css','./tasks.css','./football.css','./rss.css','./utilities.css','./today.css','./search.css','./quick-add.css','./mini-tools.css','./manifest.webmanifest',
   './icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png',
   './js/app.js','./js/resume-core.js','./js/navigation-core.js','./js/config.js','./js/i18n.js','./js/utils.js','./js/db.js','./js/meta-save-core.js','./js/settings-layout-core.js',
-  './js/calculator.js','./js/world-clock.js','./js/notes.js','./js/notes-save-core.js','./js/notes-list-core.js','./js/note-quick-core.js','./js/notes-category-core.js','./js/notes-bulk-core.js','./js/notes-checklist-core.js','./js/notes-trash-core.js','./js/note-actions-core.js','./js/notes-view-core.js','./js/weather.js','./js/weather-rain-core.js','./js/weather-hour-core.js','./js/weather-day-compare-core.js','./js/weather-quick-core.js','./js/weather-freshness-core.js',
+  './js/calculator.js','./js/world-clock.js','./js/notes.js','./js/notes-save-core.js','./js/notes-draft-core.js','./js/notes-list-core.js','./js/note-quick-core.js','./js/notes-category-core.js','./js/notes-bulk-core.js','./js/notes-checklist-core.js','./js/notes-trash-core.js','./js/note-actions-core.js','./js/notes-view-core.js','./js/weather.js','./js/weather-rain-core.js','./js/weather-hour-core.js','./js/weather-day-compare-core.js','./js/weather-quick-core.js','./js/weather-freshness-core.js',
   './js/timer.js','./js/timer-core.js','./js/calendar.js','./js/calendar-core.js',
   './js/tasks.js','./js/tasks-core.js','./js/quick-list.js','./js/quick-list-core.js',
   './js/football.js','./js/football-second-source.js','./js/football-second-source-core.js','./js/football-core.js','./js/football-refresh-core.js','./js/football-recovery-core.js','./js/rss.js','./js/rss-core.js',
