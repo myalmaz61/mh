@@ -1,7 +1,7 @@
 import { MAX_WEATHER_CITIES } from './config.js';
 import { getMeta, updateWeatherCacheCity } from './db.js';
 import { escapeHtml } from './utils.js';
-import { upcomingRainSummary, rainChanceWindow } from './weather-rain-core.js';
+import { upcomingRainSummary, rainChanceWindow, reliableRainHours } from './weather-rain-core.js';
 import { hourlyProbabilityBar } from './weather-hour-core.js';
 import {weatherDayComparison} from './weather-day-compare-core.js';
 import {weatherQuickOutlook,weatherQuickTiming} from './weather-quick-core.js';
@@ -192,8 +192,13 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
       </section>`;
       return;
     }
-    const rainSummary=upcomingRainSummary(snapshot.hours);
-    const rainWindow=rainChanceWindow(snapshot.hours);
+    // Only label a window "next hours" if every reported hour has a real
+    // probability and the hours are consecutive. Old cache is still available
+    // in detailed views, but should not be presented as a fresh rain outlook.
+    const rainHours=!stale ? reliableRainHours(snapshot.hours,snapshot.current.time,3) : null;
+    const rainSummary=rainHours ? upcomingRainSummary(rainHours) : null;
+    const extendedRainHours=rainSummary ? reliableRainHours(snapshot.hours,snapshot.current.time,12,3) : null;
+    const rainWindow=extendedRainHours ? rainChanceWindow(extendedRainHours) : null;
     const dayComparison=weatherDayComparison(snapshot.hours,snapshot.current.time);
     const quickOutlook=weatherQuickOutlook(snapshot.hours,snapshot.current.time);
     const quickTiming=weatherQuickTiming(quickOutlook,snapshot.current.time);
