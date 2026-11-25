@@ -2,7 +2,7 @@
  * No local football state writes; hides older scores rather than mislabeling them live.
  */
 import {escapeHtml} from './utils.js';
-import {parseSportScoreFixtures,sportScoreShownScore} from './football-second-source-core.js';
+import {parseSportScoreFixtures,sportScoreShownScore,sportScoreSourceView} from './football-second-source-core.js';
 import {FOOTBALL_LIVE_URL,FOOTBALL_LIVE_MIN_REFRESH_MS,FOOTBALL_LIVE_MAX_ITEMS,
   footballLiveSummary,footballLiveVisible,footballLiveFreshness} from './football-live-core.js';
 
@@ -35,7 +35,7 @@ export function mountFootballLive({element,t,lang}){
     const shown=footballLiveVisible(rows,{query:search.value,onlyLive:filterLive});
     if(!shown.length){list.innerHTML=`<p class="muted football-empty">${filterLive?t('footballLiveEmptyLive'):t('footballLiveEmpty')}</p>`;return;}
     list.innerHTML=shown.map(m=>{
-      const status=m.status==='live'?(freshness.stale?t('footballLiveOldStatus'):t('footballLiveSupplierLive')):m.status==='finished'?t('footballSecondFinal'):t('footballSecondUnknown');
+      const status=t(sportScoreSourceView(m,checkedAt).labelKey);
       const when=m.time?timeOf(m.time):'';
       return `<article class="football-second-match"><div class="muted football-second-meta">${escapeHtml(m.competition||'')} ${when?escapeHtml(when):''} · ${escapeHtml(status)}</div>
         <div class="football-second-line"><span>${escapeHtml(m.home)} – ${escapeHtml(m.away)}</span><strong>${escapeHtml(sportScoreShownScore(m))}</strong></div></article>`;

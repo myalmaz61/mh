@@ -138,3 +138,21 @@ export function sportScoreShownScore(m){
     return `${m.homeScore} : ${m.awayScore}`;
   return '– : –';
 }
+
+/** A SportScore status is the provider's LAST report, not proof of a live score.
+ * Shared by the recent widget and the date-specific second-source panel.
+ * No cross-provider matching or network calls; never writes football data.
+ */
+export const SECOND_SOURCE_STALE_MS=5*60_000;
+export function sportScoreSourceView(match,checkedAt,now=Date.now()){
+  const validCheck=Number.isFinite(checkedAt)&&checkedAt>0&&Number.isFinite(now)
+    &&checkedAt<=now+30_000;
+  const age=validCheck?Math.max(0,now-checkedAt):null;
+  const stale=age===null||age>=SECOND_SOURCE_STALE_MS;
+  const scoreAvailable=(Number.isInteger(match?.homeScore)&&match.homeScore>=0&&match.homeScore<=99)
+    &&(Number.isInteger(match?.awayScore)&&match.awayScore>=0&&match.awayScore<=99);
+  let labelKey='footballSecondUnknown';
+  if(match?.status==='live')labelKey=stale?'footballLiveOldStatus':'footballLiveSupplierLive';
+  if(match?.status==='finished')labelKey=scoreAvailable?'footballSecondReportedFinal':'footballSecondFinishedNoScore';
+  return {labelKey,minutes:age===null?null:Math.floor(age/60_000),stale,scoreAvailable};
+}
