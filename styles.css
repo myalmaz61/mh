@@ -171,7 +171,7 @@
 
 /* v5.3.0: Notes templates stay collapsed; no new home-screen controls. */
 .notes-templates-panel{margin:12px 0 18px;padding:12px;border:1px solid var(--stroke);border-radius:14px;background:var(--surface-alt)}
-.notes-templates-panel summary{cursor:pointer;font-size:14px;font-weight:700;min-height:34px;display:list-item}
+.notes-templates-panel summary{cursor:pointer;font-size:14px;font-weight:700;min-height:44px;display:list-item}
 .notes-templates-panel>p{color:var(--muted);font-size:12px;line-height:1.5;margin:6px 0 12px}
 .notes-templates-panel .text-field{width:100%;box-sizing:border-box;margin:0 0 10px}
 .notes-templates-list{display:grid;gap:8px;margin-top:8px}
@@ -197,3 +197,8 @@
 .form-recovery-row strong{font-size:13px}
 .form-recovery-row .hub-actions,.form-recovery-row .cal-actions{display:flex;gap:8px;flex-wrap:wrap}
 .form-recovery-row button{min-height:44px}
+
+/* v6.9.0: unobtrusive explicit save, visible only while editing. */
+.notes-save-inline{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0}
+.notes-save-inline .secondary-btn{padding:8px 10px;font-size:12px;min-height:44px}
+#notes-save-now[hidden]{display:none!important}
