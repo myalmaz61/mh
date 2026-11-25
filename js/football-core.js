@@ -1,3 +1,4 @@
+import {openLigaPublishedScore} from './football-result-quality-core.js';
 // MyHub Football v0.6 – pure data functions, independent of UI and network.
 export const FOOTBALL_BASE='https://api.openligadb.de';
 export const MAX_LEAGUES=6;
@@ -16,7 +17,9 @@ export function validMatch(m){return plain(m)&&goodId(m.id)&&goodId(m.homeId)&&g
   string(m.home,1,100)&&string(m.away,1,100)&&m.time!==null&&(iso(m.time))&&typeof m.finished==='boolean'&&
   (m.homeScore===null||(Number.isInteger(m.homeScore)&&m.homeScore>=0&&m.homeScore<=100))&&
   (m.awayScore===null||(Number.isInteger(m.awayScore)&&m.awayScore>=0&&m.awayScore<=100))&&
-  (m.homeScore===null)===(m.awayScore===null)&&Number.isInteger(m.group)&&m.group>=0&&m.group<=1500;}
+  (m.homeScore===null)===(m.awayScore===null)&&
+  (m.scoreBasis===undefined||m.scoreBasis===null||['after-extra','after-penalties'].includes(m.scoreBasis))&&
+  Number.isInteger(m.group)&&m.group>=0&&m.group<=1500;}
 export function validFootballData(v){
   if(!plain(v)||v.schema!==1||!Array.isArray(v.leagues)||v.leagues.length<1||v.leagues.length>MAX_LEAGUES||
     v.leagues.some(l=>!validLeague(l))||new Set(v.leagues.map(l=>l.key)).size!==v.leagues.length||
@@ -46,18 +49,6 @@ export function leagueListFromAPI(payload,nowYear=new Date().getFullYear()){
   return [...found.values()].sort((a,b)=>Number(b.season)-Number(a.season)||a.name.localeCompare(b.name));
 }
 export function matchURL(league){if(!validLeague(league))throw Error('Invalid league');return `${FOOTBALL_BASE}/getmatchdata/${encodeURIComponent(league.shortcut)}/${league.season}`;}
-const scoreFromAPI=(item)=>{
-  const results=Array.isArray(item?.matchResults)?item.matchResults:[];
-  const final=results.find(r=>r?.resultTypeID===2)||results.filter(r=>Number.isInteger(r?.resultOrderID)).sort((a,b)=>b.resultOrderID-a.resultOrderID)[0];
-  if(Number.isInteger(final?.pointsTeam1)&&Number.isInteger(final?.pointsTeam2))return [final.pointsTeam1,final.pointsTeam2];
-  // Goal entries are genuine published data; no zero-zero score is inferred if absent.
-  const goals=Array.isArray(item?.goals)?item.goals:[];
-  if(goals.length>0){
-    const latest=goals[goals.length-1];
-    if(Number.isInteger(latest?.scoreTeam1)&&Number.isInteger(latest?.scoreTeam2))return [latest.scoreTeam1,latest.scoreTeam2];
-  }
-  return [null,null];
-};
 export function parseMatches(payload){
   if(!Array.isArray(payload))throw Error('Невалиден отговор от OpenLigaDB / Invalid football data');
   if(payload.length>3000)throw Error('Too many matches');
@@ -65,10 +56,11 @@ export function parseMatches(payload){
   for(const m of payload){
     const homeId=m?.team1?.teamId,awayId=m?.team2?.teamId;
     const time=m?.matchDateTimeUTC;
-    const [homeScore,awayScore]=scoreFromAPI(m);
+    const {homeScore,awayScore,scoreBasis}=openLigaPublishedScore(m);
     const match={id:m?.matchID,homeId,awayId,home:String(m?.team1?.teamName??'').slice(0,100),away:String(m?.team2?.teamName??'').slice(0,100),
       time:typeof time==='string'?time:'',finished:m?.matchIsFinished===true,homeScore,awayScore,
-      group:Number.isInteger(m?.group?.groupOrderID)?m.group.groupOrderID:0};
+      group:Number.isInteger(m?.group?.groupOrderID)?m.group.groupOrderID:0,
+      ...(scoreBasis?{scoreBasis}:{})};
     if(validMatch(match)&&!seen.has(match.id)){result.push(match);seen.add(match.id);}
   }
   return result.sort((a,b)=>Date.parse(a.time)-Date.parse(b.time)).slice(0,MAX_FOOTBALL_MATCHES);

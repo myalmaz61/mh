@@ -180,14 +180,16 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
     results.innerHTML=list.map(m=>{
       const status=m.finished&&!hasConfirmedResult(m)?'unconfirmed':matchStatus(m),score=m.homeScore===null?'– : –':`${m.homeScore} : ${m.awayScore}`;
       const homeFav=data.favoriteTeams.includes(m.homeId),awayFav=data.favoriteTeams.includes(m.awayId);
-      const missing=needsResultCheck(m);
+      const missing=needsResultCheck(m)||(m.finished&&!hasConfirmedResult(m));
       const checkLink=missing?matchSearchURL(m):'';
-      const canCheck=missing&&(!m.uniqueId||m.uniqueId.startsWith(`${data.selected}/`));
+      const canCheck=needsResultCheck(m)&&(!m.uniqueId||m.uniqueId.startsWith(`${data.selected}/`));
       return `<article class="football-match"><div class="football-match-info"><span>${esc(matchWhen(m.time,lang))}</span><span class="football-status ${status}">${esc(statusText(status,t))}</span></div>
         ${tab==='favorites'?`<p class="muted">${t('footballChecked')}: ${m.checkedAt && Number.isFinite(Date.parse(m.checkedAt))?esc(when(m.checkedAt,lang)):t('footballNeverChecked')}</p>`:''}
         ${m.leagueName?`<div class="football-league-name">${esc(m.leagueName)}</div>`:''}
         <div class="football-match-main"><div class="football-team"><button type="button" class="football-star ${homeFav?'is-fav':''}" data-football-team="${m.homeId}" aria-pressed="${homeFav}" aria-label="${homeFav?t('footballUnstar'):t('footballStar')} ${esc(m.home)}">${homeFav?'★':'☆'}</button><span>${esc(m.home)}</span></div>
-        <strong class="football-score" aria-label="${esc(score)}">${score}</strong>
+        <div class="football-score-box"><strong class="football-score" aria-label="${esc(score)}">${score}</strong>
+        ${m.scoreBasis==='after-penalties'?`<small class="muted football-score-basis">${t('footballScorePenalties')}</small>`:
+          m.scoreBasis==='after-extra'?`<small class="muted football-score-basis">${t('footballScoreExtra')}</small>`:''}</div>
         <div class="football-team away"><span>${esc(m.away)}</span><button type="button" class="football-star ${awayFav?'is-fav':''}" data-football-team="${m.awayId}" aria-pressed="${awayFav}" aria-label="${awayFav?t('footballUnstar'):t('footballStar')} ${esc(m.away)}">${awayFav?'★':'☆'}</button></div></div>
         ${missing?`<div class="football-result-help"><span>${t('footballNoProviderResult')}</span>${canCheck?`<button type="button" class="text-link" data-football-check="${m.id}" ${isBusy||singleCheckId?'disabled':''}>${singleCheckId===m.id?t('weatherLoading'):t('footballCheckMatch')}</button>`:''}<a href="${esc(checkLink)}" target="_blank" rel="noopener noreferrer">${t('footballSearchExternal')}</a></div>`:''}</article>`;
     }).join('');

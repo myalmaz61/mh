@@ -40,9 +40,11 @@ export function mergeFootballMatches(previous,received){
     const old=merged.get(fresh.id);
     if(!old){merged.set(fresh.id,fresh);continue;}
     if(hasConfirmedResult(old) && !hasConfirmedResult(fresh)){
-      merged.set(fresh.id,{...fresh,finished:true,homeScore:old.homeScore,awayScore:old.awayScore});
+      merged.set(fresh.id,{...fresh,finished:true,homeScore:old.homeScore,awayScore:old.awayScore,
+        ...(old.scoreBasis?{scoreBasis:old.scoreBasis}:{})});
     }else if(fresh.homeScore===null && old.homeScore!==null && fresh.finished===false){
-      merged.set(fresh.id,{...fresh,homeScore:old.homeScore,awayScore:old.awayScore});
+      merged.set(fresh.id,{...fresh,homeScore:old.homeScore,awayScore:old.awayScore,
+        ...(old.scoreBasis?{scoreBasis:old.scoreBasis}:{})});
     }else{
       merged.set(fresh.id,fresh);
     }
