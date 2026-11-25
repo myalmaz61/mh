@@ -10,6 +10,7 @@ import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
 import { parseChecklistBatch, setChecklistCompletion, checklistProgress, moveChecklistRow } from './notes-checklist-core.js';
 import { createNoteSaveManager } from './notes-save-core.js';
+import { hasPendingChecklistInput, noteEditorSaveUi, isNoteSaveShortcut } from './notes-editor-safety-core.js';
 import { createNotesDraftStore, notesMatch } from './notes-draft-core.js';
 import { emptyNotesTemplates, validNotesTemplates, MAX_NOTE_TEMPLATES, templateFromNote, noteFromTemplate, templateAdd, templateRename, templateRemove } from './notes-templates-core.js';
 
@@ -39,6 +40,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   try { trash = await getNotesTrash(); } catch { trash = null; notify(t('trashCorrupt')); }
   if(notes.length !== stored.length) notify(t('corruptRecords'));
   let currentId = null;
+  let currentSaveNow=null;
   let search = viewState?.search ?? '';
   let scope = viewState?.scope ?? 'all';
   let order = viewState?.order ?? 'newest';
@@ -60,13 +62,20 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let draftWarningShown=false;
   const locale = lang === 'en' ? 'en-GB' : 'bg-BG';
   const current = () => notes.find(n=>n.id===currentId);
+  const hasUnaddedChecklistInput = () => currentId && current()?.kind==='checklist' &&
+    hasPendingChecklistInput(element.querySelector('#new-item')?.value, element.querySelector('#checklist-paste')?.value);
   const updateSaveStatus = state => {
     dirty=state.dirty;
     if(disposed || !currentId)return;
     const status=element.querySelector('#note-status');
     const recovery=element.querySelector('#notes-save-recovery');
+    const ui=noteEditorSaveUi(state,hasUnaddedChecklistInput());
+    const saveNowButton=element.querySelector('#notes-save-now');
+    if(saveNowButton){saveNowButton.hidden=!ui.showSave;saveNowButton.disabled=ui.disableSave;}
     if(status){
-      status.textContent=state.error?t('notesSaveFailed'):(state.dirty||state.saving?t('saving'):t('saved'));
+      status.textContent=ui.status==='error'?t('notesSaveFailed'):
+        ui.status==='pending'?t('notesChecklistUnaddedStatus'):
+        ui.status==='saving'?t('saving'):t('saved');
       status.classList.toggle('save-status-error',Boolean(state.error));
     }
     if(recovery){
@@ -114,7 +123,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     timer=setTimeout(()=>{void flush();},350);
   };
   const list = () => {
-    currentId=null;
+    currentId=null;currentSaveNow=null;
     // Do not auto-delete even seemingly already saved drafts: this list may
     // be stale if another browser tab has changed IndexedDB.
     const recovery=draftStore.list();
@@ -506,7 +515,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     recoveryOrigin=recovered;
     draftWarningShown=false;
     if(recovered)Object.assign(n,safeClone(recovered.draft));
-    element.innerHTML=`<div class="editor-top"><button class="back-btn" type="button" id="back-notes">‹ ${t('backToNotes')}</button><span class="save-status" id="note-status" role="status" aria-live="polite">${t('saved')}</span></div>
+    element.innerHTML=`<div class="editor-top"><button class="back-btn" type="button" id="back-notes">‹ ${t('backToNotes')}</button><div class="notes-save-inline"><span class="save-status" id="note-status" role="status" aria-live="polite">${t('saved')}</span><button type="button" class="secondary-btn" id="notes-save-now" hidden>${t('notesSaveNow')}</button></div></div>
       <div class="notes-save-recovery" id="notes-save-recovery" role="alert" hidden><strong>${t('notesSaveFailed')}</strong><p id="notes-save-message">${t('notesSaveHelp')}</p><div class="notes-save-recovery-actions"><button type="button" class="primary-btn" id="notes-save-retry">${t('notesSaveRetry')}</button><button type="button" class="secondary-btn" id="notes-save-copy">${t('notesSaveCopy')}</button></div></div>
       <article class="surface note-editor"><input class="note-title-input" id="note-title" maxlength="200" placeholder="${t('titlePlaceholder')}" value="${escapeHtml(n.title)}" aria-label="${t('titlePlaceholder')}">
       <label class="note-category-editor" for="note-category">${t('notesCategory')} <small>(${t('notesOptional')})</small><input class="text-field" id="note-category" type="text" maxlength="40" list="note-category-suggestions" autocomplete="off" placeholder="${t('notesCategoryPlaceholder')}" value="${escapeHtml(n.category || '')}"></label>
@@ -520,7 +529,15 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     // A recovered draft is still unsaved until the CAS IndexedDB transaction
     // commits. Mirror it to this new editor session before autosave begins.
     if(recovered)schedule();
+    currentSaveNow=async()=>{
+      if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return false;}
+      const ok=await flush();
+      if(ok&&!disposed)notify(t('notesSavedNow'));
+      return ok;
+    };
+    element.querySelector('#notes-save-now').addEventListener('click',()=>{void currentSaveNow?.();});
     element.querySelector('#notes-save-retry').addEventListener('click',async event=>{
+      if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}
       event.currentTarget.disabled=true;
       const ok=await flush();
       if(ok)notify(t('notesSaveRecovered'));
@@ -584,6 +601,8 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         if(button){n.items.splice(Number(button.dataset.deleteItem),1);update();renderItems();}
       });
       const itemInput=element.querySelector('#new-item');
+      itemInput.addEventListener('input',()=>updateSaveStatus(saveManager.state()));
+      element.querySelector('#checklist-paste').addEventListener('input',()=>updateSaveStatus(saveManager.state()));
       const addItem=()=>{
         const text=itemInput.value.trim();
         if(!text || n.items.length>=300) return;
@@ -622,12 +641,14 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       renderItems();
     }
     element.querySelector('#copy-note').addEventListener('click',async()=>{
+      if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}
       await flush();
       if(dirty){notify(t('crossSaveFirst'));return;}
       try {await navigator.clipboard.writeText(plainNoteText(n));notify(t('copied'));}
       catch {notify(t('copyFailed'));}
     });
     element.querySelector('#share-note').addEventListener('click',()=>{
+      if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}
       // Web Share requires transient user activation; call it before awaiting DB operations.
       // The shared content is the current visible draft, without modifying the saved note.
       const text=plainNoteText(n);
@@ -645,6 +666,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       void copyFallback();
     });
     element.querySelector('#save-note-template').addEventListener('click',async event=>{
+      if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}
       if(templatesReadOnly){notify(t('notesTemplateCorrupt'));return;}
       if(templates.items.length>=MAX_NOTE_TEMPLATES){notify(t('notesTemplateLimit'));return;}
       const name=window.prompt(t('notesTemplateNamePrompt'),n.title.trim()||t(n.kind==='checklist'?'newChecklist':'newNote'));
@@ -666,6 +688,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       }finally{if(button.isConnected)button.disabled=false;}
     });
     element.querySelector('#duplicate-note').addEventListener('click',async()=>{
+      if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}
       await flush();
       if(dirty){notify(t('crossSaveFirst'));return;}
       if(notes.length>=MAX_NOTES){notify(t('notesLimit'));return;}
@@ -675,6 +698,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       }catch(err){notify(`${t('error')}: ${err.message}`);}
     });
     element.querySelector('#note-to-task').addEventListener('click',async()=>{
+      if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}
       await flush();
       if(dirty){notify(t('crossSaveFirst'));return;}
       onQuickDraft(draftTaskFromNote(n));
@@ -686,6 +710,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       n.favourite=!n.favourite;event.currentTarget.textContent=(n.favourite?'★ ':'☆ ')+t(n.favourite?'unfavourite':'favourite');update();
     });
     element.querySelector('#delete-note').addEventListener('click', async()=>{
+      if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}
       if(!confirmAction(t('trashMoveConfirm'))) return;
       await flush();
       if(dirty){notify(t('notesSaveCannotLeave'));return;}
@@ -698,23 +723,31 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         notify(t('trashMoved'));
       }catch(err){notify(`${t('error')}: ${err.message}`);}
     });
-    element.querySelector('#back-notes').addEventListener('click',async()=>{await flush();if(dirty){notify(t('notesSaveCannotLeave'));return;}list();});
+    element.querySelector('#back-notes').addEventListener('click',async()=>{if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}await flush();if(dirty){notify(t('notesSaveCannotLeave'));return;}list();});
   };
   const onVisibility = () => {if(document.hidden) void flush();};
   const onPageHide = () => { if(saveManager.state().dirty)void flush(); }; // best-effort only
   const onBeforeUnload = event => {
-    if(!saveManager.state().dirty)return;
+    if(!saveManager.state().dirty&&!hasUnaddedChecklistInput())return;
     event.preventDefault();
     event.returnValue=''; // browser may display a generic unsaved-changes dialog
   };
+  const onSaveShortcut = event => {
+    if(!currentId||!currentSaveNow||!element.contains(event.target)||!isNoteSaveShortcut(event))return;
+    event.preventDefault();
+    void currentSaveNow();
+  };
+  element.addEventListener('keydown',onSaveShortcut);
   document.addEventListener('visibilitychange',onVisibility);
   window.addEventListener('pagehide',onPageHide);
   window.addEventListener('beforeunload',onBeforeUnload);
   list();
   if(initialId && notes.some(note=>note.id===initialId)) editor(initialId);
   const release=async () => {
+    if(hasUnaddedChecklistInput())throw Error(t('notesChecklistAddFirst'));
     if(!(await flush()))throw Error(t('notesSaveCannotLeave'));
     disposed=true;
+    element.removeEventListener('keydown',onSaveShortcut);
     lastDeleted=null;
     document.removeEventListener('visibilitychange',onVisibility);
     window.removeEventListener('pagehide',onPageHide);
