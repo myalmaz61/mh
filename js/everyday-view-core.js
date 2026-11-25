@@ -16,7 +16,8 @@ export function sanitiseSessionView(route,raw) {
     const order=['newest','oldest','title'].includes(raw.order)?raw.order:'newest';
     const category=typeof raw.category==='string'&&raw.category.length<=40?raw.category:'*';
     const limit=Number.isSafeInteger(raw.limit)&&raw.limit>=1?Math.min(raw.limit,2000):40;
-    return {search,scope,order,category,limit};
+    const templateQuery=typeof raw.templateQuery==='string'?raw.templateQuery.slice(0,100):'';
+    return {search,scope,order,category,limit,templatePanelOpen:raw.templatePanelOpen===true,templateQuery};
   }
   if (route==='search') {
     const query=typeof raw.query==='string'?raw.query.slice(0,120):'';
@@ -26,6 +27,7 @@ export function sanitiseSessionView(route,raw) {
   if (route==='football')return {tab:['today','all','upcoming','finished','favorites'].includes(raw.tab)?raw.tab:'today'};
   if (route==='weather')return {
     manageOpen:raw.manageOpen===true,
+    manageQuery:typeof raw.manageQuery==='string'?raw.manageQuery.slice(0,70):'',
     folds:Array.isArray(raw.folds)?[...new Set(raw.folds.filter(value=>typeof value==='string'&&FOLDS.has(value)))]:[]
   };
   return null;

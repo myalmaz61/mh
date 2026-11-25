@@ -139,6 +139,10 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
     </details>
     <p class="weather-source">${t('weatherSource')} <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></p>`;
   element.querySelector('.weather-manage').open=viewState?.manageOpen===true;
+  // Preserve an unfinished city lookup only while this PWA tab is open.
+  // Search results are deliberately not replayed: users must query again.
+  const citySearchInput=element.querySelector('#weather-search-input');
+  citySearchInput.value=typeof viewState?.manageQuery==='string'?viewState.manageQuery.slice(0,70):'';
   const picker=element.querySelector('#weather-city');
   const content=element.querySelector('#weather-content');
   const results=element.querySelector('#weather-search-results');
@@ -321,7 +325,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
   });
   refreshButton.addEventListener('click',()=>void getForecast(true));
   element.querySelector('#weather-search-form').addEventListener('submit',async event=>{
-    event.preventDefault(); const value=element.querySelector('#weather-search-input').value.trim();
+    event.preventDefault(); const value=citySearchInput.value.trim();
     if(value.length<2){notify(t('weatherTypeMore'));return;}
     searching?.abort();const ctrl=new AbortController();searching=ctrl;
     searchButton.disabled=true;results.innerHTML=`<p class="muted">${t('weatherLoading')}</p>`;
@@ -353,7 +357,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
     if(!place || cities.some(c=>c.id===place.id)){notify(t('weatherAlreadySaved'));return;}
     if(cities.length>=MAX_WEATHER_CITIES){notify(t('weatherTooMany'));return;}
     cities.push(place);selected=place.id;
-    results.innerHTML='';results._weatherPlaces=[];
+    results.innerHTML='';results._weatherPlaces=[];citySearchInput.value='';
     abortCurrent();requestSequence++;paint();
     try{await persistCities();if(!destroyed)void getForecast();}catch(err){if(!destroyed)notify(t('error')+': '+err.message);}
   });
@@ -382,7 +386,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
   })();
   paint();
   const release=()=>{destroyed=true;requestSequence++;abortCurrent();searching?.abort();clearInterval(refreshTimer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);};
-  release.getViewState=()=>({manageOpen:element.querySelector('.weather-manage')?.open===true,
+  release.getViewState=()=>({manageOpen:element.querySelector('.weather-manage')?.open===true,manageQuery:citySearchInput.value.slice(0,70),
     folds:[...content.querySelectorAll('details[data-weather-fold]')]
       .filter(item=>item.open).map(item=>item.dataset.weatherFold)});
   return release;

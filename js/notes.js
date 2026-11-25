@@ -45,6 +45,15 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   let scope = viewState?.scope ?? 'all';
   let order = viewState?.order ?? 'newest';
   let displayedLimit = Math.max(NOTES_PAGE_SIZE,viewState?.limit ?? NOTES_PAGE_SIZE);
+  // Only transient UI state. Never part of note data, IndexedDB or JSON Backup.
+  let templatePanelOpen = viewState?.templatePanelOpen === true;
+  let templateQuery = typeof viewState?.templateQuery === 'string' ? viewState.templateQuery.slice(0,100) : '';
+  const rememberTemplatePanel = () => {
+    const panel=element.querySelector('#notes-templates-panel');
+    if(!panel)return; // The note editor and Trash have no template panel.
+    templatePanelOpen=panel.open;
+    templateQuery=(element.querySelector('#notes-template-search')?.value||'').slice(0,100);
+  };
   let categoryFilter = viewState?.category ?? '*';
   let bulkMode = false;
   let quickActionBusy = false;
@@ -123,6 +132,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     timer=setTimeout(()=>{void flush();},350);
   };
   const list = () => {
+    rememberTemplatePanel();
     currentId=null;currentSaveNow=null;
     // Do not auto-delete even seemingly already saved drafts: this list may
     // be stale if another browser tab has changed IndexedDB.
@@ -205,6 +215,11 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     const templatesPanel=element.querySelector('#notes-templates-panel');
     const templatesRows=element.querySelector('#notes-templates-list');
     const templatesSearch=element.querySelector('#notes-template-search');
+    templatesPanel.open=templatePanelOpen;
+    templatesSearch.value=templateQuery;
+    templatesPanel.addEventListener('toggle',()=>{
+      if(templatesPanel.isConnected)templatePanelOpen=templatesPanel.open;
+    });
     // Keep template details in a collapsed Notes-only section.
     const renderTemplates=()=>{
       if(!templatesRows?.isConnected)return;
@@ -212,7 +227,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       const found=templates.items.filter(entry=>(entry.name+' '+entry.title).toLocaleLowerCase().includes(q));
       templatesRows.innerHTML=found.length?found.map(entry=>`<div class="notes-template-card"><div class="notes-template-text"><strong>${escapeHtml(entry.name)}</strong><small>${escapeHtml(entry.kind==='checklist'?t('newChecklist'):t('newNote'))} · ${entry.kind==='checklist'?entry.items.length+' ✓':escapeHtml(entry.title||'—')}</small></div><div class="notes-template-actions"><button type="button" class="primary-btn" data-template-use="${escapeHtml(entry.id)}">${t('notesTemplateUse')}</button><button type="button" class="secondary-btn" data-template-rename="${escapeHtml(entry.id)}" ${templatesReadOnly?'disabled':''}>${t('notesTemplateRename')}</button><button type="button" class="secondary-btn" data-template-delete="${escapeHtml(entry.id)}" ${templatesReadOnly?'disabled':''}>${t('notesTemplateDelete')}</button></div></div>`).join(''):`<p class="muted">${t('notesTemplatesEmpty')}</p>`;
     };
-    templatesSearch.addEventListener('input',renderTemplates);
+    templatesSearch.addEventListener('input',()=>{templateQuery=templatesSearch.value;renderTemplates();});
     templatesRows.addEventListener('click',async event=>{
       const button=event.target.closest('[data-template-use],[data-template-rename],[data-template-delete]');
       if(!button||button.disabled)return;
@@ -446,6 +461,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
   // Trash is an explicit, independent view. No autosave in it, and no
   // automatic permanent deletion, expiration or pruning.
   const trashList = () => {
+    rememberTemplatePanel();
     currentId=null;
     const items=trash?.items ?? [];
     const rows=[...items].reverse().map(({note,deletedAt})=>{
@@ -509,6 +525,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     catch(err){notify(`${t('error')}: ${err.message}`);}
   };
   const editor = (id,recovered=null,pendingOverride=null) => {
+    rememberTemplatePanel();
     let recoveryMirrorOk=true;
     currentId=id;
     const n=current();
@@ -785,6 +802,6 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     window.removeEventListener('pagehide',onPageHide);
     window.removeEventListener('beforeunload',onBeforeUnload);
   };
-  release.getViewState=()=>({search,scope,order,category:categoryFilter,limit:displayedLimit});
+  release.getViewState=()=>{rememberTemplatePanel();return {search,scope,order,category:categoryFilter,limit:displayedLimit,templatePanelOpen,templateQuery};};
   return release;
 }
