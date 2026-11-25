@@ -56,3 +56,22 @@ export function moveChecklistRow(items, index, direction, { skipCompleted = fals
   [result[index], result[neighbour]] = [result[neighbour], result[index]];
   return {items: result, index: neighbour};
 }
+
+
+/** Find a focus target after completing a row while completed rows are hidden.
+ * Prefer the next visible row, then the preceding visible row. No mutation.
+ */
+export function nextVisibleChecklistRow(items, index) {
+  if(!Array.isArray(items) || !Number.isInteger(index) || index<0 || index>=items.length)
+    throw Error('invalid-checklist-focus');
+  for(let i=index+1;i<items.length;i++)if(items[i]?.done===false)return i;
+  for(let i=index-1;i>=0;i--)if(items[i]?.done===false)return i;
+  return -1;
+}
+/** In-place checkbox updates are safe only when rows are all visible and
+ * the current DOM still contains precisely one checkbox per stored row.
+ */
+export function canSyncChecklistChecks(hideCompleted, itemCount, checkboxCount) {
+  return hideCompleted===false && Number.isInteger(itemCount) && itemCount>=0 &&
+    Number.isInteger(checkboxCount) && checkboxCount===itemCount;
+}

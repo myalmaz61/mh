@@ -8,7 +8,7 @@ import { matchingQuickAction } from './interaction-stability-core.js';
 import { NOTES_PAGE_SIZE, sliceNotesPage, nextNotesPageLimit } from './notes-list-core.js';
 import { categoryName, noteCategories } from './notes-category-core.js';
 import { MAX_BULK_NOTES } from './notes-bulk-core.js';
-import { parseChecklistBatch, setChecklistCompletion, checklistProgress, moveChecklistRow } from './notes-checklist-core.js';
+import { parseChecklistBatch, setChecklistCompletion, checklistProgress, moveChecklistRow, nextVisibleChecklistRow, canSyncChecklistChecks } from './notes-checklist-core.js';
 import { createNoteSaveManager } from './notes-save-core.js';
 import { hasPendingChecklistInput, noteEditorSaveUi, isNoteSaveShortcut } from './notes-editor-safety-core.js';
 import { createNotesDraftStore, notesMatch } from './notes-draft-core.js';
@@ -118,11 +118,15 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     if(!ok)notify(t('notesSaveFailed'));
     return ok;
   };
-  const schedule = () => {
+  const schedule = ({pendingChecklist}={}) => {
     const snapshot=safeClone(current());
     // Write synchronously before debounce/async IndexedDB. A sudden Android
     // process kill then leaves a recoverable copy whenever storage allows it.
-    const result=draftStore.write(editorDraftKey,expectedSavedNote,snapshot);
+    // One synchronous mirror for a checklist Add: no crash window with both
+    // an already-added row and its old unsent composer text.
+    const result=pendingChecklist===undefined
+      ?draftStore.write(editorDraftKey,expectedSavedNote,snapshot)
+      :draftStore.writePending(editorDraftKey,expectedSavedNote,snapshot,pendingChecklist,{writeSnapshot:true});
     if(!result.ok && !draftWarningShown){
       draftWarningShown=true;
       notify(t(result.reason==='too-large'?'notesDraftTooLarge':'notesDraftUnavailable'));
@@ -545,7 +549,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       <div class="editor-actions"><button type="button" class="secondary-btn" id="copy-note">⧉ ${t('copy')}</button><button type="button" class="secondary-btn" id="duplicate-note">${t('notesDuplicate')}</button><button type="button" class="secondary-btn" id="save-note-template" ${templatesReadOnly?'disabled':''}>📋 ${t('notesTemplateSave')}</button><button type="button" class="secondary-btn" id="share-note">${t('notesShare')}</button><button type="button" class="secondary-btn cross-shortcut" id="note-to-task">${t('crossToTask')}</button><button type="button" class="secondary-btn" id="pin-note">${n.pinned?'📌 '+t('unpin'):'📌 '+t('pin')}</button>
       <button type="button" class="secondary-btn" id="star-note">${n.favourite?'★ '+t('unfavourite'):'☆ '+t('favourite')}</button>
       <button type="button" class="danger-btn" id="delete-note">${t('delete')}</button></div></article>`;
-    const update = () => {n.updatedAt=new Date().toISOString();schedule();};
+    const update = (options) => {n.updatedAt=new Date().toISOString();schedule(options);};
     // A recovered draft is still unsaved until the CAS IndexedDB transaction
     // commits. Mirror it to this new editor session before autosave begins.
     if(recovered && !notesMatch(expectedSavedNote,n))schedule();
@@ -577,10 +581,22 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     const checklist=element.querySelector('#checklist-items');
     if(checklist){
       let hideCompleted=false;
-      const renderItems=()=>{
+      const renderProgress=()=>{
         const progress=checklistProgress(n.items);
         const progressElement=element.querySelector('#checklist-progress');
         if(progressElement) progressElement.textContent=t('checklistProgress').replace('{done}',String(progress.done)).replace('{total}',String(progress.total));
+      };
+      // On ordinary checkbox changes leave hundreds of text inputs intact.
+      // This also preserves the Android keyboard, caret and scroll position.
+      const syncDoneInPlace=()=>{
+        const checks=checklist.querySelectorAll('[data-done]');
+        if(!canSyncChecklistChecks(hideCompleted,n.items.length,checks.length))return false;
+        checks.forEach((input,index)=>{input.checked=n.items[index].done;});
+        renderProgress();
+        return true;
+      };
+      const renderItems=()=>{
+        renderProgress();
         const shown = n.items.map((item, index) => (hideCompleted && item.done ? -1 : index)).filter(index => index >= 0);
         const firstVisible = shown[0], lastVisible = shown.at(-1);
         checklist.innerHTML=n.items.map((item,index)=>`<div class="checklist-row" ${hideCompleted && item.done?'hidden':''}><label class="check-row-label"><input type="checkbox" data-done="${index}" ${item.done?'checked':''} aria-label="${t('done')}"><span></span></label>
@@ -598,7 +614,19 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       checklist.addEventListener('change',event=>{
         if(event.target.matches('[data-done]')){
           const idx=Number(event.target.dataset.done);
-          if(n.items[idx]){n.items[idx].done=event.target.checked;update();renderItems();}
+          if(n.items[idx]){
+            n.items[idx].done=event.target.checked;update();
+            if(!syncDoneInPlace()){
+              // A checked row is hidden immediately in filtered mode; keep
+              // keyboard users on the next available visible checkbox.
+              const focusIndex=hideCompleted?nextVisibleChecklistRow(n.items,idx):-1;
+              renderItems();
+              if(hideCompleted){
+                const next=focusIndex>=0?checklist.querySelector(`[data-done="${focusIndex}"]`):null;
+                (next||element.querySelector('#toggle-done-visibility'))?.focus({preventScroll:true});
+              }
+            }
+          }
         }
       });
       checklist.addEventListener('click',event=>{
@@ -652,17 +680,17 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         const text=itemInput.value.trim();
         if(!text || n.items.length>=300) return;
         n.items.push({id:uid(), text, done:false});
-        itemInput.value='';update();persistPendingInput();renderItems();itemInput.focus();
+        itemInput.value='';update({pendingChecklist:{single:itemInput.value,batch:pasteInput.value}});renderItems();itemInput.focus();
       };
       element.querySelector('#add-item').addEventListener('click',addItem);
       itemInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addItem();}});
       element.querySelector('#check-all').addEventListener('click',()=>{
         if(!n.items.some(row=>!row.done))return;
-        n.items=setChecklistCompletion(n.items,true);update();renderItems();
+        n.items=setChecklistCompletion(n.items,true);update();if(!syncDoneInPlace())renderItems();
       });
       element.querySelector('#uncheck-all').addEventListener('click',()=>{
         if(!n.items.some(row=>row.done))return;
-        n.items=setChecklistCompletion(n.items,false);update();renderItems();
+        n.items=setChecklistCompletion(n.items,false);update();if(!syncDoneInPlace())renderItems();
       });
       element.querySelector('#toggle-done-visibility').addEventListener('click',event=>{
         hideCompleted=!hideCompleted;
@@ -680,7 +708,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         }
         // Validate all rows before mutating the note. No silent truncation.
         const rows=lines.map(text=>({id:uid(),text,done:false}));
-        n.items.push(...rows);field.value='';update();persistPendingInput();renderItems();
+        n.items.push(...rows);field.value='';update({pendingChecklist:{single:itemInput.value,batch:field.value}});renderItems();
         notify(t('checklistAdded').replace('{n}',String(rows.length)));
       });
       renderItems();
