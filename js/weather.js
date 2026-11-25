@@ -10,6 +10,7 @@ import {weatherSnapshotFreshness} from './weather-freshness-core.js';
 import {weatherDayHighlights} from './weather-glance-core.js';
 import {forecastRefreshDecision} from './foreground-refresh-core.js';
 import {ownsRequest, usableRequestResponse} from './interaction-stability-core.js';
+import {networkFallbackKind} from './network-fallback-core.js';
 
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -118,6 +119,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
   let cities=weatherCities.map(item=>({...item}));
   let selected=cities.some(c=>c.id===weatherSelectedId)?weatherSelectedId:(cities[0]?.id||'');
   let cache={};let destroyed=false;let fetching=null;let fetchingCity=null;let searching=null;let requestSequence=0;
+  let failedCity=''; // Ephemeral; never persisted or included in JSON Backup.
   // Reapply saved disclosure panels when the first forecast appears. No weather
   // results or private city queries are persisted in this ephemeral snapshot.
   const initialOpenFolds=new Set(viewState?.folds||[]);
@@ -126,6 +128,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
     <section class="surface weather-main">
       <div class="row-between gap-wrap"><h2>${t('weatherPlaces')}</h2><button type="button" class="text-link" id="weather-refresh">↻ ${t('weatherRefresh')}</button></div>
       <label class="sr-only" for="weather-city">${t('weatherSelect')}</label><select id="weather-city" class="input-select weather-picker"></select>
+      <p id="weather-network-hint" class="warning-text" role="status" aria-live="polite" hidden></p>
       <div id="weather-content" aria-live="polite"></div>
     </section>
     <details class="surface weather-manage"><summary class="weather-manage-summary"><span>${t('weatherManageCities')}</span><span class="soft-tag" id="weather-city-count"></span></summary>
@@ -142,6 +145,17 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
   const cityCount=element.querySelector('#weather-city-count');
   const saved=element.querySelector('#weather-saved-cities');
   const refreshButton=element.querySelector('#weather-refresh');
+  const networkHint=element.querySelector('#weather-network-hint');
+  const networkMessages={offlineSaved:'weatherOfflineSaved',offlineEmpty:'weatherOfflineEmpty',
+    failedSaved:'weatherFailedSaved',failedEmpty:'weatherFailedEmpty'};
+  function paintNetworkHint(){
+    const city=cities.find(c=>c.id===selected);
+    const kind=city?networkFallbackKind({online:navigator.onLine,hasCache:validSnapshot(cache[city.id]),
+      issue:failedCity===city.id?'failed':'',loading:Boolean(fetching&&fetchingCity===city.id&&!fetching.signal.aborted)}):'';
+    const key=networkMessages[kind];
+    networkHint.hidden=!key;
+    networkHint.textContent=key?t(key):'';
+  }
   const searchButton=element.querySelector('#weather-search-btn');
   const name=city=>[city.name,city.region,city.country].filter(Boolean).join(', ');
   const abortCurrent=()=>{fetching?.abort();fetching=null;fetchingCity=null;};
@@ -158,7 +172,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
       .filter(item=>item.open).map(item=>item.dataset.weatherFold));
     if(!firstForecastPainted)for(const key of initialOpenFolds)openFolds.add(key);
     const expanded=key=>openFolds.has(key)?' open':'';
-    paintCities();const city=cities.find(c=>c.id===selected);
+    paintCities();paintNetworkHint();const city=cities.find(c=>c.id===selected);
     refreshButton.disabled=!city;
     if(!city){content.innerHTML=`<div class="weather-empty">${t('weatherEmpty')}</div>`;return;}
     const snapshot=cache[city.id];
@@ -258,14 +272,14 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
     });
     // A fresh forecast or identical in-flight request needs no repaint or abort:
     // keep expanded sections, focus and scroll in place when Android resumes.
-    if(decision==='fresh'||decision==='pending')return;
+    if(decision==='fresh'||decision==='pending'){paintNetworkHint();return;}
     // Keep the existing forecast and any focused/expanded controls in place.
     // Only repaint if there is no cached content to display.
     if(!validSnapshot(snapshot))paint();
-    if(decision==='offline'){if(!validSnapshot(snapshot))notify(t('weatherOfflineUnavailable'));return;}
+    if(decision==='offline'){paintNetworkHint();return;}
     abortCurrent();const token=++requestSequence;
     const ctrl=new AbortController();fetching=ctrl;fetchingCity=city.id;
-    refreshButton.disabled=true;refreshButton.textContent=t('weatherLoading');
+    refreshButton.disabled=true;refreshButton.textContent=t('weatherLoading');paintNetworkHint();
     let timedOut=false;
     const timeout=setTimeout(()=>{timedOut=true;ctrl.abort();},14000);
     try{
@@ -277,18 +291,18 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
       const updated={fetchedAt:new Date().toISOString(),...forecast};
       const saved=await updateWeatherCacheCity(city.id,updated);
       if(!destroyed && token===requestSequence){
-        cache[city.id]=saved||updated;
+        cache[city.id]=saved||updated;failedCity='';
         paint();
       }
     }catch(error){
       if(!destroyed && token===requestSequence && (error.name!=='AbortError'||timedOut)){
-        notify(t('weatherFailed'));
+        failedCity=city.id;paintNetworkHint();notify(t('weatherFailed'));
         if(!validSnapshot(cache[city.id]))content.innerHTML=`<div class="weather-empty">${t('weatherFailed')}</div>`;
       }
     }finally{
       clearTimeout(timeout);
       if(fetching===ctrl){fetching=null;fetchingCity=null;}
-      if(!destroyed && token===requestSequence){refreshButton.disabled=false;refreshButton.textContent='↻ '+t('weatherRefresh');}
+      if(!destroyed && token===requestSequence){refreshButton.disabled=false;refreshButton.textContent='↻ '+t('weatherRefresh');paintNetworkHint();}
     }
   }
   picker.addEventListener('change',async()=>{
@@ -342,8 +356,9 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
     abortCurrent();requestSequence++;paint();
     try{await persistCities();await updateWeatherCacheCity(button.dataset.removeWeather,null);if(!destroyed)void getForecast();}catch(err){if(!destroyed)notify(t('error')+': '+err.message);}
   });
-  const onOnline=()=>{if(!destroyed)void getForecast();};
-  window.addEventListener('online',onOnline);
+  const onOnline=()=>{if(!destroyed){paintNetworkHint();void getForecast();}};
+  const onOffline=()=>{if(!destroyed)paintNetworkHint();};
+  window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);
   const onVisible=()=>{if(!document.hidden && !destroyed)void getForecast();};
   document.addEventListener('visibilitychange',onVisible);
   const refreshTimer=setInterval(()=>{if(!document.hidden && !destroyed)void getForecast();},60_000);
@@ -357,7 +372,7 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
     }catch{if(!destroyed){paint();notify(t('weatherCacheError'));}}
   })();
   paint();
-  const release=()=>{destroyed=true;requestSequence++;abortCurrent();searching?.abort();clearInterval(refreshTimer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('online',onOnline);};
+  const release=()=>{destroyed=true;requestSequence++;abortCurrent();searching?.abort();clearInterval(refreshTimer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);};
   release.getViewState=()=>({manageOpen:element.querySelector('.weather-manage')?.open===true,
     folds:[...content.querySelectorAll('details[data-weather-fold]')]
       .filter(item=>item.open).map(item=>item.dataset.weatherFold)});

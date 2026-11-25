@@ -6,6 +6,7 @@ import {FOOTBALL_BASE,MAX_LEAGUES,emptyFootballData,validFootballData,leagueList
   matchURL,parseMatches,matchStatus,visibleMatches,hasPossibleMatch} from './football-core.js';
 import {footballRefreshDelay} from './football-refresh-core.js';
 import {calendarDayChanged,fixtureStatusBoundaryCrossed} from './interaction-stability-core.js';
+import {networkFallbackKind,footballResponseIssue} from './network-fallback-core.js';
 import {footballTodayMatches,footballSnapshotRecency,footballLocalDay} from './football-today-core.js';
 import {footballResultHealth,hasConfirmedResult,needsResultCheck,mergeFootballMatches,singleFootballMatchURL,matchSearchURL,SINGLE_MATCH_COOLDOWN_MS} from './football-recovery-core.js';
 
@@ -32,6 +33,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
   const stopPoll=()=>{pollController?.abort();pollController=null;pollBusy=false;};
   let pendingSave=Promise.resolve();
   let singleCheckId=0;const singleChecked=new Map();
+  const connectionIssues=new Map(); // Per-league, in-memory only.
   element.innerHTML=`<section class="tool-head"><span class="eyebrow">09 / MYHUB</span><h1>${t('football')}</h1><p>${t('footballIntro')}</p></section>
     <section class="surface football-toolbar"><div class="row-between gap-wrap"><h2>${t('footballMyLeagues')}</h2><button type="button" class="text-link" id="football-manage">＋ ${t('footballAddLeague')}</button></div>
       <label for="football-league" class="sr-only">${t('footballSelectLeague')}</label><select id="football-league" class="input-select football-select"></select>
@@ -42,7 +44,8 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
       <button type="button" id="football-quick-sportscore" class="football-quick-source">⚡ ${t('footballQuickSportScore')}</button>
       <p id="football-message" class="football-message" role="status" aria-live="polite"></p>
       <p id="football-health" class="football-health muted" role="status"></p>
-      <p id="football-freshness" class="football-freshness muted" role="status"></p></section>
+      <p id="football-freshness" class="football-freshness muted" role="status"></p>
+      <p id="football-network-hint" class="warning-text" role="status" aria-live="polite" hidden></p></section>
     <section class="surface football-results"><div class="football-tabs" role="group" aria-label="${t('footballFilters')}">
       <button type="button" data-football-tab="today">${t('footballToday')} <span id="football-today-count"></span></button>
       <button type="button" data-football-tab="all">${t('footballAll')}</button>
@@ -92,6 +95,15 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
   const select=one('#football-league'),results=one('#football-matches');
   const league=()=>data.leagues.find(l=>l.key===data.selected);
   const activeSnapshot=()=>data.cache[data.selected];
+  const connectionMessages={offlineSaved:'footballOfflineSaved',offlineEmpty:'footballOfflineEmpty',
+    failedSaved:'footballFailedSaved',failedEmpty:'footballFailedEmpty',partialSaved:'footballPartialSaved'};
+  function paintNetworkHint(){
+    const snap=activeSnapshot();
+    const kind=networkFallbackKind({online:navigator.onLine,hasCache:!!snap && Array.isArray(snap.matches) && snap.matches.length>0,
+      issue:connectionIssues.get(data.selected)||'',loading:isBusy});
+    const key=connectionMessages[kind],hint=one('#football-network-hint');
+    hint.hidden=!key;hint.textContent=key?t(key):'';
+  }
   const displayMessage=text=>{one('#football-message').textContent=text;};
   const save=async(next)=>{
     if(!validFootballData(next))throw Error('Invalid Football data');
@@ -127,6 +139,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
     const age=recency.minutes===null?'':` · ${t('footballMinutesAgo').replace('{n}',String(recency.minutes))}`;
     one('#football-updated').textContent=snap?`${t('footballChecked')}: ${when(snap.fetchedAt,lang)}${age}${!navigator.onLine?' · '+t('footballCached'):''}`:t('footballNeverChecked');
     one('#football-freshness').textContent=recency.stale?t('footballStaleNotice'):'';
+    paintNetworkHint();
   }
   function paintMatches(){
     const renderedAt=Date.now();
@@ -238,15 +251,17 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
         // A temporarily empty/partial provider response must not erase a previously fuller cache.
         if(current.key!==data.selected)return;
         const previous=snapshot?.matches||[];
-        const incomplete=previous.length>0 && matches.length<previous.length;
+        const issue=footballResponseIssue(previous,matches);
+        const incomplete=issue==='partial';
         const safeMatches=mergeFootballMatches(previous,matches);
-        if(!matches.length && previous.length){displayMessage(t('footballPartial'));return;}
+        if(!matches.length && previous.length){connectionIssues.set(current.key,'partial');paintNetworkHint();displayMessage(t('footballPartial'));return;}
         await save({...data,cache:{...data.cache,[current.key]:{fetchedAt:new Date().toISOString(),matches:safeMatches}}});
-        failureCount=0;nextRetry=0;
+        failureCount=0;nextRetry=0;connectionIssues.set(current.key,issue);paintNetworkHint();
         displayMessage(incomplete?t('footballPartial'):(matches.length?'':t('footballNoMatches')));
       }
     }catch(err){
       if(!dead&&!controller.signal.aborted){
+        connectionIssues.set(current.key,'failed');paintNetworkHint();
         displayMessage(t('footballFetchError')+` (${String(err.message).slice(0,60)})`);
         if(/HTTP (429|5\d\d)/.test(String(err.message)))failureCount=Math.min(failureCount+1,5);
         nextRetry=Date.now()+Math.min(60,5*2**Math.max(0,failureCount-1))*60*1000;
