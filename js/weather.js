@@ -4,7 +4,7 @@ import { escapeHtml } from './utils.js';
 import { upcomingRainSummary, rainChanceWindow } from './weather-rain-core.js';
 import { hourlyProbabilityBar } from './weather-hour-core.js';
 import {weatherDayComparison} from './weather-day-compare-core.js';
-import {weatherQuickOutlook} from './weather-quick-core.js';
+import {weatherQuickOutlook,weatherQuickTiming} from './weather-quick-core.js';
 import {weatherPracticalSummary} from './weather-practical-core.js';
 import {weatherSnapshotFreshness} from './weather-freshness-core.js';
 import {weatherDayHighlights} from './weather-glance-core.js';
@@ -196,8 +196,10 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
     const rainWindow=rainChanceWindow(snapshot.hours);
     const dayComparison=weatherDayComparison(snapshot.hours,snapshot.current.time);
     const quickOutlook=weatherQuickOutlook(snapshot.hours,snapshot.current.time);
+    const quickTiming=weatherQuickTiming(quickOutlook,snapshot.current.time);
     const dayHighlights=weatherDayHighlights(snapshot.daily,snapshot.current.time);
-    const practical=!stale && quickOutlook ? weatherPracticalSummary(quickOutlook) : null;
+    // A missing hourly interval makes a rain/wind/temperature trend misleading.
+    const practical=!stale && quickTiming && !quickTiming.incomplete ? weatherPracticalSummary(quickOutlook) : null;
     const phrase=(key, values={})=>Object.entries(values).reduce((message,[token,value])=>message.replace(`{${token}}`,String(value)),t(key));
     const practicalRain=practical ? phrase(`weatherPracticalRain_${practical.rain.kind}`, {p:concise(practical.rain.peak),time:practical.rain.firstHighTime??''}) : '';
     const practicalWind=practical ? phrase(`weatherPracticalWind_${practical.wind.kind}`, {speed:concise(practical.wind.peak)}) : '';
@@ -211,6 +213,8 @@ export function mountWeather({element,t,lang,weatherCities,weatherSelectedId,vie
     ${quickOutlook ? `<section class="weather-quick" aria-label="${t('weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}">
       <h3 class="weather-quick-title">${t(stale?'weatherQuickAtUpdate':'weatherQuickTitle').replace('{n}',String(quickOutlook.hours.length))}</h3>
       <p class="weather-quick-hint">${t('weatherQuickLocalHint')}${stale?` · ${t('weatherQuickCached')}`:''}</p>
+      ${quickTiming?`<p class="weather-quick-hint">${phrase('weatherQuickWindow',{start:quickTiming.start,end:quickTiming.end})}</p>`:''}
+      ${quickTiming?.incomplete?`<p class="weather-snapshot-warning" role="status">${t('weatherQuickGaps')}</p>`:''}
       ${practical ? `<div class="weather-practical"><h4>${t('weatherPracticalTitle')}</h4><ul><li><span aria-hidden="true">☔</span>${escapeHtml(practicalRain)}</li><li><span aria-hidden="true">💨</span>${escapeHtml(practicalWind)}</li><li><span aria-hidden="true">🌡️</span>${escapeHtml(practicalTemp)}</li></ul><p>${t('weatherPracticalDisclaimer')}</p></div>` : ''}
       <details class="weather-quick-details" data-weather-fold="quick"${expanded('quick')}><summary>${t('weatherQuickDetails')}</summary>
       <div class="weather-quick-grid">

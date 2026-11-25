@@ -1,4 +1,4 @@
-export const VERSION = '7.1.0';
+export const VERSION = '7.2.0';
 export const APP_NAME = 'MyHub';
 export const TOOLS = [
   { id: 'calculator', icon: '🧮', color: 'violet', title: 'calculator', description: 'calculatorDesc' },

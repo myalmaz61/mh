@@ -7,7 +7,7 @@ import {FOOTBALL_BASE,MAX_LEAGUES,emptyFootballData,validFootballData,leagueList
 import {footballRefreshDelay} from './football-refresh-core.js';
 import {calendarDayChanged,fixtureStatusBoundaryCrossed} from './interaction-stability-core.js';
 import {networkFallbackKind,footballResponseIssue} from './network-fallback-core.js';
-import {footballTodayMatches,footballSnapshotRecency,footballLocalDay} from './football-today-core.js';
+import {footballTodayMatches,footballSnapshotRecency,footballLocalDay,footballScoreAgeNotice} from './football-today-core.js';
 import {footballResultHealth,hasConfirmedResult,needsResultCheck,mergeFootballMatches,singleFootballMatchURL,matchSearchURL,SINGLE_MATCH_COOLDOWN_MS} from './football-recovery-core.js';
 
 // Match-aware TTLs keep quiet leagues on a light schedule.
@@ -98,10 +98,17 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
   const connectionMessages={offlineSaved:'footballOfflineSaved',offlineEmpty:'footballOfflineEmpty',
     failedSaved:'footballFailedSaved',failedEmpty:'footballFailedEmpty',partialSaved:'footballPartialSaved'};
   function paintNetworkHint(){
+    const hint=one('#football-network-hint');
+    if(tab==='favorites'){
+      // Favourites combine snapshots across leagues: do not show a warning for
+      // only the selected league as though it applied to every fixture.
+      hint.hidden=navigator.onLine;hint.textContent=navigator.onLine?'':t('footballFavoritesOffline');
+      return;
+    }
     const snap=activeSnapshot();
     const kind=networkFallbackKind({online:navigator.onLine,hasCache:!!snap && Array.isArray(snap.matches) && snap.matches.length>0,
       issue:connectionIssues.get(data.selected)||'',loading:isBusy});
-    const key=connectionMessages[kind],hint=one('#football-network-hint');
+    const key=connectionMessages[kind];
     hint.hidden=!key;hint.textContent=key?t(key):'';
   }
   const displayMessage=text=>{one('#football-message').textContent=text;};
@@ -121,7 +128,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
     if(tab==='favorites'){
       const all=[];for(const [key,cache] of Object.entries(data.cache)){
         const matchLeague=data.leagues.find(l=>l.key===key);
-        if(matchLeague){for(const m of cache.matches)all.push({...m,leagueName:matchLeague.name,uniqueId:key+'/'+m.id});}
+        if(matchLeague){for(const m of cache.matches)all.push({...m,leagueName:matchLeague.name,checkedAt:cache.fetchedAt,uniqueId:key+'/'+m.id});}
       }
       const ids=new Set(data.favoriteTeams);
       return all.filter(m=>ids.has(m.homeId)||ids.has(m.awayId))
@@ -135,10 +142,17 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
     // Rebuilding #football-matches needlessly destroys keyboard focus and
     // in-progress interaction with its match buttons every poll interval.
     const snap=activeSnapshot();
+    if(tab==='favorites'){
+      // No single update timestamp accurately describes mixed-league favourites.
+      one('#football-updated').textContent=t('footballFavoritesMixedAge');
+      one('#football-freshness').textContent=t('footballNotLiveHint');
+      paintNetworkHint();return;
+    }
     const recency=footballSnapshotRecency(snap);
     const age=recency.minutes===null?'':` · ${t('footballMinutesAgo').replace('{n}',String(recency.minutes))}`;
     one('#football-updated').textContent=snap?`${t('footballChecked')}: ${when(snap.fetchedAt,lang)}${age}${!navigator.onLine?' · '+t('footballCached'):''}`:t('footballNeverChecked');
-    one('#football-freshness').textContent=recency.stale?t('footballStaleNotice'):'';
+    const label=footballScoreAgeNotice(recency);
+    one('#football-freshness').textContent=label?t(label):'';
     paintNetworkHint();
   }
   function paintMatches(){
@@ -170,6 +184,7 @@ export async function mountFootball({element,t,lang,notify,confirmAction,viewSta
       const checkLink=missing?matchSearchURL(m):'';
       const canCheck=missing&&(!m.uniqueId||m.uniqueId.startsWith(`${data.selected}/`));
       return `<article class="football-match"><div class="football-match-info"><span>${esc(matchWhen(m.time,lang))}</span><span class="football-status ${status}">${esc(statusText(status,t))}</span></div>
+        ${tab==='favorites'?`<p class="muted">${t('footballChecked')}: ${m.checkedAt && Number.isFinite(Date.parse(m.checkedAt))?esc(when(m.checkedAt,lang)):t('footballNeverChecked')}</p>`:''}
         ${m.leagueName?`<div class="football-league-name">${esc(m.leagueName)}</div>`:''}
         <div class="football-match-main"><div class="football-team"><button type="button" class="football-star ${homeFav?'is-fav':''}" data-football-team="${m.homeId}" aria-pressed="${homeFav}" aria-label="${homeFav?t('footballUnstar'):t('footballStar')} ${esc(m.home)}">${homeFav?'★':'☆'}</button><span>${esc(m.home)}</span></div>
         <strong class="football-score" aria-label="${esc(score)}">${score}</strong>

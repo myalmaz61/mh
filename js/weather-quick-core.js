@@ -35,3 +35,28 @@ export function weatherQuickOutlook(hours, currentTime, maxHours=4) {
     maxWind:highest(winds,'wind'),
   };
 }
+
+
+/** Describe the exact city-local range of forecast rows without treating gaps
+ * (including daylight-saving clock jumps) as a continuous period. This is
+ * presentation-only: the caller never changes the stored API snapshot.
+ */
+export function weatherQuickTiming(quick, currentTime) {
+  if (!quick || !Array.isArray(quick.hours) || !quick.hours.length || quick.hours.length > 12 ||
+      !goodLocalTime(currentTime)) return null;
+  const base = Date.parse(currentTime.slice(0,13) + ':00:00Z');
+  if (!Number.isFinite(base)) return null;
+  let previous = -Infinity, first = '', last = '', incomplete = false;
+  for (const entry of quick.hours) {
+    if (!entry || !goodLocalTime(entry.time)) return null;
+    const stamp=Date.parse(entry.time + ':00Z');
+    if (!Number.isFinite(stamp) || stamp <= previous || stamp < base) return null;
+    if (previous !== -Infinity && stamp - previous !== 3_600_000) incomplete = true;
+    if (!first) first=entry.time;
+    last=entry.time;previous=stamp;
+  }
+  if (Date.parse(first+':00Z')-base > 3_600_000) incomplete=true;
+  const acrossDays = first.slice(0,10) !== last.slice(0,10) || first.slice(0,10) !== currentTime.slice(0,10);
+  const label=s=> acrossDays ? `${s.slice(8,10)}.${s.slice(5,7)} ${s.slice(11,16)}` : s.slice(11,16);
+  return {start:label(first),end:label(last),incomplete};
+}

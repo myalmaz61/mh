@@ -24,9 +24,23 @@ export function footballTodayMatches(matches,now=new Date(),timeZone){
 /** A network fetch timestamp is not proof that the match score itself is fresh. */
 export function footballSnapshotRecency(snapshot,now=Date.now()){
   const fetched=Date.parse(snapshot?.fetchedAt||'');
-  if(!Number.isFinite(fetched))return {minutes:null,stale:false,phase:'unknown'};
+  if(!Number.isFinite(fetched) || !Number.isFinite(now) || fetched - now > 5 * 60_000)
+    return {minutes:null,stale:false,phase:'unknown'};
   const minutes=Math.max(0,Math.floor((now-fetched)/60_000));
   const phase=matchRefreshPhase(snapshot?.matches||[],now);
   const staleAfter=phase==='active'?10:phase==='near'?30:240;
   return {minutes,stale:minutes>=staleAfter,phase};
+}
+
+
+/** Informational label for the age of a score check, never a LIVE assertion.
+ * A recent API fetch is not proof of an independently verified score.
+ */
+export function footballScoreAgeNotice(recency) {
+  if (!recency || !Number.isInteger(recency.minutes) || recency.minutes < 0 ||
+      typeof recency.stale !== 'boolean') return '';
+  if (recency.phase === 'active') return recency.stale ? 'footballActiveOld' : 'footballActiveChecked';
+  if (recency.phase === 'near') return recency.stale ? 'footballNearOld' : 'footballNotLiveHint';
+  if (recency.phase === 'quiet') return recency.stale ? 'footballStaleNotice' : '';
+  return '';
 }
