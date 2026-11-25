@@ -142,7 +142,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         <p class="notes-bulk-hint">${t('notesBulkHint')}</p>
         <button type="button" class="primary-btn" id="notes-bulk-apply" disabled>${t('notesBulkApply')}</button>
       </div>`:''}</div>
-      ${pending.length?`<section class="notes-draft-panel" aria-label="${t('notesDraftPanel')}"><h2>↶ ${t('notesDraftPanel')} (${pending.length})</h2><p>${t('notesDraftHint')}</p><div class="notes-draft-list">${pending.map(entry=>{
+      ${pending.length?`<section class="notes-draft-panel" aria-label="${t('notesDraftPanel')}"><h2>↶ ${t('notesDraftPanel')} (${pending.length})</h2><p>${t('notesDraftHint')}</p>${pending.some(entry=>entry.pendingChecklist)?`<p class="muted">${t('notesPendingRowsHint')}</p>`:''}<div class="notes-draft-list">${pending.map(entry=>{
         const draft=entry.draft;
         const title=draft.title.trim()||t(draft.kind==='checklist'?'newChecklist':'newNote');
         const date=new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short'}).format(new Date(entry.editedAt));
@@ -175,16 +175,16 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         if(disposed)return;
         const saved=fresh.find(n=>n.id===recovered.draft.id);
         if(action.hasAttribute('data-draft-restore')){
-          if(saved && notesMatch(saved,recovered.draft)){
+          if(saved && notesMatch(saved,recovered.draft) && !recovered.pendingChecklist){
             draftStore.removeIfUnchanged(key,recovered.raw);
             notes=fresh;list();notify(t('notesDraftAlreadySaved'));return;
           }
-          if(!saved || !notesMatch(saved,recovered.baseline)){
+          if(!saved || (!notesMatch(saved,recovered.baseline) && !notesMatch(saved,recovered.draft))){
             notify(t('notesDraftChangedUseCopy'));notes=fresh;list();return;
           }
           notes=fresh;
           editor(saved.id,recovered);
-          notify(t('notesDraftLoaded'));
+          notify(t(recovered.pendingChecklist?'notesPendingRowsRestored':'notesDraftLoaded'));
         }else{
           if(fresh.length>=MAX_NOTES){notify(t('notesLimit'));action.disabled=false;return;}
           const stamp=new Date().toISOString();
@@ -193,9 +193,11 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
           duplicate.createdAt=stamp;duplicate.updatedAt=stamp;
           await restoreDeletedNote(duplicate); // Uses IDB add; never overwrites.
           if(disposed)return;
-          draftStore.removeIfUnchanged(key,recovered.raw);
           notes=[...fresh,duplicate];
-          editor(duplicate.id);
+          const mirrored=editor(duplicate.id,null,recovered.pendingChecklist?
+            {single:recovered.pendingChecklist.single,batch:recovered.pendingChecklist.batch,origin:recovered}:null);
+          if(!recovered.pendingChecklist || mirrored)draftStore.removeIfUnchanged(key,recovered.raw);
+          if(!mirrored)notify(t('notesDraftUnavailable'));
           notify(t('notesDraftCopySaved'));
         }
       }catch(error){notify(`${t('error')}: ${error.message}`);if(action.isConnected)action.disabled=false;}
@@ -506,7 +508,8 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     try { await putNote(note); notes.push(note); editor(note.id); }
     catch(err){notify(`${t('error')}: ${err.message}`);}
   };
-  const editor = (id,recovered=null) => {
+  const editor = (id,recovered=null,pendingOverride=null) => {
+    let recoveryMirrorOk=true;
     currentId=id;
     const n=current();
     if(!n){list();return;}
@@ -528,7 +531,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
     const update = () => {n.updatedAt=new Date().toISOString();schedule();};
     // A recovered draft is still unsaved until the CAS IndexedDB transaction
     // commits. Mirror it to this new editor session before autosave begins.
-    if(recovered)schedule();
+    if(recovered && !notesMatch(expectedSavedNote,n))schedule();
     currentSaveNow=async()=>{
       if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return false;}
       const ok=await flush();
@@ -601,13 +604,38 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         if(button){n.items.splice(Number(button.dataset.deleteItem),1);update();renderItems();}
       });
       const itemInput=element.querySelector('#new-item');
-      itemInput.addEventListener('input',()=>updateSaveStatus(saveManager.state()));
-      element.querySelector('#checklist-paste').addEventListener('input',()=>updateSaveStatus(saveManager.state()));
+      const pasteInput=element.querySelector('#checklist-paste');
+      const persistPendingInput=()=>{
+        const result=draftStore.writePending(editorDraftKey,expectedSavedNote,safeClone(n),{
+          single:itemInput.value,batch:pasteInput.value
+        });
+        if(!result.ok && !draftWarningShown){
+          draftWarningShown=true;
+          notify(t(result.reason==='too-large'?'notesDraftTooLarge':'notesDraftUnavailable'));
+        }
+        updateSaveStatus(saveManager.state());
+        return result.ok;
+      };
+      itemInput.addEventListener('input',persistPendingInput);
+      pasteInput.addEventListener('input',persistPendingInput);
+      const restoredFields=pendingOverride||recovered?.pendingChecklist;
+      let pendingRestored=true;
+      if(restoredFields){
+        itemInput.value=restoredFields.single;
+        pasteInput.value=restoredFields.batch;
+        pendingRestored=persistPendingInput();
+        recoveryMirrorOk=pendingRestored;
+        if(pendingRestored && recovered){
+          draftStore.removeIfUnchanged(recovered.key,recovered.raw);
+          recoveryOrigin=null; // new per-editor snapshot contains all unsaved work
+        }
+      }
+
       const addItem=()=>{
         const text=itemInput.value.trim();
         if(!text || n.items.length>=300) return;
         n.items.push({id:uid(), text, done:false});
-        itemInput.value='';update();renderItems();itemInput.focus();
+        itemInput.value='';update();persistPendingInput();renderItems();itemInput.focus();
       };
       element.querySelector('#add-item').addEventListener('click',addItem);
       itemInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addItem();}});
@@ -635,10 +663,13 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
         }
         // Validate all rows before mutating the note. No silent truncation.
         const rows=lines.map(text=>({id:uid(),text,done:false}));
-        n.items.push(...rows);field.value='';update();renderItems();
+        n.items.push(...rows);field.value='';update();persistPendingInput();renderItems();
         notify(t('checklistAdded').replace('{n}',String(rows.length)));
       });
       renderItems();
+      if(restoredFields && pendingOverride)notify(t('notesPendingRowsRestored'));
+      // A recovered copy may remove its origin only after the new session
+      // successfully mirrors the unadded fields to localStorage.
     }
     element.querySelector('#copy-note').addEventListener('click',async()=>{
       if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}
@@ -724,6 +755,7 @@ export async function mountNotes({ element, t, lang, confirmAction, notify, init
       }catch(err){notify(`${t('error')}: ${err.message}`);}
     });
     element.querySelector('#back-notes').addEventListener('click',async()=>{if(hasUnaddedChecklistInput()){notify(t('notesChecklistAddFirst'));return;}await flush();if(dirty){notify(t('notesSaveCannotLeave'));return;}list();});
+    return recoveryMirrorOk;
   };
   const onVisibility = () => {if(document.hidden) void flush();};
   const onPageHide = () => { if(saveManager.state().dirty)void flush(); }; // best-effort only
